@@ -2,22 +2,15 @@
 // FIREBASE CONFIG — Life in Accra
 // Project: perse-504514
 // ============================================================
-// 
-// HOW TO FINISH SETUP (2 minutes):
-// 1. Go to https://console.firebase.google.com/project/perse-504514/settings/general
-// 2. Under "Your apps", create a Web app if you don't have one
-// 3. Copy the firebaseConfig object and paste the values below
-// 4. Then enable Auth + Firestore (see README)
-// ============================================================
 
 export const firebaseConfig = {
-  apiKey: "REPLACE_WITH_YOUR_API_KEY",
+  apiKey: "AIzaSyD0w_ui0v1qyVJoPU_T_5mFScEqZ0a1eCE",
   authDomain: "perse-504514.firebaseapp.com",
   projectId: "perse-504514",
-  storageBucket: "perse-504514.appspot.com",
-  messagingSenderId: "REPLACE_WITH_SENDER_ID",
-  appId: "REPLACE_WITH_APP_ID"
+  storageBucket: "perse-504514.firebasestorage.app",
+  messagingSenderId: "441326167419",
+  appId: "1:441326167419:web:2c9090467cc78731f4c9de",
+  firestoreDatabaseId: "ai-studio-lagoslifeghana-6e4cf7ba-acfc-432e-bffe-16110c9e9d77"
 };
 
-// Set to true only after you paste real values above
-export const FIREBASE_READY = false;
+export const FIREBASE_READY = true;

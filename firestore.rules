@@ -4,15 +4,6 @@ service cloud.firestore {
 
     match /players/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
-
-      match /friends/{friendId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
-      }
-
-      match /inbox/{msgId} {
-        allow read, delete: if request.auth != null && request.auth.uid == userId;
-        allow create: if request.auth != null;
-      }
     }
 
     match /profiles/{userId} {

@@ -2,7 +2,7 @@
   "entities": {
     "Player": {
       "title": "Player",
-      "description": "Private cloud save state for an authenticated player in Life in Accra.",
+      "description": "Private cloud save document for an authenticated player in Life in Accra.",
       "type": "object",
       "properties": {
         "ownerId": {
@@ -12,111 +12,15 @@
           "maxLength": 128,
           "pattern": "^[a-zA-Z0-9_-]+$"
         },
-        "playerId": {
+        "displayName": {
           "type": "string",
-          "description": "Unique player identifier in Accra.",
+          "description": "Player display name.",
           "minLength": 1,
-          "maxLength": 64,
-          "pattern": "^[a-zA-Z0-9_-]+$"
+          "maxLength": 64
         },
-        "name": {
-          "type": "string",
-          "description": "Character display name.",
-          "minLength": 1,
-          "maxLength": 32
-        },
-        "career": {
-          "type": "string",
-          "description": "Current career key.",
-          "enum": ["unemployed", "trader", "developer", "teacher", "musician", "driver", "student"],
-          "maxLength": 32
-        },
-        "location": {
-          "type": "string",
-          "description": "Current location key in Accra.",
-          "enum": ["home", "makola", "labadi", "square", "legon", "kaneshie", "tech", "church", "mall", "circle"],
-          "maxLength": 32
-        },
-        "day": {
-          "type": "integer",
-          "description": "Current in-game day number."
-        },
-        "time": {
-          "type": "integer",
-          "description": "Current time of day index (0-3)."
-        },
-        "money": {
-          "type": "integer",
-          "description": "Wallet balance in Ghana Cedis."
-        },
-        "hunger": {
-          "type": "integer",
-          "description": "Hunger stat (0-100)."
-        },
-        "energy": {
-          "type": "integer",
-          "description": "Energy stat (0-100)."
-        },
-        "happy": {
-          "type": "integer",
-          "description": "Happiness stat (0-100)."
-        },
-        "social": {
-          "type": "integer",
-          "description": "Social stat (0-100)."
-        },
-        "health": {
-          "type": "integer",
-          "description": "Health stat (0-100)."
-        },
-        "amaAffinity": {
-          "type": "integer",
-          "description": "Friendship affinity with Ama (0-100)."
-        },
-        "kofiAffinity": {
-          "type": "integer",
-          "description": "Friendship affinity with Kofi (0-100)."
-        },
-        "abenaAffinity": {
-          "type": "integer",
-          "description": "Friendship affinity with Abena (0-100)."
-        },
-        "kwameAffinity": {
-          "type": "integer",
-          "description": "Friendship affinity with Kwame (0-100)."
-        },
-        "efuaAffinity": {
-          "type": "integer",
-          "description": "Friendship affinity with Efua (0-100)."
-        },
-        "amaMoney": {
-          "type": "integer",
-          "description": "Ama wallet balance."
-        },
-        "kofiMoney": {
-          "type": "integer",
-          "description": "Kofi wallet balance."
-        },
-        "abenaMoney": {
-          "type": "integer",
-          "description": "Abena wallet balance."
-        },
-        "kwameMoney": {
-          "type": "integer",
-          "description": "Kwame wallet balance."
-        },
-        "efuaMoney": {
-          "type": "integer",
-          "description": "Efua wallet balance."
-        },
-        "recentLogs": {
-          "type": "array",
-          "description": "Bounded list of up to 20 recent life log entries."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Server timestamp when save was first created."
+        "state": {
+          "type": "object",
+          "description": "Structured game state map containing stats, career, location, friends, and log."
         },
         "updatedAt": {
           "type": "string",
@@ -126,36 +30,14 @@
       },
       "required": [
         "ownerId",
-        "playerId",
-        "name",
-        "career",
-        "location",
-        "day",
-        "time",
-        "money",
-        "hunger",
-        "energy",
-        "happy",
-        "social",
-        "health",
-        "amaAffinity",
-        "kofiAffinity",
-        "abenaAffinity",
-        "kwameAffinity",
-        "efuaAffinity",
-        "amaMoney",
-        "kofiMoney",
-        "abenaMoney",
-        "kwameMoney",
-        "efuaMoney",
-        "recentLogs",
-        "createdAt",
+        "displayName",
+        "state",
         "updatedAt"
       ]
     },
     "Profile": {
       "title": "Profile",
-      "description": "Public resident profile allowing other signed-in players to visit a player house by ID.",
+      "description": "Public resident profile summary in Accra.",
       "type": "object",
       "properties": {
         "ownerId": {
@@ -165,45 +47,21 @@
           "maxLength": 128,
           "pattern": "^[a-zA-Z0-9_-]+$"
         },
-        "playerId": {
-          "type": "string",
-          "description": "Public Player ID string.",
-          "minLength": 1,
-          "maxLength": 64,
-          "pattern": "^[a-zA-Z0-9_-]+$"
-        },
         "displayName": {
           "type": "string",
           "description": "Resident display name.",
           "minLength": 1,
-          "maxLength": 32
-        },
-        "houseName": {
-          "type": "string",
-          "description": "Name of the player flat in Accra.",
-          "minLength": 1,
           "maxLength": 64
+        },
+        "day": {
+          "type": "integer",
+          "description": "Current day reached by resident."
         },
         "career": {
           "type": "string",
           "description": "Resident current career.",
           "enum": ["unemployed", "trader", "developer", "teacher", "musician", "driver", "student"],
           "maxLength": 32
-        },
-        "day": {
-          "type": "integer",
-          "description": "Current day reached by resident."
-        },
-        "status": {
-          "type": "string",
-          "description": "Current activity or greeting message.",
-          "minLength": 1,
-          "maxLength": 64
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Server timestamp when profile was created."
         },
         "updatedAt": {
           "type": "string",
@@ -213,13 +71,9 @@
       },
       "required": [
         "ownerId",
-        "playerId",
         "displayName",
-        "houseName",
-        "career",
         "day",
-        "status",
-        "createdAt",
+        "career",
         "updatedAt"
       ]
     }
@@ -231,7 +85,7 @@
     },
     "/profiles/{userId}": {
       "schema": "Profile",
-      "description": "Public resident house profiles keyed by Firebase Auth UID for visiting friends."
+      "description": "Public resident profiles keyed by Firebase Auth UID."
     }
   }
 }

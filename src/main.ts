@@ -1,5 +1,8 @@
 import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
   signInWithPopup,
+  updateProfile,
   signOut as fbSignOut,
   onAuthStateChanged,
   User
@@ -8,9 +11,9 @@ import {
   doc,
   getDoc,
   setDoc,
-  updateDoc,
   Timestamp
 } from 'firebase/firestore';
+import firebaseConfig from '../firebase-applet-config.json';
 import {
   auth,
   db,
@@ -19,86 +22,45 @@ import {
   OperationType
 } from './firebase';
 
-// ===================== BLUEPRINT VALIDATION CONSTANTS =====================
-const ID_REGEX = /^[a-zA-Z0-9_-]+$/;
-const OWNER_ID_MAX_LEN = 128;
-const PLAYER_ID_MAX_LEN = 64;
-const NAME_MAX_LEN = 32;
-const HOUSE_NAME_MAX_LEN = 64;
-const STATUS_MAX_LEN = 64;
-const LOG_MAX_ITEMS = 20;
-const LOG_ITEM_MAX_LEN = 200;
+Object.assign(window, {
+  continueAsGuest,
+  showEmailAuth,
+  closeEmailModal,
+  submitEmailAuth,
+  signInWithGoogle,
+  showImport,
+  closeImport,
+  importSave,
+  showAccount,
+  closeAccount,
+  exportSave,
+  signOutUser,
+  doAction,
+  travel,
+  visitFriend,
+  leaveFriend,
+  chatFriend,
+  hangOut,
+  eatTogether,
+  deepTalk,
+  askFavor,
+  openSend,
+  closeSendModal,
+  confirmSend,
+  workShift,
+  showCareerModal,
+  closeCareerModal,
+  setCareer,
+  showSummary,
+  closeSummary,
+  promptNewGame,
+  saveGame,
+  acceptInvite,
+  dismissInvite
+});
 
-const ALLOWED_CAREERS = [
-  'unemployed',
-  'trader',
-  'developer',
-  'teacher',
-  'musician',
-  'driver',
-  'student'
-] as const;
-
-const ALLOWED_LOCATIONS = [
-  'home',
-  'makola',
-  'labadi',
-  'square',
-  'legon',
-  'kaneshie',
-  'tech',
-  'church',
-  'mall',
-  'circle'
-] as const;
-
-type CareerKey = (typeof ALLOWED_CAREERS)[number];
-type LocationKey = (typeof ALLOWED_LOCATIONS)[number];
-
-interface FriendNPC {
-  id: 'ama' | 'kofi' | 'abena' | 'kwame' | 'efua';
-  name: string;
-  house: string;
-  emoji: string;
-  money: number;
-  affinity: number;
-  mood: string;
-  bio: string;
-  status: string;
-  lastInteract: number;
-  timesVisited: number;
-  routine: Record<number, string>;
-}
-
-interface GameState {
-  name: string;
-  day: number;
-  time: number;
-  location: LocationKey;
-  career: CareerKey;
-  money: number;
-  hunger: number;
-  energy: number;
-  happy: number;
-  social: number;
-  health: number;
-  visiting: string | null;
-  pendingInvite: string | null;
-  friends: FriendNPC[];
-  log: string[];
-  version: number;
-}
-
-interface AccountInfo {
-  playerId: string | null;
-  uid: string | null;
-  displayName: string | null;
-  isGuest: boolean;
-  createdAt: string | null;
-}
-
-// ===================== CORE DATA =====================
-const LOCATIONS: Record<LocationKey, { name: string; emoji: string; desc: string; actions: string[] }> = {
+// ===================== GAME DATA =====================
+const LOCATIONS: Record<string, { name: string; emoji: string; desc: string; actions: string[] }> = {
   home: { name: 'Your Flat (Osu)', emoji: '🏠', desc: 'Your place in Osu.', actions: ['sleep', 'cook', 'watch', 'clean'] },
   makola: { name: 'Makola Market', emoji: '🛒', desc: 'Commercial heart of Accra.', actions: ['buy_food', 'sell', 'bargain', 'load_goods'] },
   labadi: { name: 'Labadi Beach', emoji: '🏖️', desc: 'Sand, sea, reset energy.', actions: ['swim', 'relax', 'kelewele', 'party'] },
@@ -111,7 +73,7 @@ const LOCATIONS: Record<LocationKey, { name: string; emoji: string; desc: string
   circle: { name: 'Circle', emoji: '🚌', desc: 'Kwame Nkrumah Circle.', actions: ['street_food', 'side_hustle', 'observe'] }
 };
 
-const CAREERS: Record<CareerKey, { name: string; pay: number; desc: string; reqMoney: number }> = {
+const CAREERS: Record<string, { name: string; pay: number; desc: string; reqMoney: number }> = {
   unemployed: { name: 'Unemployed', pay: 0, desc: 'Pure hustle.', reqMoney: 0 },
   trader: { name: 'Market Trader', pay: 35, desc: 'Buy and sell.', reqMoney: 80 },
   developer: { name: 'Developer', pay: 70, desc: 'Build software.', reqMoney: 0 },
@@ -149,6 +111,21 @@ const DIALOGUE: Record<string, { chat: string[]; hang: string[]; gift: string[] 
   }
 };
 
+interface FriendNPC {
+  id: string;
+  name: string;
+  house: string;
+  emoji: string;
+  money: number;
+  affinity: number;
+  mood: string;
+  bio: string;
+  status: string;
+  lastInteract: number;
+  timesVisited: number;
+  routine: Record<number, string>;
+}
+
 const DEFAULT_FRIENDS: FriendNPC[] = [
   { id: 'ama', name: 'Ama', house: "Ama's Place (Adenta)", emoji: '🏡', money: 240, affinity: 42, mood: 'content', bio: 'Works in banking. Steady and caring.', status: 'at home', lastInteract: 0, timesVisited: 0, routine: { 0: 'at home', 1: 'at work', 2: 'at home', 3: 'sleeping' } },
   { id: 'kofi', name: 'Kofi', house: "Kofi's Spot (Tema)", emoji: '🏠', money: 160, affinity: 38, mood: 'focused', bio: 'Mechanic and side hustler. Very loyal.', status: 'at work', lastInteract: 0, timesVisited: 0, routine: { 0: 'at work', 1: 'at work', 2: 'at home', 3: 'sleeping' } },
@@ -157,61 +134,54 @@ const DEFAULT_FRIENDS: FriendNPC[] = [
   { id: 'efua', name: 'Efua', house: "Efua's Home (Dansoman)", emoji: '👩🏻', money: 190, affinity: 48, mood: 'cheerful', bio: 'Teacher by day, highlife lover by night.', status: 'at home', lastInteract: 0, timesVisited: 0, routine: { 0: 'at school', 1: 'at school', 2: 'at home', 3: 'out' } }
 ];
 
-// ===================== STATE & ACCOUNT =====================
-let account: AccountInfo = {
-  playerId: null,
-  uid: null,
-  displayName: null,
-  isGuest: true,
-  createdAt: null
-};
+interface GameState {
+  name: string;
+  day: number;
+  time: number;
+  location: string;
+  career: string;
+  money: number;
+  hunger: number;
+  energy: number;
+  happy: number;
+  social: number;
+  health: number;
+  visiting: string | null;
+  pendingInvite: string | null;
+  friends: FriendNPC[];
+  log: string[];
+  version: number;
+}
 
+interface AccountInfo {
+  playerId: string | null;
+  displayName: string | null;
+  isGuest: boolean;
+  uid: string | null;
+}
+
+let account: AccountInfo = { playerId: null, displayName: null, isGuest: true, uid: null };
 let state: GameState | null = null;
+let currentUser: User | null = null;
 const TIME = ['Morning', 'Afternoon', 'Evening', 'Night'];
 let sendTarget: string | null = null;
+let authMode: 'signup' | 'login' = 'signup';
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
+let authSyncLock = false;
+
+function setCloudStatus(msg: string, cls: 'on' | 'off' | 'err'): void {
+  const el = document.getElementById('cloudStatus');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'cloud-status ' + (cls || 'off');
+}
 
 function generatePlayerId(): string {
-  const raw = 'accra_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
-  return sanitizeId(raw, PLAYER_ID_MAX_LEN);
-}
-
-function sanitizeId(val: string, maxLen: number): string {
-  const cleaned = val.replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, maxLen);
-  return cleaned.length > 0 ? cleaned : 'accra_player';
-}
-
-function sanitizeString(val: string, maxLen: number, fallback: string): string {
-  const trimmed = (val || '').trim().slice(0, maxLen);
-  return trimmed.length > 0 ? trimmed : fallback;
-}
-
-function clampStat(v: number): number {
-  return Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
-}
-
-function clampMoney(v: number): number {
-  return Math.max(0, Math.min(100000000, Math.round(Number(v) || 0)));
-}
-
-function clampDay(v: number): number {
-  return Math.max(1, Math.min(100000, Math.round(Number(v) || 1)));
-}
-
-function clampTime(v: number): number {
-  return Math.max(0, Math.min(3, Math.round(Number(v) || 0)));
-}
-
-function sanitizeCareer(c: string): CareerKey {
-  return (ALLOWED_CAREERS as readonly string[]).includes(c) ? (c as CareerKey) : 'unemployed';
-}
-
-function sanitizeLocation(l: string): LocationKey {
-  return (ALLOWED_LOCATIONS as readonly string[]).includes(l) ? (l as LocationKey) : 'home';
+  return 'accra_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 }
 
 function createDefaultState(name?: string | null): GameState {
-  const safeName = sanitizeString(name || 'Accra Resident', NAME_MAX_LEN, 'Accra Resident');
+  const safeName = (name || 'Accra Resident').trim().slice(0, 64) || 'Accra Resident';
   return {
     name: safeName,
     day: 1,
@@ -228,7 +198,7 @@ function createDefaultState(name?: string | null): GameState {
     pendingInvite: null,
     friends: JSON.parse(JSON.stringify(DEFAULT_FRIENDS)),
     log: [`Welcome ${safeName}. This is your life in Accra.`],
-    version: 3
+    version: 4
   };
 }
 
@@ -244,7 +214,7 @@ const ACTIONS: Record<string, { title: string; cost: string; fn: () => void }> =
   swim: { title: 'Swim', cost: 'Health +', fn: () => { change('energy', -16); change('health', 18); change('happy', 22); log('Ocean reset.'); } },
   relax: { title: 'Chill', cost: 'Happy ++', fn: () => { change('happy', 28); change('energy', 12); log('Beach therapy.'); } },
   kelewele: { title: 'Kelewele', cost: '₵8', fn: () => { if (spend(8)) { change('hunger', 28); change('happy', 18); log('Spicy kelewele.'); } } },
-  party: { title: 'Party', cost: '₵35', fn: () => { if (spend(35)) { change('social', 35); change('happy', 30); change('energy', -25); log('Good night out.'); } }, },
+  party: { title: 'Party', cost: '₵35', fn: () => { if (spend(35)) { change('social', 35); change('happy', 30); change('energy', -25); log('Good night out.'); } } },
   reflect: { title: 'Reflect', cost: 'Happy +', fn: () => { change('happy', 16); log('Quiet moment at the Square.'); } },
   photo: { title: 'Photos', cost: 'Happy +', fn: () => { change('happy', 12); log('Snapped some shots.'); } },
   meet: { title: 'Meet people', cost: 'Social ++', fn: () => { change('social', 26); log('New connections.'); } },
@@ -263,416 +233,214 @@ const ACTIONS: Record<string, { title: string; cost: string; fn: () => void }> =
   shop: { title: 'Shop', cost: '₵20-80', fn: () => { const c = 20 + Math.floor(Math.random() * 61); if (spend(c)) { change('happy', 20); log(`Spent ₵${c}.`); } } },
   cinema: { title: 'Cinema', cost: '₵45', fn: () => { if (spend(45)) { change('happy', 30); change('social', 8); log('Watched a film.'); } } },
   foodcourt: { title: 'Food court', cost: '₵35', fn: () => { if (spend(35)) { change('hunger', 45); change('happy', 12); log('Ate at the mall.'); } } },
-  street_food: { title: 'Street food', cost: '₵10', fn: () => { if (spend(10)) { change('hunger', 35); change('happy', 8); log('Quick bite.'); } }, },
+  street_food: { title: 'Street food', cost: '₵10', fn: () => { if (spend(10)) { change('hunger', 35); change('happy', 8); log('Quick bite.'); } } },
   side_hustle: { title: 'Quick hustle', cost: 'Earn ₵12-30', fn: () => { const e = 12 + Math.floor(Math.random() * 19); change('money', e); change('energy', -14); log(`Quick ₵${e}.`); } },
   observe: { title: 'Observe', cost: 'Insight', fn: () => { change('happy', 12); log('Watched the city move.'); } }
 };
 
-// ===================== FIRESTORE CLOUD SYNC =====================
-function getFriendVal(id: FriendNPC['id'], field: 'affinity' | 'money', fallback: number): number {
-  const f = state?.friends.find(x => x.id === id);
-  if (!f) return fallback;
-  return field === 'affinity' ? clampStat(f.affinity) : clampMoney(f.money);
-}
-
-function buildSanitizedSavePayload(uid: string) {
-  if (!state) state = createDefaultState(account.displayName);
-  const safeOwnerId = sanitizeId(uid, OWNER_ID_MAX_LEN);
-  const safePlayerId = sanitizeId(account.playerId || `accra_${safeOwnerId.slice(0, 12)}`, PLAYER_ID_MAX_LEN);
-  const safeName = sanitizeString(state.name, NAME_MAX_LEN, 'Accra Resident');
-  const safeCareer = sanitizeCareer(state.career);
-  const safeLocation = sanitizeLocation(state.location);
-  const rawLogs = Array.isArray(state.log) && state.log.length > 0 ? state.log : [`Day ${state.day}: Life in Accra.`];
-  const safeLogs = rawLogs
-    .slice(0, LOG_MAX_ITEMS)
-    .map(entry => sanitizeString(String(entry), LOG_ITEM_MAX_LEN, 'Activity in Accra.'));
-
-  return {
-    ownerId: safeOwnerId,
-    playerId: safePlayerId,
-    name: safeName,
-    career: safeCareer,
-    location: safeLocation,
-    day: clampDay(state.day),
-    time: clampTime(state.time),
-    money: clampMoney(state.money),
-    hunger: clampStat(state.hunger),
-    energy: clampStat(state.energy),
-    happy: clampStat(state.happy),
-    social: clampStat(state.social),
-    health: clampStat(state.health),
-    amaAffinity: getFriendVal('ama', 'affinity', 42),
-    kofiAffinity: getFriendVal('kofi', 'affinity', 38),
-    abenaAffinity: getFriendVal('abena', 'affinity', 55),
-    kwameAffinity: getFriendVal('kwame', 'affinity', 33),
-    efuaAffinity: getFriendVal('efua', 'affinity', 48),
-    amaMoney: getFriendVal('ama', 'money', 240),
-    kofiMoney: getFriendVal('kofi', 'money', 160),
-    abenaMoney: getFriendVal('abena', 'money', 340),
-    kwameMoney: getFriendVal('kwame', 'money', 95),
-    efuaMoney: getFriendVal('efua', 'money', 190),
-    recentLogs: safeLogs
-  };
-}
-
-function buildSanitizedPublicProfilePayload(uid: string) {
-  if (!state) state = createDefaultState(account.displayName);
-  const safeOwnerId = sanitizeId(uid, OWNER_ID_MAX_LEN);
-  const safePlayerId = sanitizeId(account.playerId || `accra_${safeOwnerId.slice(0, 12)}`, PLAYER_ID_MAX_LEN);
-  const safeDisplayName = sanitizeString(state.name, NAME_MAX_LEN, 'Accra Resident');
-  const safeHouseName = sanitizeString(`${safeDisplayName}'s Flat (Osu)`, HOUSE_NAME_MAX_LEN, 'Osu Flat');
-  const safeCareer = sanitizeCareer(state.career);
-  const locName = LOCATIONS[sanitizeLocation(state.location)]?.name || 'Accra';
-  const safeStatus = sanitizeString(`At ${locName}`, STATUS_MAX_LEN, 'In Accra');
-
-  return {
-    ownerId: safeOwnerId,
-    playerId: safePlayerId,
-    displayName: safeDisplayName,
-    houseName: safeHouseName,
-    career: safeCareer,
-    day: clampDay(state.day),
-    status: safeStatus
-  };
-}
-
-function applyFirestoreDocToState(data: Record<string, unknown>) {
-  const base = createDefaultState(typeof data.name === 'string' ? data.name : account.displayName);
-  base.name = sanitizeString(String(data.name || base.name), NAME_MAX_LEN, 'Accra Resident');
-  base.career = sanitizeCareer(String(data.career || 'unemployed'));
-  base.location = sanitizeLocation(String(data.location || 'home'));
-  base.day = clampDay(Number(data.day ?? 1));
-  base.time = clampTime(Number(data.time ?? 0));
-  base.money = clampMoney(Number(data.money ?? 180));
-  base.hunger = clampStat(Number(data.hunger ?? 75));
-  base.energy = clampStat(Number(data.energy ?? 85));
-  base.happy = clampStat(Number(data.happy ?? 65));
-  base.social = clampStat(Number(data.social ?? 45));
-  base.health = clampStat(Number(data.health ?? 90));
-
-  const friendMap: Record<FriendNPC['id'], { aff: number; mon: number }> = {
-    ama: { aff: clampStat(Number(data.amaAffinity ?? 42)), mon: clampMoney(Number(data.amaMoney ?? 240)) },
-    kofi: { aff: clampStat(Number(data.kofiAffinity ?? 38)), mon: clampMoney(Number(data.kofiMoney ?? 160)) },
-    abena: { aff: clampStat(Number(data.abenaAffinity ?? 55)), mon: clampMoney(Number(data.abenaMoney ?? 340)) },
-    kwame: { aff: clampStat(Number(data.kwameAffinity ?? 33)), mon: clampMoney(Number(data.kwameMoney ?? 95)) },
-    efua: { aff: clampStat(Number(data.efuaAffinity ?? 48)), mon: clampMoney(Number(data.efuaMoney ?? 190)) }
-  };
-
-  base.friends.forEach(f => {
-    if (friendMap[f.id]) {
-      f.affinity = friendMap[f.id].aff;
-      f.money = friendMap[f.id].mon;
-    }
-  });
-
-  if (Array.isArray(data.recentLogs) && data.recentLogs.length > 0) {
-    base.log = data.recentLogs.map(x => String(x)).slice(0, LOG_MAX_ITEMS);
-  }
-  state = base;
-}
-
-let cloudOpPromise: Promise<void> | null = null;
-
-async function syncCloudSave(user: User, showNotification = true): Promise<void> {
-  if (!ID_REGEX.test(user.uid)) return;
-  const userPath = `players/${user.uid}`;
-  const profilePath = `profiles/${user.uid}`;
-  const userRef = doc(db, 'players', user.uid);
-  const profileRef = doc(db, 'profiles', user.uid);
-
-  const saveBase = buildSanitizedSavePayload(user.uid);
-  const profileBase = buildSanitizedPublicProfilePayload(user.uid);
-  const nowTs = Timestamp.now();
-
-  // Save private user game state
-  let existingSaveSnap;
-  try {
-    existingSaveSnap = await getDoc(userRef);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.GET, userPath);
-  }
-
-  if (existingSaveSnap && existingSaveSnap.exists()) {
-    try {
-      const { ownerId: _o, ...mutableSaveFields } = saveBase;
-      await updateDoc(userRef, {
-        ...mutableSaveFields,
-        updatedAt: nowTs
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, userPath);
-    }
-  } else {
-    try {
-      await setDoc(userRef, {
-        ...saveBase,
-        createdAt: nowTs,
-        updatedAt: nowTs
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, userPath);
-    }
-  }
-
-  // Save public resident profile
-  let existingProfileSnap;
-  try {
-    existingProfileSnap = await getDoc(profileRef);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.GET, profilePath);
-  }
-
-  if (existingProfileSnap && existingProfileSnap.exists()) {
-    try {
-      const { ownerId: _o, ...mutableProfileFields } = profileBase;
-      await updateDoc(profileRef, {
-        ...mutableProfileFields,
-        updatedAt: nowTs
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, profilePath);
-    }
-  } else {
-    try {
-      await setDoc(profileRef, {
-        ...profileBase,
-        createdAt: nowTs,
-        updatedAt: nowTs
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, profilePath);
-    }
-  }
-
-  if (showNotification) {
-    toast('Saved to Cloud & Locally');
-  }
-}
-
-async function loadOrInitializeCloudUser(user: User): Promise<void> {
-  if (cloudOpPromise) {
-    await cloudOpPromise;
-    return;
-  }
-
-  const runLoad = async () => {
-    const safeDisplayName = sanitizeString(user.displayName || 'Accra Resident', NAME_MAX_LEN, 'Accra Resident');
-    const safePlayerId = sanitizeId(`accra_${user.uid.slice(0, 12)}`, PLAYER_ID_MAX_LEN);
-
-    account = {
-      playerId: safePlayerId,
-      uid: user.uid,
-      displayName: safeDisplayName,
-      isGuest: false,
-      createdAt: user.metadata.creationTime || new Date().toISOString()
-    };
-
-    const userPath = `players/${user.uid}`;
-    const userRef = doc(db, 'players', user.uid);
-    let snap;
-    try {
-      snap = await getDoc(userRef);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.GET, userPath);
-    }
-
-    if (snap && snap.exists()) {
-      const data = snap.data();
-      if (typeof data.playerId === 'string') {
-        account.playerId = sanitizeId(data.playerId, PLAYER_ID_MAX_LEN);
-      }
-      applyFirestoreDocToState(data);
-      localStorage.setItem('lifeInAccra_account', JSON.stringify(account));
-      localStorage.setItem('lifeInAccra_state', JSON.stringify(state));
-      enterGame();
-      toast(`Welcome back, ${state?.name}! Cloud save loaded.`);
-    } else {
-      if (!state) {
-        state = createDefaultState(safeDisplayName);
-      } else {
-        state.name = safeDisplayName;
-      }
-      localStorage.setItem('lifeInAccra_account', JSON.stringify(account));
-      localStorage.setItem('lifeInAccra_state', JSON.stringify(state));
-      await syncCloudSave(user, false);
-      enterGame();
-      toast(`Signed in as ${safeDisplayName}. Cloud save initialized!`);
-    }
-  };
-
-  cloudOpPromise = runLoad().finally(() => {
-    cloudOpPromise = null;
-  });
-  await cloudOpPromise;
-}
-
-// ===================== AUTH & MULTIPLAYER ACTIONS =====================
-async function signInWithGoogle(): Promise<void> {
-  try {
-    const result = await signInWithPopup(auth, googleProvider);
-    if (result.user) {
-      closeCreate();
-      closeLogin();
-      closeAccount();
-      await loadOrInitializeCloudUser(result.user);
-    }
-  } catch (err) {
-    console.error('Google Sign-In error:', err);
-    toast('Google Sign-In cancelled or failed');
-  }
-}
-
-async function signOutAccount(): Promise<void> {
-  try {
-    if (auth.currentUser) {
-      await fbSignOut(auth);
-    }
-  } catch (err) {
-    console.error('Sign out error:', err);
-  }
-  localStorage.removeItem('lifeInAccra_account');
-  closeAccount();
-  document.getElementById('gameApp')?.classList.add('hidden');
-  document.getElementById('authScreen')?.classList.remove('hidden');
-  toast('Signed out');
-}
-
-function showVisitPlayerModal(): void {
-  if (!auth.currentUser) {
-    toast('Sign in with Google to visit other online residents');
-    return;
-  }
-  const modal = document.getElementById('visitPlayerModal');
-  const input = document.getElementById('visitPlayerUidInput') as HTMLInputElement | null;
-  const resultBox = document.getElementById('visitPlayerResult');
-  if (resultBox) resultBox.innerHTML = '';
-  if (input) input.value = '';
-  modal?.classList.add('show');
-  input?.focus();
-}
-
-function closeVisitPlayerModal(): void {
-  document.getElementById('visitPlayerModal')?.classList.remove('show');
-}
-
-async function lookupResidentByUid(): Promise<void> {
-  if (!auth.currentUser) {
-    toast('Sign in with Google first');
-    return;
-  }
-  const input = document.getElementById('visitPlayerUidInput') as HTMLInputElement | null;
-  const resultBox = document.getElementById('visitPlayerResult');
-  const rawUid = (input?.value || '').trim();
-  if (!rawUid || !ID_REGEX.test(rawUid) || rawUid.length > OWNER_ID_MAX_LEN) {
-    toast('Enter a valid Resident UID');
-    return;
-  }
-
-  const profilePath = `profiles/${rawUid}`;
-  let snap;
-  try {
-    snap = await getDoc(doc(db, 'profiles', rawUid));
-  } catch (error) {
-    handleFirestoreError(error, OperationType.GET, profilePath);
-  }
-
-  if (!snap || !snap.exists()) {
-    if (resultBox) {
-      resultBox.innerHTML = `<div style="color:var(--danger);font-size:.9rem">No resident found with UID: ${rawUid}</div>`;
-    }
-    return;
-  }
-
-  const data = snap.data();
-  const careerName = CAREERS[sanitizeCareer(String(data.career))]?.name || 'Resident';
-  if (resultBox) {
-    resultBox.innerHTML = `
-      <div style="background:var(--surface2);padding:12px;border-radius:10px;margin-top:8px">
-        <div style="font-weight:600;font-size:1rem">🏡 ${ String(data.houseName || 'Accra Flat') }</div>
-        <div style="font-size:.88rem;color:var(--muted);margin-top:4px">
-          Resident: <strong>${ String(data.displayName || 'Resident') }</strong> • ${careerName} (Day ${Number(data.day || 1)})<br>
-          Status: ${ String(data.status || 'In Accra') }
-        </div>
-      </div>
-    `;
-  }
-  if (state) {
-    change('social', 10);
-    change('happy', 8);
-    log(`Visited ${String(data.displayName || 'a resident')}'s flat in Accra!`);
-    render();
-    toast(`Visited ${String(data.displayName || 'resident')}!`);
-  }
-}
-
+// ===================== AUTH & CLOUD SAVE =====================
 function continueAsGuest(): void {
-  account = {
-    playerId: generatePlayerId(),
-    uid: null,
-    displayName: 'Guest',
-    isGuest: true,
-    createdAt: new Date().toISOString()
-  };
+  account = { playerId: generatePlayerId(), displayName: 'Guest', isGuest: true, uid: null };
   const saved = localStorage.getItem('lifeInAccra_state');
   if (saved) {
-    try {
-      state = JSON.parse(saved);
-    } catch {
-      state = createDefaultState('Guest');
-    }
+    try { state = JSON.parse(saved); } catch { state = createDefaultState('Guest'); }
   } else {
     state = createDefaultState('Guest');
   }
+  localStorage.setItem('lifeInAccra_account', JSON.stringify(account));
   enterGame();
 }
 
-function showCreateAccount(): void {
-  document.getElementById('createModal')?.classList.add('show');
-  (document.getElementById('createName') as HTMLInputElement | null)?.focus();
+function showEmailAuth(mode: 'signup' | 'login'): void {
+  authMode = mode;
+  const titleEl = document.getElementById('emailModalTitle');
+  const descEl = document.getElementById('emailModalDesc');
+  const nameInput = document.getElementById('authDisplayName');
+  const submitBtn = document.getElementById('emailSubmitBtn');
+
+  if (titleEl) titleEl.textContent = mode === 'signup' ? 'Create Account' : 'Sign In';
+  if (descEl) descEl.textContent = mode === 'signup' ? 'Email + password. Progress syncs to the cloud.' : 'Sign in to load your cloud save.';
+  if (nameInput) nameInput.style.display = mode === 'signup' ? 'block' : 'none';
+  if (submitBtn) submitBtn.textContent = mode === 'signup' ? 'Create' : 'Sign In';
+  document.getElementById('emailModal')?.classList.add('show');
 }
 
-function closeCreate(): void {
-  document.getElementById('createModal')?.classList.remove('show');
+function closeEmailModal(): void {
+  document.getElementById('emailModal')?.classList.remove('show');
 }
 
-function createAccount(): void {
-  const input = document.getElementById('createName') as HTMLInputElement | null;
-  const name = (input?.value || '').trim();
-  if (!name || name.length < 2) {
-    toast('Enter a name (at least 2 characters)');
+async function submitEmailAuth(): Promise<void> {
+  const emailInput = document.getElementById('authEmail') as HTMLInputElement | null;
+  const passInput = document.getElementById('authPassword') as HTMLInputElement | null;
+  const nameInput = document.getElementById('authDisplayName') as HTMLInputElement | null;
+
+  const email = (emailInput?.value || '').trim();
+  const password = passInput?.value || '';
+  const displayName = (nameInput?.value || '').trim().slice(0, 64) || (email.split('@')[0] || 'Player').slice(0, 64);
+
+  if (!email || password.length < 6) {
+    toast('Valid email + password (6+ chars) required');
     return;
   }
-  const safeName = sanitizeString(name, NAME_MAX_LEN, 'Resident');
-  account = {
-    playerId: generatePlayerId(),
-    uid: auth.currentUser?.uid || null,
-    displayName: safeName,
-    isGuest: !auth.currentUser,
-    createdAt: new Date().toISOString()
-  };
-  state = createDefaultState(safeName);
-  localStorage.setItem('lifeInAccra_account', JSON.stringify(account));
-  saveGame();
-  closeCreate();
-  enterGame();
-  toast(`Account created. Your ID: ${account.playerId?.slice(0, 12)}...`);
+
+  authSyncLock = true;
+  try {
+    let cred;
+    if (authMode === 'signup') {
+      cred = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(cred.user, { displayName });
+    } else {
+      cred = await signInWithEmailAndPassword(auth, email, password);
+    }
+    currentUser = cred.user;
+    account = {
+      playerId: currentUser.uid,
+      displayName: (currentUser.displayName || displayName).slice(0, 64),
+      isGuest: false,
+      uid: currentUser.uid
+    };
+    localStorage.setItem('lifeInAccra_account', JSON.stringify(account));
+
+    const loaded = await loadCloudSave(currentUser.uid);
+    if (!loaded) {
+      state = createDefaultState(account.displayName);
+      await cloudSave();
+    }
+    closeEmailModal();
+    enterGame();
+    toast(authMode === 'signup' ? 'Account created + cloud save on' : 'Signed in');
+  } catch (e: unknown) {
+    console.error(e);
+    const err = e as { code?: string; message?: string };
+    let msg = err.message || 'Auth failed';
+    if (err.code === 'auth/email-already-in-use') msg = 'Email already registered. Sign in instead.';
+    if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') msg = 'Wrong email or password.';
+    if (err.code === 'auth/user-not-found') msg = 'No account with that email.';
+    if (err.code === 'auth/operation-not-allowed') msg = 'Email/Password not enabled in Firebase Console — or use Google Sign-In.';
+    toast(msg);
+  } finally {
+    authSyncLock = false;
+  }
 }
 
-function showLogin(): void {
-  document.getElementById('loginModal')?.classList.add('show');
+async function signInWithGoogle(): Promise<void> {
+  authSyncLock = true;
+  try {
+    const cred = await signInWithPopup(auth, googleProvider);
+    currentUser = cred.user;
+    const safeName = (currentUser.displayName || currentUser.email?.split('@')[0] || 'Player').slice(0, 64);
+    account = {
+      playerId: currentUser.uid,
+      displayName: safeName,
+      isGuest: false,
+      uid: currentUser.uid
+    };
+    localStorage.setItem('lifeInAccra_account', JSON.stringify(account));
+
+    const loaded = await loadCloudSave(currentUser.uid);
+    if (!loaded) {
+      state = createDefaultState(account.displayName);
+      await cloudSave();
+    }
+    closeEmailModal();
+    closeAccount();
+    enterGame();
+    toast('Signed in with Google + cloud save on');
+  } catch (e: unknown) {
+    console.error('Google Sign-In error:', e);
+    toast('Google Sign-In cancelled or failed');
+  } finally {
+    authSyncLock = false;
+  }
 }
 
-function closeLogin(): void {
-  document.getElementById('loginModal')?.classList.remove('show');
+async function loadCloudSave(uid: string): Promise<boolean> {
+  const playerPath = `players/${uid}`;
+  try {
+    const snap = await getDoc(doc(db, 'players', uid));
+    if (snap.exists()) {
+      const data = snap.data();
+      if (data && data.state && typeof data.state === 'object') {
+        state = data.state as GameState;
+        localStorage.setItem('lifeInAccra_state', JSON.stringify(state));
+        return true;
+      } else if (data && typeof data.money === 'number' && typeof data.day === 'number') {
+        const migrated = createDefaultState(typeof data.name === 'string' ? data.name : account.displayName);
+        migrated.day = Number(data.day) || 1;
+        migrated.time = Number(data.time) || 0;
+        migrated.money = Number(data.money) || 180;
+        migrated.hunger = Number(data.hunger ?? 75);
+        migrated.energy = Number(data.energy ?? 85);
+        migrated.happy = Number(data.happy ?? 65);
+        migrated.social = Number(data.social ?? 45);
+        migrated.health = Number(data.health ?? 90);
+        if (typeof data.career === 'string') migrated.career = data.career;
+        if (typeof data.location === 'string') migrated.location = data.location;
+        state = migrated;
+        localStorage.setItem('lifeInAccra_state', JSON.stringify(state));
+        await cloudSave();
+        return true;
+      }
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, playerPath);
+  }
+  return false;
+}
+
+async function cloudSave(): Promise<boolean> {
+  if (!currentUser) return false;
+  if (!state) state = createDefaultState(account.displayName);
+
+  const safeDisplayName = (account.displayName || state.name || 'Player').trim().slice(0, 64) || 'Player';
+  const safeDay = Math.max(1, Math.min(100000, Math.round(Number(state.day) || 1)));
+  const safeCareer = Object.prototype.hasOwnProperty.call(CAREERS, state.career) ? state.career : 'unemployed';
+  const nowTs = Timestamp.now();
+
+  const playerPath = `players/${currentUser.uid}`;
+  const profilePath = `profiles/${currentUser.uid}`;
+
+  try {
+    await setDoc(doc(db, 'players', currentUser.uid), {
+      ownerId: currentUser.uid,
+      displayName: safeDisplayName,
+      state: {
+        ...state,
+        log: (state.log || []).slice(0, 20)
+      },
+      updatedAt: nowTs
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, playerPath);
+  }
+
+  try {
+    await setDoc(doc(db, 'profiles', currentUser.uid), {
+      ownerId: currentUser.uid,
+      displayName: safeDisplayName,
+      day: safeDay,
+      career: safeCareer,
+      updatedAt: nowTs
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, profilePath);
+  }
+
+  return true;
+}
+
+function showImport(): void {
+  document.getElementById('importModal')?.classList.add('show');
+}
+
+function closeImport(): void {
+  document.getElementById('importModal')?.classList.remove('show');
 }
 
 function importSave(): void {
   const input = document.getElementById('importCode') as HTMLTextAreaElement | null;
   const code = (input?.value || '').trim();
-  if (!code) {
-    toast('Paste a save code');
-    return;
-  }
+  if (!code) { toast('Paste a save code'); return; }
   try {
     const data = JSON.parse(atob(code));
     if (data.account && data.state) {
@@ -680,12 +448,10 @@ function importSave(): void {
       state = data.state;
       localStorage.setItem('lifeInAccra_account', JSON.stringify(account));
       localStorage.setItem('lifeInAccra_state', JSON.stringify(state));
-      closeLogin();
+      closeImport();
       enterGame();
       toast('Save loaded');
-    } else {
-      throw new Error('Invalid');
-    }
+    } else throw new Error('Invalid');
   } catch {
     toast('Invalid save code');
   }
@@ -698,19 +464,16 @@ function enterGame(): void {
   render();
 }
 
-function logout(): void {
+function showAccount(): void {
+  const cloud = currentUser
+    ? `Signed in: ${currentUser.email || currentUser.uid}<br>DB: <code style="font-size:.7rem">${firebaseConfig.firestoreDatabaseId}</code>`
+    : 'Local / Guest only';
   const infoEl = document.getElementById('accountInfo');
-  const cloudBadge = auth.currentUser
-    ? `<span style="color:var(--green);font-size:.8rem">● Cloud Connected (${auth.currentUser.email || 'Google'})</span>`
-    : `<span style="color:var(--muted);font-size:.8rem">○ Local Save Only (Sign in with Google for Cloud Sync)</span>`;
-
   if (infoEl) {
     infoEl.innerHTML = `
       <strong>${account.displayName || 'Resident'}</strong> ${account.isGuest ? '(Guest)' : ''}<br>
-      ${cloudBadge}<br>
-      Player ID: <code style="font-size:.8rem">${account.playerId || '—'}</code><br>
-      ${auth.currentUser ? `Resident UID: <code style="font-size:.78rem">${auth.currentUser.uid}</code><br>` : ''}
-      <span style="font-size:.8rem;color:var(--muted)">Created: ${account.createdAt ? new Date(account.createdAt).toLocaleDateString() : '—'}</span>`;
+      Player ID: <code style="font-size:.75rem">${account.playerId || '—'}</code><br>
+      <span style="font-size:.8rem;color:var(--muted)">${cloud}</span>`;
   }
   document.getElementById('accountModal')?.classList.add('show');
 }
@@ -723,42 +486,53 @@ function exportSave(): void {
   const payload = { account, state, exportedAt: new Date().toISOString() };
   const code = btoa(JSON.stringify(payload));
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(code).then(() => {
-      toast('Save code copied to clipboard');
-    }).catch(() => {
-      toast('Copied code to console');
+    navigator.clipboard.writeText(code).then(() => toast('Save code copied')).catch(() => {
+      toast('Save code logged to console');
       console.log(code);
     });
   } else {
-    toast('Copied code to console');
+    toast('Save code logged to console');
     console.log(code);
   }
 }
 
+async function signOutUser(): Promise<void> {
+  try {
+    await fbSignOut(auth);
+  } catch (e) {
+    console.error(e);
+  }
+  currentUser = null;
+  localStorage.removeItem('lifeInAccra_account');
+  localStorage.removeItem('lifeInAccra_state');
+  state = null;
+  closeAccount();
+  document.getElementById('gameApp')?.classList.add('hidden');
+  document.getElementById('authScreen')?.classList.remove('hidden');
+  toast('Signed out');
+}
+
 // ===================== HELPERS =====================
+function clamp(v: number): number {
+  return Math.max(0, Math.min(100, Math.round(v)));
+}
+
 function change(stat: 'money' | 'hunger' | 'energy' | 'happy' | 'social' | 'health', amt: number): void {
   if (!state) return;
-  if (stat === 'money') {
-    state.money = clampMoney(state.money + amt);
-  } else {
-    state[stat] = clampStat(state[stat] + amt);
-  }
+  if (stat === 'money') state.money = Math.max(0, Math.round(state.money + amt));
+  else state[stat] = clamp(state[stat] + amt);
 }
 
 function spend(amt: number): boolean {
   if (!state) return false;
-  if (state.money < amt) {
-    toast('Not enough ₵');
-    return false;
-  }
-  state.money = clampMoney(state.money - amt);
+  if (state.money < amt) { toast('Not enough ₵'); return false; }
+  state.money -= amt;
   return true;
 }
 
 function log(msg: string): void {
   if (!state) return;
-  const entry = sanitizeString(`Day ${state.day}: ${msg}`, LOG_ITEM_MAX_LEN, `Day ${state.day}: Activity`);
-  state.log.unshift(entry);
+  state.log.unshift(`Day ${state.day}: ${msg}`);
   if (state.log.length > 50) state.log.pop();
 }
 
@@ -788,10 +562,8 @@ function updateFriendStatuses(): void {
   if (!state) return;
   state.friends.forEach(f => {
     f.status = f.routine[state!.time] || 'at home';
-    if (Math.random() < 0.3) {
-      f.mood = pick(['content', 'happy', 'focused', 'cheerful', 'tired', 'stressed', 'relaxed']);
-    }
-    f.money = clampMoney(f.money + 6 + Math.floor(Math.random() * 16));
+    if (Math.random() < 0.3) f.mood = pick(['content', 'happy', 'focused', 'cheerful', 'tired', 'stressed', 'relaxed']);
+    f.money += 6 + Math.floor(Math.random() * 16);
   });
 }
 
@@ -800,16 +572,13 @@ function advanceTime(hrs = 2): void {
   state.time += Math.ceil(hrs / 3.5);
   while (state.time >= 4) {
     state.time -= 4;
-    state.day = clampDay(state.day + 1);
+    state.day++;
     change('hunger', -18);
     change('energy', -8);
     change('social', -4);
     change('happy', -3);
     const pay = CAREERS[state.career]?.pay || 0;
-    if (pay > 0) {
-      change('money', pay);
-      log(`Career pay +₵${pay}`);
-    }
+    if (pay > 0) { change('money', pay); log(`Career pay +₵${pay}`); }
     updateFriendStatuses();
     log(`— Day ${state.day} —`);
     if (Math.random() < 0.38) generateInvite();
@@ -825,9 +594,9 @@ function generateInvite(): void {
   if (!available.length) return;
   const f = pick(available);
   state.pendingInvite = f.id;
-  const inviteTextEl = document.getElementById('inviteText');
-  if (inviteTextEl) {
-    inviteTextEl.textContent = pick([
+  const inviteText = document.getElementById('inviteText');
+  if (inviteText) {
+    inviteText.textContent = pick([
       `${f.name} is inviting you over.`,
       `${f.name}: "You free? Come pass by."`,
       `${f.name} wants to hang out.`,
@@ -835,10 +604,8 @@ function generateInvite(): void {
     ]);
   }
   document.getElementById('inviteBanner')?.classList.add('show');
-  const acceptBtn = document.getElementById('acceptInviteBtn');
-  if (acceptBtn) {
-    acceptBtn.onclick = () => acceptInvite();
-  }
+  const btn = document.getElementById('acceptInviteBtn');
+  if (btn) btn.onclick = () => acceptInvite();
 }
 
 function acceptInvite(): void {
@@ -860,9 +627,9 @@ function randomSocialEvent(): void {
   const f = pick(state.friends);
   if (f.affinity >= 50 && Math.random() > 0.45 && f.money > 45) {
     const amt = 15 + Math.floor(Math.random() * 35);
-    f.money = clampMoney(f.money - amt);
+    f.money -= amt;
     change('money', amt);
-    f.affinity = clampStat(f.affinity + 3);
+    f.affinity = Math.min(100, f.affinity + 3);
     log(`${f.name} sent you ₵${amt}. ${pick(DIALOGUE[f.id].gift)}`);
     toast(`${f.name} sent you ₵${amt}`);
   } else if (f.affinity >= 30) {
@@ -872,26 +639,21 @@ function randomSocialEvent(): void {
 
 function checkCritical(): void {
   if (!state) return;
-  if (state.hunger <= 5) {
-    change('health', -8);
-    toast("You're starving");
-  }
+  if (state.hunger <= 5) { change('health', -8); toast("You're starving"); }
   if (state.energy <= 5) toast('Exhausted — sleep');
   if (state.health <= 15) toast('Health is low');
 }
 
-// ===================== RENDER & ACTIONS =====================
 function render(): void {
   if (!state) return;
-  const charNameEl = document.getElementById('charName');
-  const charJobEl = document.getElementById('charJob');
-  const playerIdEl = document.getElementById('playerIdDisplay');
+  const charName = document.getElementById('charName');
+  const charJob = document.getElementById('charJob');
+  const playerIdDisplay = document.getElementById('playerIdDisplay');
 
-  if (charNameEl) charNameEl.textContent = state.name;
-  if (charJobEl) charJobEl.textContent = CAREERS[state.career]?.name || 'Unemployed';
-  if (playerIdEl) {
-    const syncStatus = auth.currentUser ? '☁️ Cloud' : '💾 Local';
-    playerIdEl.textContent = `${syncStatus} • ID: ${account.playerId ? account.playerId.slice(0, 16) : '—'}`;
+  if (charName) charName.textContent = state.name;
+  if (charJob) charJob.textContent = CAREERS[state.career]?.name || 'Unemployed';
+  if (playerIdDisplay) {
+    playerIdDisplay.textContent = `ID: ${account.playerId ? account.playerId.slice(0, 18) + '...' : '—'}`;
   }
 
   const stats = [
@@ -912,8 +674,8 @@ function render(): void {
     }).join('');
   }
 
-  const dayInfoEl = document.getElementById('dayInfo');
-  if (dayInfoEl) dayInfoEl.textContent = `Day ${state.day} • ${TIME[state.time]}`;
+  const dayInfo = document.getElementById('dayInfo');
+  if (dayInfo) dayInfo.textContent = `Day ${state.day} • ${TIME[state.time]}`;
 
   const npcPanel = document.getElementById('npcPanel');
   const locationCard = document.getElementById('locationCard');
@@ -1000,17 +762,17 @@ function doAction(key: string): void {
   if (key !== 'sleep') advanceTime(2); else render();
 }
 
-function travel(key: LocationKey): void {
+function travel(key: string): void {
   if (!state) return;
   if (state.visiting) state.visiting = null;
   if (key === state.location && !state.visiting) return;
   if (state.energy < 10) { toast('Too tired'); return; }
   if (state.time === 3) { toast('Night. Stay home.'); return; }
-  state.location = sanitizeLocation(key);
+  state.location = key;
   state.visiting = null;
   change('energy', -8);
   change('money', -3);
-  log(`Went to ${LOCATIONS[state.location].name}`);
+  log(`Went to ${LOCATIONS[key].name}`);
   advanceTime(1);
 }
 
@@ -1042,13 +804,12 @@ function chatFriend(id: string): void {
   if (!state) return;
   const f = state.friends.find(x => x.id === id);
   if (!f) return;
-  const line = pick(DIALOGUE[f.id].chat);
-  f.affinity = clampStat(f.affinity + 5);
+  f.affinity = Math.min(100, f.affinity + 5);
   f.lastInteract = state.day;
   change('social', 14);
   change('happy', 10);
   change('energy', -5);
-  log(`${f.name}: "${line}"`);
+  log(`${f.name}: "${pick(DIALOGUE[f.id].chat)}"`);
   advanceTime(1);
 }
 
@@ -1057,7 +818,7 @@ function hangOut(id: string): void {
   const f = state.friends.find(x => x.id === id);
   if (!f) return;
   if (state.energy < 15) { toast('Too tired'); return; }
-  f.affinity = clampStat(f.affinity + 10);
+  f.affinity = Math.min(100, f.affinity + 10);
   f.lastInteract = state.day;
   change('social', 24);
   change('happy', 18);
@@ -1072,8 +833,8 @@ function eatTogether(id: string): void {
   if (!f) return;
   if (state.money < 20) { toast('Not enough'); return; }
   change('money', -20);
-  f.money = clampMoney(f.money - 10);
-  f.affinity = clampStat(f.affinity + 8);
+  f.money = Math.max(0, f.money - 10);
+  f.affinity = Math.min(100, f.affinity + 8);
   f.lastInteract = state.day;
   change('hunger', 40);
   change('social', 18);
@@ -1086,7 +847,7 @@ function deepTalk(id: string): void {
   if (!state) return;
   const f = state.friends.find(x => x.id === id);
   if (!f) return;
-  f.affinity = clampStat(f.affinity + 12);
+  f.affinity = Math.min(100, f.affinity + 12);
   f.lastInteract = state.day;
   change('social', 20);
   change('happy', 22);
@@ -1105,16 +866,16 @@ function askFavor(id: string): void {
   if (Math.random() > 0.28) {
     const amt = 25 + Math.floor(Math.random() * 45);
     if (f.money >= amt) {
-      f.money = clampMoney(f.money - amt);
+      f.money -= amt;
       change('money', amt);
-      f.affinity = clampStat(f.affinity + 3);
+      f.affinity = Math.min(100, f.affinity + 3);
       log(`${f.name} helped with ₵${amt}`);
       toast(`${f.name} came through`);
     } else {
       log(`${f.name} wanted to help but is tight.`);
     }
   } else {
-    f.affinity = clampStat(f.affinity - 3);
+    f.affinity = Math.max(0, f.affinity - 3);
     log(`${f.name} couldn't help this time.`);
   }
   advanceTime(1);
@@ -1145,9 +906,9 @@ function confirmSend(): void {
   if (amt > state.money) { toast('Not enough'); return; }
   const f = state.friends.find(x => x.id === sendTarget);
   if (!f) return;
-  state.money = clampMoney(state.money - amt);
-  f.money = clampMoney(f.money + amt);
-  f.affinity = clampStat(f.affinity + Math.min(18, Math.floor(amt / 8)));
+  state.money -= amt;
+  f.money += amt;
+  f.affinity = Math.min(100, f.affinity + Math.min(18, Math.floor(amt / 8)));
   f.lastInteract = state.day;
   change('social', 8);
   change('happy', 6);
@@ -1169,9 +930,9 @@ function workShift(): void {
 
 function showCareerModal(): void {
   if (!state) return;
-  const optionsEl = document.getElementById('careerOptions');
-  if (optionsEl) {
-    optionsEl.innerHTML = Object.entries(CAREERS).map(([k, c]) => {
+  const careerOptions = document.getElementById('careerOptions');
+  if (careerOptions) {
+    careerOptions.innerHTML = Object.entries(CAREERS).map(([k, c]) => {
       const locked = Boolean(c.reqMoney && state!.money < c.reqMoney);
       return `<button style="text-align:left;padding:12px" ${locked ? 'disabled' : ''} onclick="setCareer('${k}')"><strong>${c.name}</strong>${c.pay ? ` • ₵${c.pay}/day` : ''}<br><span style="font-size:.8rem;color:var(--muted)">${c.desc}${locked ? ` (Need ₵${c.reqMoney})` : ''}</span></button>`;
     }).join('');
@@ -1183,13 +944,13 @@ function closeCareerModal(): void {
   document.getElementById('careerModal')?.classList.remove('show');
 }
 
-function setCareer(key: CareerKey): void {
+function setCareer(key: string): void {
   if (!state) return;
   const c = CAREERS[key];
   if (!c) return;
   if (c.reqMoney && state.money < c.reqMoney) { toast('Not enough'); return; }
   if (c.reqMoney) change('money', -c.reqMoney);
-  state.career = sanitizeCareer(key);
+  state.career = key;
   log(`Started as ${c.name}`);
   closeCareerModal();
   render();
@@ -1220,30 +981,27 @@ function promptNewGame(): void {
 async function saveGame(): Promise<void> {
   localStorage.setItem('lifeInAccra_account', JSON.stringify(account));
   localStorage.setItem('lifeInAccra_state', JSON.stringify(state));
-  if (auth.currentUser) {
-    await syncCloudSave(auth.currentUser, true);
+  if (currentUser) {
+    const ok = await cloudSave();
+    toast(ok ? 'Saved (local + cloud)' : 'Saved locally (cloud failed)');
   } else {
     toast('Saved locally');
   }
 }
 
-// Expose handlers to window for HTML onclick attributes
 Object.assign(window, {
-  signInWithGoogle,
-  signOutAccount,
-  showVisitPlayerModal,
-  closeVisitPlayerModal,
-  lookupResidentByUid,
   continueAsGuest,
-  showCreateAccount,
-  closeCreate,
-  createAccount,
-  showLogin,
-  closeLogin,
+  showEmailAuth,
+  closeEmailModal,
+  submitEmailAuth,
+  signInWithGoogle,
+  showImport,
+  closeImport,
   importSave,
-  logout,
+  showAccount,
   closeAccount,
   exportSave,
+  signOutUser,
   doAction,
   travel,
   visitFriend,
@@ -1268,22 +1026,30 @@ Object.assign(window, {
   dismissInvite
 });
 
-// ===================== INIT & AUTH LISTENER =====================
-const savedAccount = localStorage.getItem('lifeInAccra_account');
-if (savedAccount) {
-  try {
-    account = JSON.parse(savedAccount);
-    const savedState = localStorage.getItem('lifeInAccra_state');
-    if (savedState) state = JSON.parse(savedState);
-    else state = createDefaultState(account.displayName);
-    enterGame();
-  } catch {
-    // Fallback to auth screen
-  }
-}
+// ===================== INIT =====================
+setCloudStatus(`Cloud: connected (${firebaseConfig.firestoreDatabaseId})`, 'on');
 
 onAuthStateChanged(auth, async (user) => {
   if (user) {
-    await loadOrInitializeCloudUser(user);
+    currentUser = user;
+    if (!authSyncLock && document.getElementById('authScreen') && !document.getElementById('authScreen')!.classList.contains('hidden')) {
+      account = {
+        playerId: user.uid,
+        displayName: (user.displayName || user.email?.split('@')[0] || 'Player').slice(0, 64),
+        isGuest: false,
+        uid: user.uid
+      };
+      const loaded = await loadCloudSave(user.uid);
+      if (!loaded) {
+        const local = localStorage.getItem('lifeInAccra_state');
+        if (local) {
+          try { state = JSON.parse(local); } catch { state = createDefaultState(account.displayName); }
+        } else {
+          state = createDefaultState(account.displayName);
+        }
+        await cloudSave();
+      }
+      enterGame();
+    }
   }
 });
