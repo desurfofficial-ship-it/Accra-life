@@ -1,89 +1,114 @@
 # Accra Life (lagos-life-ghana)
 
-> **A superior life-simulation game for Ghanaians**  
-> The authentic, deeper, more cultural alternative to *Lagos Life*.
+> **The superior Ghanaian life-simulation game**  
+> Authentic Accra hustle, culture, careers, and vibes — built as a better alternative to *Lagos Life*.
 
-Live your Ghanaian story in Accra and beyond. Hustle at Makola, chill at Labadi Beach, code at the tech hub, eat banku & tilapia, take the trotro, and build the life you want.
-
-**Play instantly:** Open `index.html` in any modern browser (or host it).
+**Play now:** Open [`index.html`](index.html) in any modern browser (Chrome, Firefox, Safari, Edge). No install needed. Works offline after first load.
 
 ---
 
-## Why Accra Life is better than the original Lagos Life
+## What’s New in v0.2
 
-| Feature | Lagos Life (original) | **Accra Life** |
-|---------|-----------------------|----------------|
-| Setting | Lagos, Nigeria | **Accra + authentic Ghana** |
-| Culture | Nigerian | **Highlife, trotro, waakye, kelewele, banku, Black Star pride** |
-| Locations | Limited Lagos spots | **8 rich locations** (Osu, Makola, Labadi, Independence Square, Legon, Kaneshie, Tech Hub, Church) |
-| Economy | Basic | **Real GHS, side hustles, freelance, market trading** |
-| Needs system | Present | **6 stats** with visual bars + daily decay + warnings |
-| Transport | Implied | **Trotro travel with cost & energy** |
-| Random events | Few | **Dynamic daily events** (MoMo, breakdowns, reunions...) |
-| Save system | Present | **LocalStorage save/load + New Life** |
-| UI/UX | Functional | **Modern dark theme, responsive, polished** |
-| Open source | No | **Yes — fully open** |
+- **Character name** — Start your unique Ghanaian story
+- **Career system** — Trader, Developer, Teacher, Musician, Trotro Driver, Student, or stay Unemployed
+- **Daily career pay** + optional “Work a shift” for extra earnings
+- **10 locations** across Accra (added Accra Mall + Kwame Nkrumah Circle)
+- **Deeper needs** with critical warnings and daily decay
+- **More actions & flavor** (kelewele, banku & tilapia, highlife moments, MoMo, trotro life…)
+- **Better mobile UI** — responsive stats, touch-friendly buttons
+- **Improved save system** (backward compatible)
+
+---
+
+## Why Accra Life > original Lagos Life
+
+| Area | Lagos Life | **Accra Life** |
+|------|------------|----------------|
+| Setting | Lagos | **Authentic Accra + Ghana culture** |
+| Identity | Generic | **Name your character + Career path** |
+| Economy | Basic | **GHS, careers with daily pay, shifts, market trading, freelance** |
+| Locations | Limited | **10 rich spots** including Mall & Circle |
+| Transport | Light | **Trotro travel with real cost & energy** |
+| Needs | Present | **6 stats + critical warnings + daily decay** |
+| Events | Few | **Random MoMo, breakdowns, reunions, highlife boosts** |
+| UI | Functional | **Modern dark theme, mobile-first, polished** |
+| Source | Closed | **Fully open source** |
 
 ---
 
 ## How to Play
 
-1. Open `index.html` in your browser (Chrome, Firefox, Safari, Edge).
-2. Check your stats at the top (Money ₵, Hunger, Energy, Happiness, Social, Health).
-3. Choose actions in your current location.
-4. Travel using the sidebar (costs a little energy + ₵ for trotro).
-5. Manage your needs — sleep when tired, eat when hungry, socialize, hustle for money.
-6. Save your life anytime. Load it later. Or start fresh.
+1. Open `index.html`.
+2. Enter your name and begin.
+3. Watch your 6 stats: **Money (₵)**, Hunger, Energy, Happiness, Social, Health.
+4. Choose actions at your current location.
+5. Travel by trotro (sidebar) — costs a little energy and money.
+6. Pick a **career** for steady daily income (and work extra shifts).
+7. Manage needs, hustle, socialize, rest, and build your life.
+8. Save anytime. Load later. Or start a New Life.
 
-### Tips for a good life
-- Don’t let Hunger or Energy hit zero.
-- Labadi Beach and Church are great for Happiness & Social.
-- Tech Hub and Market are where the real money is.
-- Random events can help or hurt — that’s Accra.
+### Pro tips
+- Sleep before Energy hits zero.
+- Eat before Hunger tanks your Health.
+- Labadi + Church = happiness & social refill.
+- Tech Hub + Makola = serious money.
+- Random events can bless or stress you — that’s Accra.
 
 ---
 
 ## Locations
 
-- 🏠 **Your Flat (Osu)** — Rest, cook, chill, host friends  
-- 🛒 **Makola Market** — Buy food, sell goods, bargain, network  
-- 🏖️ **Labadi Beach** — Swim, relax, kelewele, party  
-- 🇭🇭 **Independence Square** — Pride, protest, photos, meet people  
-- 🎓 **University of Ghana** — Study, lectures, network, library  
-- 🥬 **Kaneshie Market** — Fresh food, banku & tilapia, hustle, gist  
-- 💻 **iSpace / Tech Hub** — Code, pitch, meetup, freelance  
-- ⛪ **Local Church** — Worship, fellowship, give, pray  
+| Location | Vibe |
+|----------|------|
+| 🏠 Your Flat (Osu) | Rest, cook, host, clean |
+| 🛒 Makola Market | Trade, bargain, hustle, eat |
+| 🏖️ Labadi Beach | Swim, chill, kelewele, party |
+| 🇭🇭 Independence Square | Pride, photos, meet people |
+| 🎓 University of Ghana | Study, network, lectures |
+| 🥬 Kaneshie | Fresh food, banku & tilapia, gist |
+| 💻 Tech Hub (iSpace) | Code, pitch, freelance, meetups |
+| ⛪ Church | Worship, fellowship, peace |
+| 🏬 Accra Mall | Shop, cinema, food court |
+| 🚌 Kwame Nkrumah Circle | Trotro life, street food, observe |
 
 ---
 
-## Roadmap (making it even better)
+## Careers
 
-- [ ] More careers & skill trees (Trader, Developer, Musician, Politician, Farmer)
-- [ ] Relationships & marriage system
-- [ ] Housing upgrades & furniture
-- [ ] Multiplayer (visit friends’ homes)
-- [ ] Mobile PWA support
-- [ ] More cities (Kumasi, Cape Coast, Tamale)
-- [ ] Music player with highlife / afrobeats
-- [ ] Seasonal events & festivals (Homowo, etc.)
-- [ ] Leaderboard / shared stories
+- **Unemployed** — Pure hustle
+- **Market Trader** — Requires startup capital
+- **Software Developer** — High pay potential
+- **Teacher** — Steady + meaningful
+- **Musician / Artist** — Creative path
+- **Trotro / Ride Driver** — Requires capital
+- **Student** — Low pay now, focus on growth
+
+---
+
+## Roadmap
+
+- [ ] Relationships & family system
+- [ ] Housing upgrades
+- [ ] Skill trees per career
+- [ ] More cities (Kumasi, Cape Coast)
+- [ ] Festivals & seasonal events (Homowo, etc.)
+- [ ] Simple multiplayer / visit friends
+- [ ] PWA + offline polish
+- [ ] Background highlife / afrobeats player
+- [ ] Achievements & life summary at day 100+
 
 ---
 
 ## Tech
 
-- Pure HTML + CSS + Vanilla JS (no frameworks, no build step)
-- LocalStorage for saves
-- Fully responsive
-- Runs offline once loaded
+- Single-file HTML + CSS + Vanilla JS
+- LocalStorage saves
+- No dependencies, no build step
+- Mobile responsive
 
 ---
 
-## Contributing
+**Made for Ghanaians.**  
+Better culture. Deeper systems. Real Accra energy.
 
-Pull requests welcome! Ideas, new locations, actions, events, UI improvements — all good.
-
----
-
-**Built for Ghanaians. Better than the original.**  
-₵ Accra Life — live your story.
+₵ **Accra Life** — live your story.

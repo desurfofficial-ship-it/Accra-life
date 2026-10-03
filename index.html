@@ -2,190 +2,218 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>Accra Life — Ghana Life Simulation</title>
-  <meta name="description" content="Live your Ghanaian story. A superior life simulation set in Accra and beyond — better culture, deeper systems, authentic hustle." />
+  <meta name="description" content="Live your Ghanaian story. Superior life simulation set in Accra — careers, culture, hustle, and authentic Ghana vibes. Better than Lagos Life." />
+  <meta name="theme-color" content="#0f1419" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0f1419;
-      --surface: #1a2332;
-      --surface2: #243044;
+      --bg: #0c1017;
+      --surface: #161d2a;
+      --surface2: #1f2a3d;
       --accent: #f59e0b;
-      --accent2: #10b981;
+      --accent-hover: #fbbf24;
+      --green: #10b981;
       --text: #f1f5f9;
       --muted: #94a3b8;
       --danger: #ef4444;
-      --success: #22c55e;
-      --radius: 16px;
-      --shadow: 0 8px 32px rgba(0,0,0,0.4);
+      --radius: 14px;
+      --shadow: 0 6px 24px rgba(0,0,0,0.45);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Outfit', system-ui, sans-serif;
+      font-family: 'Outfit', system-ui, -apple-system, sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
-      line-height: 1.5;
+      line-height: 1.45;
+      -webkit-tap-highlight-color: transparent;
     }
-    .app { max-width: 1100px; margin: 0 auto; padding: 16px; }
+    .app { max-width: 1100px; margin: 0 auto; padding: 12px 14px 40px; }
 
     /* Header */
     header {
       display: flex; justify-content: space-between; align-items: center;
-      padding: 16px 0 24px; flex-wrap: wrap; gap: 12px;
+      padding: 10px 0 18px; flex-wrap: wrap; gap: 10px;
     }
-    .logo { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.5px; }
+    .logo { font-size: 1.45rem; font-weight: 700; letter-spacing: -0.4px; }
     .logo span { color: var(--accent); }
-    .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .day-info { font-size: 0.9rem; color: var(--muted); white-space: nowrap; }
     button, .btn {
       background: var(--surface2); border: none; color: var(--text);
-      padding: 10px 16px; border-radius: 12px; font-family: inherit;
-      font-weight: 500; cursor: pointer; transition: all 0.2s;
-      font-size: 0.9rem;
+      padding: 9px 14px; border-radius: 11px; font-family: inherit;
+      font-weight: 500; cursor: pointer; transition: all 0.18s;
+      font-size: 0.88rem; white-space: nowrap;
     }
-    button:hover, .btn:hover { background: var(--accent); color: #000; }
-    button.primary { background: var(--accent); color: #000; }
-    button.primary:hover { background: #fbbf24; }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button:hover, .btn:hover { background: var(--accent); color: #111; }
+    button.primary { background: var(--accent); color: #111; font-weight: 600; }
+    button.primary:hover { background: var(--accent-hover); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    button.small { padding: 7px 11px; font-size: 0.82rem; }
 
-    /* Stats bar */
-    .stats {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 12px; margin-bottom: 24px;
+    /* Character bar */
+    .char-bar {
+      background: var(--surface); border-radius: var(--radius); padding: 12px 16px;
+      margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 8px; box-shadow: var(--shadow);
     }
+    .char-name { font-weight: 600; font-size: 1.05rem; }
+    .char-job { font-size: 0.85rem; color: var(--muted); }
+
+    /* Stats */
+    .stats {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 8px; margin-bottom: 16px;
+    }
+    @media (min-width: 640px) { .stats { grid-template-columns: repeat(6, 1fr); } }
     .stat {
-      background: var(--surface); border-radius: var(--radius); padding: 14px 16px;
+      background: var(--surface); border-radius: 12px; padding: 10px 12px;
       box-shadow: var(--shadow);
     }
-    .stat-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
-    .stat-value { font-size: 1.4rem; font-weight: 600; margin-top: 2px; }
-    .stat-bar {
-      height: 6px; background: var(--surface2); border-radius: 3px; margin-top: 8px; overflow: hidden;
-    }
-    .stat-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+    .stat-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+    .stat-value { font-size: 1.15rem; font-weight: 600; margin-top: 1px; }
+    .stat-bar { height: 5px; background: var(--surface2); border-radius: 3px; margin-top: 6px; overflow: hidden; }
+    .stat-bar-fill { height: 100%; border-radius: 3px; transition: width 0.35s ease; }
     .money .stat-value { color: var(--accent); }
     .hunger .stat-bar-fill { background: #f97316; }
     .energy .stat-bar-fill { background: #3b82f6; }
     .happy .stat-bar-fill { background: #ec4899; }
     .social .stat-bar-fill { background: #8b5cf6; }
-    .health .stat-bar-fill { background: var(--success); }
+    .health .stat-bar-fill { background: var(--green); }
 
     /* Main layout */
-    .main { display: grid; grid-template-columns: 1fr 320px; gap: 20px; }
-    @media (max-width: 800px) { .main { grid-template-columns: 1fr; } }
+    .main { display: grid; grid-template-columns: 1fr; gap: 14px; }
+    @media (min-width: 860px) { .main { grid-template-columns: 1fr 300px; } }
 
-    /* Location card */
     .location-card {
-      background: var(--surface); border-radius: var(--radius); padding: 24px;
-      box-shadow: var(--shadow); margin-bottom: 20px;
+      background: var(--surface); border-radius: var(--radius); padding: 18px;
+      box-shadow: var(--shadow); margin-bottom: 12px;
     }
-    .location-name { font-size: 1.5rem; font-weight: 600; margin-bottom: 4px; }
-    .location-desc { color: var(--muted); margin-bottom: 16px; font-size: 0.95rem; }
-    .location-emoji { font-size: 2.5rem; margin-bottom: 8px; }
+    .location-emoji { font-size: 2.2rem; margin-bottom: 4px; }
+    .location-name { font-size: 1.3rem; font-weight: 600; }
+    .location-desc { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
 
-    /* Actions */
-    .actions { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+    .panel {
+      background: var(--surface); border-radius: var(--radius); padding: 16px;
+      box-shadow: var(--shadow); margin-bottom: 12px;
+    }
+    .panel h3 {
+      font-size: 0.78rem; color: var(--muted); text-transform: uppercase;
+      letter-spacing: 0.5px; margin-bottom: 10px;
+    }
+
+    .actions {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px;
+    }
     .action-btn {
       background: var(--surface2); border: 1px solid transparent;
-      padding: 14px 12px; border-radius: 12px; text-align: left;
-      display: flex; flex-direction: column; gap: 4px;
+      padding: 12px 10px; border-radius: 11px; text-align: left;
+      display: flex; flex-direction: column; gap: 3px;
     }
     .action-btn:hover { border-color: var(--accent); background: #2a3a52; }
-    .action-btn .title { font-weight: 600; font-size: 0.95rem; }
-    .action-btn .cost { font-size: 0.8rem; color: var(--muted); }
+    .action-btn .title { font-weight: 600; font-size: 0.9rem; }
+    .action-btn .cost { font-size: 0.75rem; color: var(--muted); }
 
-    /* Sidebar */
-    .sidebar { display: flex; flex-direction: column; gap: 16px; }
-    .panel {
-      background: var(--surface); border-radius: var(--radius); padding: 18px;
-      box-shadow: var(--shadow);
-    }
-    .panel h3 { font-size: 0.9rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
-    .log {
-      max-height: 220px; overflow-y: auto; font-size: 0.85rem;
-      display: flex; flex-direction: column; gap: 6px;
-    }
-    .log-entry { padding: 6px 0; border-bottom: 1px solid var(--surface2); color: var(--muted); }
-    .log-entry:last-child { border-bottom: none; }
-
-    /* Locations list */
-    .locations-list { display: flex; flex-direction: column; gap: 8px; }
+    .sidebar { display: flex; flex-direction: column; gap: 12px; }
+    .locations-list { display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; }
     .loc-btn {
-      background: var(--surface2); text-align: left; padding: 12px 14px;
-      border-radius: 10px; display: flex; align-items: center; gap: 10px;
+      background: var(--surface2); text-align: left; padding: 10px 12px;
+      border-radius: 10px; display: flex; align-items: center; gap: 8px; font-size: 0.9rem;
     }
-    .loc-btn.active { background: var(--accent); color: #000; font-weight: 600; }
+    .loc-btn.active { background: var(--accent); color: #111; font-weight: 600; }
     .loc-btn:hover:not(.active) { background: #2a3a52; }
 
-    /* Day / time */
-    .day-info { font-size: 0.95rem; color: var(--muted); }
+    .log { max-height: 200px; overflow-y: auto; font-size: 0.82rem; }
+    .log-entry { padding: 5px 0; border-bottom: 1px solid var(--surface2); color: var(--muted); }
+    .log-entry:last-child { border-bottom: none; }
 
-    /* Modal */
-    .modal-overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
-      display: none; align-items: center; justify-content: center; z-index: 100;
-      padding: 20px;
-    }
-    .modal-overlay.show { display: flex; }
-    .modal {
-      background: var(--surface); border-radius: 20px; padding: 28px;
-      max-width: 420px; width: 100%; box-shadow: var(--shadow);
-    }
-    .modal h2 { margin-bottom: 12px; }
-    .modal p { color: var(--muted); margin-bottom: 20px; }
-    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+    /* Career panel */
+    .career-info { font-size: 0.9rem; margin-bottom: 8px; }
+    .career-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 
     /* Toast */
     .toast {
-      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-      background: var(--surface2); color: var(--text); padding: 12px 24px;
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: var(--surface2); color: var(--text); padding: 11px 20px;
       border-radius: 12px; box-shadow: var(--shadow); opacity: 0;
       transition: opacity 0.3s; z-index: 200; pointer-events: none;
-      font-weight: 500;
+      font-weight: 500; font-size: 0.9rem; max-width: 90%; text-align: center;
     }
     .toast.show { opacity: 1; }
 
-    footer { text-align: center; padding: 32px 0 16px; color: var(--muted); font-size: 0.85rem; }
+    /* Modal */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+      display: none; align-items: center; justify-content: center; z-index: 150;
+      padding: 16px;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: var(--surface); border-radius: 18px; padding: 24px;
+      max-width: 400px; width: 100%; box-shadow: var(--shadow);
+    }
+    .modal h2 { margin-bottom: 10px; font-size: 1.25rem; }
+    .modal p { color: var(--muted); margin-bottom: 16px; font-size: 0.95rem; }
+    .modal input {
+      width: 100%; padding: 11px 14px; border-radius: 10px; border: 1px solid var(--surface2);
+      background: var(--bg); color: var(--text); font-family: inherit; font-size: 1rem;
+      margin-bottom: 14px;
+    }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+
+    footer { text-align: center; padding: 28px 0 10px; color: var(--muted); font-size: 0.82rem; }
     footer a { color: var(--accent); text-decoration: none; }
+
+    /* Low stat pulse */
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+    .stat.low .stat-value { color: var(--danger); animation: pulse 1.2s infinite; }
   </style>
 </head>
 <body>
   <div class="app">
     <header>
       <div class="logo">Accra <span>Life</span></div>
-      <div class="header-actions">
+      <div class="header-right">
         <span class="day-info" id="dayInfo">Day 1 • Morning</span>
-        <button onclick="saveGame()">Save</button>
-        <button onclick="loadGame()">Load</button>
-        <button class="primary" onclick="newGame()">New Life</button>
+        <button class="small" onclick="saveGame()">Save</button>
+        <button class="small" onclick="loadGame()">Load</button>
+        <button class="small primary" onclick="promptNewGame()">New Life</button>
       </div>
     </header>
 
-    <div class="stats" id="stats">
-      <!-- filled by JS -->
+    <div class="char-bar" id="charBar">
+      <div>
+        <div class="char-name" id="charName">New Ghanaian</div>
+        <div class="char-job" id="charJob">Unemployed</div>
+      </div>
+      <button class="small" onclick="showCareerModal()">Change Career</button>
     </div>
+
+    <div class="stats" id="stats"></div>
 
     <div class="main">
       <div class="left">
-        <div class="location-card" id="locationCard">
-          <!-- filled by JS -->
-        </div>
+        <div class="location-card" id="locationCard"></div>
+
         <div class="panel">
-          <h3>What will you do?</h3>
-          <div class="actions" id="actions">
-            <!-- filled by JS -->
-          </div>
+          <h3>Actions</h3>
+          <div class="actions" id="actions"></div>
+        </div>
+
+        <div class="panel" id="careerPanel">
+          <h3>Career</h3>
+          <div class="career-info" id="careerInfo">You are currently unemployed. Find work to earn steady income.</div>
+          <div class="career-actions" id="careerActions"></div>
         </div>
       </div>
 
       <div class="sidebar">
         <div class="panel">
-          <h3>Travel</h3>
-          <div class="locations-list" id="locationsList">
-            <!-- filled by JS -->
-          </div>
+          <h3>Travel (Trotro)</h3>
+          <div class="locations-list" id="locationsList"></div>
         </div>
         <div class="panel">
           <h3>Life Log</h3>
@@ -195,17 +223,31 @@
     </div>
 
     <footer>
-      Accra Life — A superior Ghanaian alternative to Lagos Life<br>
-      Built with ❤️ for Ghanaians • <a href="https://github.com/desurfofficial-ship-it/lagos-life-ghana" target="_blank">GitHub</a>
+      Accra Life v0.2 — Superior Ghanaian alternative to Lagos Life<br>
+      Built for Ghanaians • <a href="https://github.com/desurfofficial-ship-it/lagos-life-ghana" target="_blank">GitHub</a>
     </footer>
   </div>
 
-  <div class="modal-overlay" id="modal">
+  <!-- Name Modal -->
+  <div class="modal-overlay" id="nameModal">
     <div class="modal">
-      <h2 id="modalTitle">Title</h2>
-      <p id="modalBody">Body</p>
+      <h2>Start Your Accra Life</h2>
+      <p>What is your name, Ghanaian?</p>
+      <input type="text" id="nameInput" placeholder="e.g. Kwame, Ama, Kofi..." maxlength="24" />
       <div class="modal-actions">
-        <button onclick="closeModal()">Close</button>
+        <button class="primary" onclick="startNewLife()">Begin Life</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Career Modal -->
+  <div class="modal-overlay" id="careerModal">
+    <div class="modal">
+      <h2>Choose a Career</h2>
+      <p>Pick how you want to hustle in Accra. Some require skills or money to start.</p>
+      <div id="careerOptions" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;"></div>
+      <div class="modal-actions">
+        <button onclick="closeCareerModal()">Cancel</button>
       </div>
     </div>
   </div>
@@ -213,277 +255,377 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    // ========== GAME DATA ==========
+    // ===================== DATA =====================
     const LOCATIONS = {
       home: {
         name: "Your Flat (Osu)",
         emoji: "🏠",
-        desc: "A cozy 1-bedroom in Osu. Your sanctuary after the Accra hustle.",
-        actions: ["sleep", "cook", "watch_tv", "invite_friend"]
+        desc: "A modest 1-bedroom in Osu. Your base after long Accra days.",
+        actions: ["sleep", "cook", "watch", "invite", "clean"]
       },
       makola: {
         name: "Makola Market",
         emoji: "🛒",
-        desc: "The beating heart of Accra commerce. Everything is for sale if you know how to bargain.",
-        actions: ["buy_food", "sell_goods", "chat_traders", "bargain"]
+        desc: "The commercial heartbeat of Accra. Bargain hard or get played.",
+        actions: ["buy_food", "sell", "chat", "bargain", "load_goods"]
       },
       labadi: {
         name: "Labadi Beach",
         emoji: "🏖️",
-        desc: "Golden sand, waves, and weekend vibes. Perfect for resetting your soul.",
-        actions: ["swim", "relax", "buy_kelewele", "party"]
+        desc: "Atlantic breeze, weekend energy, and pure reset vibes.",
+        actions: ["swim", "relax", "kelewele", "party", "jog"]
       },
-      independence: {
+      square: {
         name: "Independence Square",
         emoji: "🇭🇭",
-        desc: "Black Star Square. History, pride, and the occasional political rally.",
-        actions: ["reflect", "protest", "photo", "meet_people"]
+        desc: "Black Star Square. Pride, history, and the nation's pulse.",
+        actions: ["reflect", "photo", "meet", "rally"]
       },
-      university: {
+      legon: {
         name: "University of Ghana",
         emoji: "🎓",
-        desc: "Legon. Knowledge, ambition, and the next generation of leaders.",
+        desc: "Legon — ambition, lectures, and the next generation.",
         actions: ["study", "lecture", "network", "library"]
       },
       kaneshie: {
-        name: "Kaneshie Market",
+        name: "Kaneshie",
         emoji: "🥬",
-        desc: "Fresh produce, fish, and the best banku in town. Real Accra energy.",
-        actions: ["buy_ingredients", "eat_banku", "hustle", "gossip"]
+        desc: "Fresh produce, fish, banku, and real-side Accra energy.",
+        actions: ["ingredients", "banku", "hustle", "gist"]
       },
-      cchub: {
-        name: "iSpace / Tech Hub",
+      tech: {
+        name: "Tech Hub (iSpace)",
         emoji: "💻",
-        desc: "Silicon Accra. Startups, freelancers, and big dreams coded in JavaScript.",
+        desc: "Silicon Accra. Code, pitch, ship, and build the future.",
         actions: ["code", "pitch", "meetup", "freelance"]
       },
       church: {
-        name: "Local Church",
+        name: "Church",
         emoji: "⛪",
-        desc: "Sunday service, community, and spiritual reset. Ghana style.",
+        desc: "Sunday power, community, and spiritual grounding.",
         actions: ["worship", "fellowship", "donate", "pray"]
+      },
+      mall: {
+        name: "Accra Mall",
+        emoji: "🏬",
+        desc: "Modern shopping, cinema, food court, and people-watching.",
+        actions: ["shop", "cinema", "foodcourt", "window"]
+      },
+      circle: {
+        name: "Kwame Nkrumah Circle",
+        emoji: "🚌",
+        desc: "Transport chaos, street food, and the crossroads of Accra.",
+        actions: ["trotro_spot", "street_food", "observe", "side_hustle"]
       }
     };
 
     const ACTIONS = {
-      sleep: { title: "Sleep", cost: "Restores Energy", effect: () => { change("energy", 40); change("hunger", -10); advanceTime(8); log("You slept deeply. Energy restored."); } },
-      cook: { title: "Cook at home", cost: "₵5 • Hunger +", effect: () => { if (spend(5)) { change("hunger", 35); change("happy", 5); log("You cooked a simple but satisfying meal."); } } },
-      watch_tv: { title: "Watch TV / Netflix", cost: "Happy +", effect: () => { change("happy", 15); change("energy", -5); advanceTime(2); log("You binge-watched a Nollywood / Ghanaian series."); } },
-      invite_friend: { title: "Invite a friend", cost: "Social +", effect: () => { change("social", 25); change("happy", 10); change("energy", -10); log("You hosted a friend. Good vibes and stories shared."); } },
+      // Home
+      sleep: { title: "Sleep", cost: "Energy +++", fn: () => { change("energy", 45); change("hunger", -12); advanceTime(7); log("Deep sleep. You wake refreshed."); } },
+      cook: { title: "Cook meal", cost: "₵6 • Hunger ++", fn: () => { if (spend(6)) { change("hunger", 40); change("happy", 8); log("Home-cooked food hits different."); } } },
+      watch: { title: "Watch shows", cost: "Happy +", fn: () => { change("happy", 18); change("energy", -6); advanceTime(2); log("You watched a Ghanaian series / football highlights."); } },
+      invite: { title: "Host friend", cost: "Social ++", fn: () => { change("social", 28); change("happy", 12); change("energy", -12); log("Good company, laughter, and shared stories."); } },
+      clean: { title: "Clean flat", cost: "Happy + Health +", fn: () => { change("happy", 10); change("health", 5); change("energy", -10); log("Clean space, clear mind."); } },
 
-      buy_food: { title: "Buy street food", cost: "₵12", effect: () => { if (spend(12)) { change("hunger", 40); change("happy", 8); log("Waakye + shito hit different. You feel alive."); } } },
-      sell_goods: { title: "Sell goods", cost: "Earn ₵20-50", effect: () => { const earn = 20 + Math.floor(Math.random()*31); change("money", earn); change("energy", -15); change("social", 5); log(`You hustled and made ₵${earn}.`); } },
-      chat_traders: { title: "Chat with traders", cost: "Social +", effect: () => { change("social", 20); change("happy", 5); log("You exchanged market gossip and made a new contact."); } },
-      bargain: { title: "Bargain hard", cost: "Skill check", effect: () => { if (Math.random() > 0.4) { change("money", 15); log("Master bargainer! You saved money and felt clever."); } else { change("happy", -5); log("The trader was too sharp today. Better luck next time."); } } },
+      // Makola
+      buy_food: { title: "Street food", cost: "₵12", fn: () => { if (spend(12)) { change("hunger", 42); change("happy", 10); log("Waakye + shito + egg. Accra fuel."); } } },
+      sell: { title: "Sell goods", cost: "Earn ₵25-60", fn: () => { const e = 25+Math.floor(Math.random()*36); change("money", e); change("energy", -18); change("social", 6); log(`Hustle successful: ₵${e} made.`); } },
+      chat: { title: "Chat traders", cost: "Social +", fn: () => { change("social", 22); change("happy", 6); log("Market gossip and new contacts secured."); } },
+      bargain: { title: "Bargain", cost: "Skill check", fn: () => { if (Math.random()>0.35) { change("money", 18); log("Sharp bargaining! Extra cash saved/earned."); } else { change("happy", -6); log("Trader won this round."); } } },
+      load_goods: { title: "Help load goods", cost: "Earn ₵15", fn: () => { change("money", 15); change("energy", -20); change("health", -3); log("Hard work, honest pay."); } },
 
-      swim: { title: "Swim in the sea", cost: "Energy - Health +", effect: () => { change("energy", -15); change("health", 15); change("happy", 20); log("The Atlantic waves washed the stress away."); } },
-      relax: { title: "Relax on the sand", cost: "Happy + Energy +", effect: () => { change("happy", 25); change("energy", 10); log("Sun, sand, and pure chill. Ghanaian beach therapy."); } },
-      buy_kelewele: { title: "Buy Kelewele", cost: "₵8", effect: () => { if (spend(8)) { change("hunger", 25); change("happy", 15); log("Spicy kelewele — pure happiness in a leaf."); } } },
-      party: { title: "Join the beach party", cost: "₵30 • Social ++", effect: () => { if (spend(30)) { change("social", 30); change("happy", 25); change("energy", -20); log("Music, dance, and new friends under the stars."); } } },
+      // Labadi
+      swim: { title: "Swim", cost: "Health + Happy +", fn: () => { change("energy", -16); change("health", 18); change("happy", 22); log("Atlantic waves reset your spirit."); } },
+      relax: { title: "Beach chill", cost: "Happy ++ Energy +", fn: () => { change("happy", 28); change("energy", 12); log("Sun, sand, zero stress."); } },
+      kelewele: { title: "Kelewele", cost: "₵8", fn: () => { if (spend(8)) { change("hunger", 28); change("happy", 18); log("Spicy kelewele — pure joy."); } } },
+      party: { title: "Beach party", cost: "₵35 • Social +++", fn: () => { if (spend(35)) { change("social", 35); change("happy", 30); change("energy", -25); log("Music, dance, new friends under the stars."); } } },
+      jog: { title: "Morning jog", cost: "Health + Energy -", fn: () => { change("health", 12); change("energy", -12); change("happy", 8); log("Beachside jog. Body thanks you."); } },
 
-      reflect: { title: "Reflect on history", cost: "Happy +", effect: () => { change("happy", 15); change("social", 5); log("Standing at Independence Square fills you with pride."); } },
-      protest: { title: "Join a peaceful protest", cost: "Reputation?", effect: () => { change("social", 15); change("happy", 10); change("energy", -10); log("You stood for something. Your voice matters."); } },
-      photo: { title: "Take photos", cost: "Happy +", effect: () => { change("happy", 12); log("Perfect shot of the Black Star. Instagram ready."); } },
-      meet_people: { title: "Meet people", cost: "Social +", effect: () => { change("social", 25); log("You made interesting connections at the Square."); } },
+      // Square
+      reflect: { title: "Reflect", cost: "Happy +", fn: () => { change("happy", 16); log("Pride in the Black Star. Perspective gained."); } },
+      photo: { title: "Take photos", cost: "Happy +", fn: () => { change("happy", 12); log("Clean shots of the Square. Memories locked."); } },
+      meet: { title: "Meet people", cost: "Social ++", fn: () => { change("social", 26); log("Interesting conversations at the Square."); } },
+      rally: { title: "Join discussion", cost: "Social +", fn: () => { change("social", 18); change("happy", 8); log("You engaged in national discourse."); } },
 
-      study: { title: "Study hard", cost: "Energy - Future +", effect: () => { change("energy", -20); change("happy", 5); change("money", 5); log("Knowledge is power. You feel a step closer to your goals."); } },
-      lecture: { title: "Attend lecture", cost: "Energy -", effect: () => { change("energy", -15); change("social", 10); log("Interesting lecture. You networked with classmates."); } },
-      network: { title: "Network", cost: "Social ++", effect: () => { change("social", 30); change("energy", -10); log("You expanded your circle. Opportunities incoming."); } },
-      library: { title: "Quiet library time", cost: "Energy + Focus", effect: () => { change("energy", 5); change("happy", 8); log("Peaceful hours in the library. Mind sharpened."); } },
+      // Legon
+      study: { title: "Study", cost: "Energy - Future +", fn: () => { change("energy", -22); change("happy", 6); if (state.career === "student") change("money", 8); log("Focused study session. Knowledge compounds."); } },
+      lecture: { title: "Lecture", cost: "Energy -", fn: () => { change("energy", -16); change("social", 12); log("Solid lecture + classmate connections."); } },
+      network: { title: "Network", cost: "Social +++", fn: () => { change("social", 32); change("energy", -12); log("Your network grows. Opportunities follow."); } },
+      library: { title: "Library", cost: "Focus +", fn: () => { change("energy", 6); change("happy", 10); log("Quiet hours. Mind sharpened."); } },
 
-      buy_ingredients: { title: "Buy fresh ingredients", cost: "₵15", effect: () => { if (spend(15)) { change("hunger", 10); log("Fresh fish, tomatoes, and peppers secured."); } } },
-      eat_banku: { title: "Eat Banku & Tilapia", cost: "₵25", effect: () => { if (spend(25)) { change("hunger", 50); change("happy", 20); change("health", 5); log("Banku and grilled tilapia — the real Ghanaian experience."); } } },
-      hustle: { title: "Side hustle", cost: "Earn money", effect: () => { const earn = 15 + Math.floor(Math.random()*25); change("money", earn); change("energy", -20); log(`You hustled and pocketed ₵${earn}.`); } },
-      gossip: { title: "Catch the latest gist", cost: "Social +", effect: () => { change("social", 18); change("happy", 8); log("You now know everything happening in Accra this week."); } },
+      // Kaneshie
+      ingredients: { title: "Buy ingredients", cost: "₵14", fn: () => { if (spend(14)) { change("hunger", 8); log("Fresh ingredients secured."); } } },
+      banku: { title: "Banku & Tilapia", cost: "₵28", fn: () => { if (spend(28)) { change("hunger", 55); change("happy", 22); change("health", 6); log("Banku and tilapia — the real thing."); } } },
+      hustle: { title: "Side hustle", cost: "Earn ₵18-40", fn: () => { const e = 18+Math.floor(Math.random()*23); change("money", e); change("energy", -20); log(`Side hustle paid ₵${e}.`); } },
+      gist: { title: "Catch gist", cost: "Social +", fn: () => { change("social", 20); change("happy", 10); log("You are now fully updated on Accra gist."); } },
 
-      code: { title: "Write code", cost: "Energy - Money?", effect: () => { change("energy", -25); if (Math.random() > 0.5) { const earn = 40 + Math.floor(Math.random()*60); change("money", earn); log(`You shipped a feature and earned ₵${earn} from freelance.`); } else { log("Deep focus coding session. Progress made."); } } },
-      pitch: { title: "Pitch your idea", cost: "Social + Risk", effect: () => { if (Math.random() > 0.6) { change("money", 100); change("happy", 30); log("Investor interest! You secured seed interest."); } else { change("happy", -10); log("Pitch didn't land this time. Keep refining."); } } },
-      meetup: { title: "Tech meetup", cost: "Social ++", effect: () => { change("social", 35); change("energy", -15); log("Great conversations and potential collaborators."); } },
-      freelance: { title: "Take freelance gig", cost: "Earn ₵50-120", effect: () => { const earn = 50 + Math.floor(Math.random()*71); change("money", earn); change("energy", -30); log(`Completed a gig for ₵${earn}. Client happy.`); } },
+      // Tech
+      code: { title: "Code", cost: "Energy -- Money?", fn: () => { change("energy", -28); if (Math.random()>0.45) { const e = 45+Math.floor(Math.random()*70); change("money", e); log(`Shipped work. Earned ₵${e}.`); } else log("Deep coding. Progress made."); } },
+      pitch: { title: "Pitch idea", cost: "High risk/reward", fn: () => { if (Math.random()>0.55) { change("money", 120); change("happy", 35); log("Pitch landed! Interest secured."); } else { change("happy", -12); log("Pitch missed. Refine and retry."); } } },
+      meetup: { title: "Tech meetup", cost: "Social +++", fn: () => { change("social", 38); change("energy", -16); log("Great minds. Potential collabs unlocked."); } },
+      freelance: { title: "Freelance gig", cost: "Earn ₵60-140", fn: () => { const e = 60+Math.floor(Math.random()*81); change("money", e); change("energy", -32); log(`Gig completed for ₵${e}.`); } },
 
-      worship: { title: "Attend service", cost: "Happy + Peace", effect: () => { change("happy", 25); change("social", 15); change("energy", -5); log("Uplifting service. Spirit renewed."); } },
-      fellowship: { title: "Fellowship", cost: "Social +", effect: () => { change("social", 25); change("happy", 15); log("Warm fellowship and shared testimonies."); } },
-      donate: { title: "Give offering", cost: "₵20", effect: () => { if (spend(20)) { change("happy", 15); log("You gave cheerfully. Heart full."); } } },
-      pray: { title: "Quiet prayer", cost: "Peace", effect: () => { change("happy", 20); change("energy", 5); log("Moments of quiet prayer brought clarity."); } }
+      // Church
+      worship: { title: "Service", cost: "Happy ++ Peace", fn: () => { change("happy", 28); change("social", 16); change("energy", -6); log("Powerful service. Spirit lifted."); } },
+      fellowship: { title: "Fellowship", cost: "Social ++", fn: () => { change("social", 28); change("happy", 16); log("Warm fellowship and shared joy."); } },
+      donate: { title: "Give offering", cost: "₵20", fn: () => { if (spend(20)) { change("happy", 18); log("Cheerful giver. Heart full."); } } },
+      pray: { title: "Pray", cost: "Peace +", fn: () => { change("happy", 22); change("energy", 6); log("Quiet prayer brought clarity."); } },
+
+      // Mall
+      shop: { title: "Window / Shop", cost: "₵20-80", fn: () => { const c = 20+Math.floor(Math.random()*61); if (spend(c)) { change("happy", 20); log(`Retail therapy: spent ₵${c}.`); } } },
+      cinema: { title: "Cinema", cost: "₵45", fn: () => { if (spend(45)) { change("happy", 30); change("social", 8); log("Good film, good escape."); } } },
+      foodcourt: { title: "Food court", cost: "₵35", fn: () => { if (spend(35)) { change("hunger", 45); change("happy", 12); log("Mall food court satisfied."); } } },
+      window: { title: "People watch", cost: "Free", fn: () => { change("happy", 10); change("social", 5); log("Interesting people, quiet observation."); } },
+
+      // Circle
+      trotro_spot: { title: "Trotro life", cost: "Social +", fn: () => { change("social", 15); change("happy", 5); log("Classic Accra transport stories exchanged."); } },
+      street_food: { title: "Street food", cost: "₵10", fn: () => { if (spend(10)) { change("hunger", 35); change("happy", 8); log("Quick street bite. Effective."); } } },
+      observe: { title: "Observe city", cost: "Insight", fn: () => { change("happy", 12); log("You watched Accra move. Inspiration struck."); } },
+      side_hustle: { title: "Quick hustle", cost: "Earn ₵12-30", fn: () => { const e = 12+Math.floor(Math.random()*19); change("money", e); change("energy", -14); log(`Quick hustle: ₵${e}.`); } }
     };
 
-    // ========== STATE ==========
+    const CAREERS = {
+      unemployed: { name: "Unemployed", pay: 0, desc: "No steady income. Hustle daily." },
+      trader: { name: "Market Trader", pay: 35, desc: "Buy low, sell high at Makola & Kaneshie.", reqMoney: 80 },
+      developer: { name: "Software Developer", pay: 70, desc: "Code, ship, earn. Tech Hub home.", reqMoney: 0 },
+      teacher: { name: "Teacher", pay: 45, desc: "Shape the next generation at Legon area.", reqMoney: 0 },
+      musician: { name: "Musician / Artist", pay: 30, desc: "Highlife, afrobeats, or gospel. Create & perform.", reqMoney: 40 },
+      driver: { name: "Trotro / Ride Driver", pay: 40, desc: "Move Accra. Long hours, steady cash.", reqMoney: 100 },
+      student: { name: "Student", pay: 10, desc: "Learn now, earn later. Focus on Legon.", reqMoney: 0 }
+    };
+
+    // ===================== STATE =====================
     let state = {
+      name: "New Ghanaian",
       day: 1,
-      time: 0, // 0=Morning, 1=Afternoon, 2=Evening, 3=Night
+      time: 0, // 0 Morning, 1 Afternoon, 2 Evening, 3 Night
       location: "home",
-      money: 150,
-      hunger: 70,
-      energy: 80,
-      happy: 60,
-      social: 40,
-      health: 85,
+      career: "unemployed",
+      money: 180,
+      hunger: 75,
+      energy: 85,
+      happy: 65,
+      social: 45,
+      health: 90,
       log: []
     };
 
-    const TIME_LABELS = ["Morning", "Afternoon", "Evening", "Night"];
+    const TIME = ["Morning", "Afternoon", "Evening", "Night"];
 
-    // ========== HELPERS ==========
-    function clamp(v) { return Math.max(0, Math.min(100, v)); }
-    function change(stat, amount) {
-      if (stat === "money") state.money = Math.max(0, state.money + amount);
-      else state[stat] = clamp(state[stat] + amount);
-      render();
+    // ===================== HELPERS =====================
+    function clamp(v) { return Math.max(0, Math.min(100, Math.round(v))); }
+    function change(stat, amt) {
+      if (stat === "money") state.money = Math.max(0, Math.round(state.money + amt));
+      else state[stat] = clamp(state[stat] + amt);
     }
-    function spend(amount) {
-      if (state.money < amount) {
-        toast("Not enough money! Go hustle.");
-        return false;
-      }
-      state.money -= amount;
+    function spend(amt) {
+      if (state.money < amt) { toast("Not enough ₵! Go hustle."); return false; }
+      state.money -= amt;
       return true;
     }
-    function advanceTime(hours = 2) {
-      state.time += Math.ceil(hours / 4);
+    function log(msg) {
+      state.log.unshift(`Day ${state.day}: ${msg}`);
+      if (state.log.length > 50) state.log.pop();
+    }
+    function toast(msg) {
+      const t = document.getElementById("toast");
+      t.textContent = msg;
+      t.classList.add("show");
+      clearTimeout(window._toastT);
+      window._toastT = setTimeout(() => t.classList.remove("show"), 2600);
+    }
+    function advanceTime(hrs = 2) {
+      // Career daily pay once per day when morning comes
+      const prevTime = state.time;
+      state.time += Math.ceil(hrs / 3.5);
       while (state.time >= 4) {
         state.time -= 4;
         state.day++;
         // daily decay
-        change("hunger", -15);
-        change("energy", -5);
-        change("social", -3);
+        change("hunger", -18);
+        change("energy", -8);
+        change("social", -4);
+        change("happy", -3);
+        // career pay
+        const pay = CAREERS[state.career]?.pay || 0;
+        if (pay > 0) {
+          change("money", pay);
+          log(`Career pay: +₵${pay} (${CAREERS[state.career].name})`);
+        }
         log(`— Day ${state.day} begins —`);
       }
-      // random events
-      if (Math.random() < 0.15) randomEvent();
+      if (Math.random() < 0.18) randomEvent();
+      checkCritical();
       render();
-    }
-    function log(msg) {
-      state.log.unshift(`Day ${state.day}: ${msg}`);
-      if (state.log.length > 40) state.log.pop();
-    }
-    function toast(msg) {
-      const el = document.getElementById("toast");
-      el.textContent = msg;
-      el.classList.add("show");
-      setTimeout(() => el.classList.remove("show"), 2500);
     }
     function randomEvent() {
       const events = [
-        () => { change("money", 30); log("A relative sent you ₵30 mobile money. Blessings!"); },
-        () => { change("happy", -15); change("energy", -10); log("Tro-tro broke down. Delayed and frustrated."); },
-        () => { change("social", 20); log("You ran into an old classmate. Great catch-up!"); },
-        () => { change("health", -10); log("Slight fever. Take it easy today."); },
-        () => { change("happy", 20); log("You heard your favorite highlife song on the radio. Instant mood boost."); },
-        () => { change("money", -15); log("Unexpected small expense (data + pure water)."); }
+        () => { change("money", 40); log("Family sent you ₵40 via MoMo. Blessings!"); },
+        () => { change("happy", -18); change("energy", -12); log("Trotro broke down + traffic. Frustrating delay."); },
+        () => { change("social", 22); log("Ran into an old friend. Great reunion!"); },
+        () => { change("health", -12); log("Mild fever / body pain. Rest needed."); },
+        () => { change("happy", 25); log("Your favorite highlife / afrobeats song came on. Instant lift!"); },
+        () => { change("money", -18); log("Data + pure water + small chop. Everyday expenses."); },
+        () => { change("happy", 15); change("social", 10); log("Someone paid you a genuine compliment. Felt good."); },
+        () => { if (state.career !== "unemployed") { change("money", 25); log("Small bonus / tip from work today."); } }
       ];
-      events[Math.floor(Math.random() * events.length)]();
+      events[Math.floor(Math.random()*events.length)]();
+    }
+    function checkCritical() {
+      if (state.hunger <= 5) { change("health", -8); change("energy", -10); toast("Starving! Health suffering."); }
+      if (state.energy <= 5) toast("Exhausted. Sleep soon or collapse.");
+      if (state.health <= 15) toast("Health critical. Rest and eat well.");
+      if (state.happy <= 10) toast("Very low mood. Do something joyful.");
     }
 
-    // ========== RENDER ==========
+    // ===================== RENDER =====================
     function render() {
-      // Stats
-      document.getElementById("stats").innerHTML = `
-        <div class="stat money"><div class="stat-label">Money</div><div class="stat-value">₵${state.money}</div></div>
-        <div class="stat hunger"><div class="stat-label">Hunger</div><div class="stat-value">${state.hunger}</div><div class="stat-bar"><div class="stat-bar-fill" style="width:${state.hunger}%"></div></div></div>
-        <div class="stat energy"><div class="stat-label">Energy</div><div class="stat-value">${state.energy}</div><div class="stat-bar"><div class="stat-bar-fill" style="width:${state.energy}%"></div></div></div>
-        <div class="stat happy"><div class="stat-label">Happiness</div><div class="stat-value">${state.happy}</div><div class="stat-bar"><div class="stat-bar-fill" style="width:${state.happy}%"></div></div></div>
-        <div class="stat social"><div class="stat-label">Social</div><div class="stat-value">${state.social}</div><div class="stat-bar"><div class="stat-bar-fill" style="width:${state.social}%"></div></div></div>
-        <div class="stat health"><div class="stat-label">Health</div><div class="stat-value">${state.health}</div><div class="stat-bar"><div class="stat-bar-fill" style="width:${state.health}%"></div></div></div>
-      `;
+      // Char
+      document.getElementById("charName").textContent = state.name;
+      document.getElementById("charJob").textContent = CAREERS[state.career]?.name || "Unemployed";
 
-      document.getElementById("dayInfo").textContent = `Day ${state.day} • ${TIME_LABELS[state.time]}`;
+      // Stats
+      const stats = [
+        { key:"money", label:"Money", val: `\u20b5${state.money}`, cls:"money" },
+        { key:"hunger", label:"Hunger", val: state.hunger, cls:"hunger" },
+        { key:"energy", label:"Energy", val: state.energy, cls:"energy" },
+        { key:"happy", label:"Happy", val: state.happy, cls:"happy" },
+        { key:"social", label:"Social", val: state.social, cls:"social" },
+        { key:"health", label:"Health", val: state.health, cls:"health" }
+      ];
+      document.getElementById("stats").innerHTML = stats.map(s => {
+        const low = s.key !== "money" && s.val < 20 ? " low" : "";
+        const bar = s.key === "money" ? "" : `<div class="stat-bar"><div class="stat-bar-fill" style="width:${s.val}%"></div></div>`;
+        return `<div class="stat ${s.cls}${low}"><div class="stat-label">${s.label}</div><div class="stat-value">${s.val}</div>${bar}</div>`;
+      }).join("");
+
+      document.getElementById("dayInfo").textContent = `Day ${state.day} • ${TIME[state.time]}`;
 
       // Location
       const loc = LOCATIONS[state.location];
       document.getElementById("locationCard").innerHTML = `
         <div class="location-emoji">${loc.emoji}</div>
         <div class="location-name">${loc.name}</div>
-        <div class="location-desc">${loc.desc}</div>
-      `;
+        <div class="location-desc">${loc.desc}</div>`;
 
       // Actions
-      const actionsEl = document.getElementById("actions");
-      actionsEl.innerHTML = loc.actions.map(key => {
-        const a = ACTIONS[key];
-        return `<button class="action-btn" onclick="doAction('${key}')">
-          <span class="title">${a.title}</span>
-          <span class="cost">${a.cost}</span>
-        </button>`;
+      document.getElementById("actions").innerHTML = loc.actions.map(k => {
+        const a = ACTIONS[k];
+        return `<button class="action-btn" onclick="doAction('${k}')"><span class="title">${a.title}</span><span class="cost">${a.cost}</span></button>`;
       }).join("");
 
-      // Locations list
-      const listEl = document.getElementById("locationsList");
-      listEl.innerHTML = Object.entries(LOCATIONS).map(([key, l]) => `
-        <button class="loc-btn ${key === state.location ? 'active' : ''}" onclick="travel('${key}')">
-          <span>${l.emoji}</span> <span>${l.name}</span>
-        </button>
-      `).join("");
+      // Career panel
+      const c = CAREERS[state.career];
+      document.getElementById("careerInfo").textContent = `${c.name}: ${c.desc} ${c.pay ? `(+₵${c.pay}/day)` : ""}`;
+      document.getElementById("careerActions").innerHTML = `
+        <button class="small" onclick="showCareerModal()">Switch Career</button>
+        ${state.career !== "unemployed" ? `<button class="small" onclick="workShift()">Work a shift</button>` : ""}`;
+
+      // Locations
+      document.getElementById("locationsList").innerHTML = Object.entries(LOCATIONS).map(([k,l]) =>
+        `<button class="loc-btn ${k===state.location?"active":""}" onclick="travel('${k}')"><span>${l.emoji}</span><span>${l.name}</span></button>`
+      ).join("");
 
       // Log
-      document.getElementById("log").innerHTML = state.log.slice(0, 15).map(e =>
-        `<div class="log-entry">${e}</div>`
-      ).join("") || "<div class=\"log-entry\">Your story begins...</div>";
-
-      // Low stats warning
-      if (state.hunger < 15) toast("You're very hungry! Eat something.");
-      if (state.energy < 10) toast("Exhausted. You need rest.");
-      if (state.health < 20) toast("Health is low. Take care of yourself.");
+      document.getElementById("log").innerHTML = state.log.slice(0,12).map(e =>
+        `<div class="log-entry">${e}</div>`).join("") || `<div class="log-entry">Your Accra story begins...</div>`;
     }
 
     function doAction(key) {
-      if (state.energy < 5 && key !== "sleep") {
-        toast("Too tired. Go sleep first.");
-        return;
-      }
-      ACTIONS[key].effect();
+      if (state.energy < 6 && key !== "sleep") { toast("Too tired. Sleep first."); return; }
+      if (state.time === 3 && key !== "sleep" && Math.random() > 0.7) { toast("It's late. Consider sleeping."); }
+      ACTIONS[key].fn();
       advanceTime(2);
     }
 
     function travel(key) {
       if (key === state.location) return;
-      if (state.energy < 8) {
-        toast("Too tired to travel. Rest first.");
-        return;
-      }
+      if (state.energy < 10) { toast("Too tired to travel."); return; }
       state.location = key;
-      change("energy", -8);
-      change("money", -3); // trotro / transport
-      log(`You took a trotro to ${LOCATIONS[key].name}.`);
+      change("energy", -9);
+      change("money", -4); // trotro
+      log(`Trotro to ${LOCATIONS[key].name}.`);
       advanceTime(1);
     }
 
-    // ========== SAVE / LOAD / NEW ==========
-    function saveGame() {
-      localStorage.setItem("accraLifeSave", JSON.stringify(state));
-      toast("Life saved successfully!");
-    }
-    function loadGame() {
-      const raw = localStorage.getItem("accraLifeSave");
-      if (!raw) { toast("No save found."); return; }
-      state = JSON.parse(raw);
-      render();
-      toast("Life loaded!");
-    }
-    function newGame() {
-      if (!confirm("Start a completely new life? Current progress will be lost if not saved.")) return;
-      state = {
-        day: 1, time: 0, location: "home",
-        money: 150, hunger: 70, energy: 80, happy: 60, social: 40, health: 85,
-        log: ["Welcome to Accra Life. Your Ghanaian story starts now."]
-      };
-      render();
-      toast("New life begun. Make it count!");
+    function workShift() {
+      if (state.energy < 20) { toast("Too tired to work a full shift."); return; }
+      const pay = Math.round((CAREERS[state.career].pay || 20) * 1.4);
+      change("money", pay);
+      change("energy", -30);
+      change("social", 5);
+      log(`Worked a solid shift as ${CAREERS[state.career].name}. Earned ₵${pay}.`);
+      advanceTime(4);
     }
 
-    // ========== MODAL ==========
-    function showModal(title, body) {
-      document.getElementById("modalTitle").textContent = title;
-      document.getElementById("modalBody").textContent = body;
-      document.getElementById("modal").classList.add("show");
+    // ===================== CAREER =====================
+    function showCareerModal() {
+      const box = document.getElementById("careerOptions");
+      box.innerHTML = Object.entries(CAREERS).map(([k,c]) => {
+        const locked = c.reqMoney && state.money < c.reqMoney;
+        return `<button style="text-align:left;padding:12px;" ${locked?"disabled":""} onclick="setCareer('${k}')">
+          <strong>${c.name}</strong> ${c.pay?`• ₵${c.pay}/day`:""}<br>
+          <span style="font-size:0.8rem;color:var(--muted)">${c.desc}${locked?` (Need ₵${c.reqMoney})`:""}</span>
+        </button>`;
+      }).join("");
+      document.getElementById("careerModal").classList.add("show");
     }
-    function closeModal() {
-      document.getElementById("modal").classList.remove("show");
+    function closeCareerModal() { document.getElementById("careerModal").classList.remove("show"); }
+    function setCareer(key) {
+      const c = CAREERS[key];
+      if (c.reqMoney && state.money < c.reqMoney) { toast("Not enough money to start this career."); return; }
+      if (c.reqMoney) change("money", -c.reqMoney);
+      state.career = key;
+      log(`You are now a ${c.name}.`);
+      closeCareerModal();
+      render();
+      toast(`Career set: ${c.name}`);
+    }
+
+    // ===================== NEW / SAVE / LOAD =====================
+    function promptNewGame() {
+      if (state.day > 1 && !confirm("Start a new life? Unsaved progress will be lost.")) return;
+      document.getElementById("nameInput").value = "";
+      document.getElementById("nameModal").classList.add("show");
+      setTimeout(() => document.getElementById("nameInput").focus(), 100);
+    }
+    function startNewLife() {
+      const name = document.getElementById("nameInput").value.trim() || "Ghanaian Hustler";
+      state = {
+        name, day: 1, time: 0, location: "home", career: "unemployed",
+        money: 180, hunger: 75, energy: 85, happy: 65, social: 45, health: 90,
+        log: [`Welcome ${name}! Your Accra Life begins. Make Ghana proud.`]
+      };
+      document.getElementById("nameModal").classList.remove("show");
+      render();
+      toast(`Welcome, ${name}!`);
+    }
+    function saveGame() {
+      localStorage.setItem("accraLife_v2", JSON.stringify(state));
+      toast("Life saved!");
+    }
+    function loadGame() {
+      const raw = localStorage.getItem("accraLife_v2") || localStorage.getItem("accraLifeSave");
+      if (!raw) { toast("No save found."); return; }
+      try {
+        state = JSON.parse(raw);
+        // migrate old saves
+        if (!state.name) state.name = "Ghanaian";
+        if (!state.career) state.career = "unemployed";
+        render();
+        toast("Life loaded!");
+      } catch(e) { toast("Save corrupted."); }
     }
 
     // Init
-    if (!localStorage.getItem("accraLifeSave")) {
-      state.log = ["Welcome to Accra Life — the superior Ghanaian alternative to Lagos Life."];
+    if (!localStorage.getItem("accraLife_v2") && !localStorage.getItem("accraLifeSave")) {
+      document.getElementById("nameModal").classList.add("show");
+    } else {
+      // try load existing
+      const raw = localStorage.getItem("accraLife_v2") || localStorage.getItem("accraLifeSave");
+      if (raw) {
+        try { state = JSON.parse(raw); if (!state.name) state.name = "Ghanaian"; if (!state.career) state.career = "unemployed"; } catch(e){}
+      }
     }
     render();
   </script>
