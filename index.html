@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>Life in Accra</title>
   <meta name="description" content="Live your story in Accra. Visit friends, build relationships, send money." />
+  <meta property="og:title" content="Life in Accra" />
+  <meta property="og:description" content="Live your story in Accra. Visit friends, build relationships, send money." />
   <meta name="theme-color" content="#0c1017" />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -69,11 +71,12 @@
     <h1>Life in <span>Accra</span></h1>
     <p>Live your story. Visit friends. Build relationships.</p>
     <div class="auth-options">
-      <button class="primary" onclick="continueAsGuest()">Continue as Guest</button>
-      <button onclick="showCreateAccount()">Create Account</button>
-      <button onclick="showLogin()">Load Existing Save</button>
+      <button class="primary" onclick="signInWithGoogle()">Sign in with Google (Cloud Save)</button>
+      <button onclick="continueAsGuest()">Continue as Guest</button>
+      <button onclick="showCreateAccount()">Create Local Account</button>
+      <button onclick="showLogin()">Load Save Code</button>
     </div>
-    <p style="margin-top:20px;font-size:.8rem;color:var(--muted)">Guest saves stay on this device. Accounts prepare you for future cloud saves & multiplayer.</p>
+    <p style="margin-top:20px;font-size:.8rem;color:var(--muted)">Sign in with Google to sync your progress to Firebase Cloud Firestore and visit other online residents.</p>
   </div>
 
   <!-- MAIN GAME (hidden until auth) -->
@@ -83,6 +86,7 @@
       <div class="header-right">
         <span class="day-info" id="dayInfo">Day 1 • Morning</span>
         <button class="small" onclick="saveGame()">Save</button>
+        <button class="small" onclick="showVisitPlayerModal()">Visit Resident</button>
         <button class="small" onclick="showSummary()">Summary</button>
         <button class="small" onclick="logout()">Account</button>
       </div>
@@ -132,7 +136,7 @@
     </div>
 
     <footer>
-      Life in Accra • Player ID ready for future multiplayer<br>
+      Life in Accra • Powered by Firebase Cloud Saves & Resident Directory<br>
       <a href="https://desurfofficial-ship-it.github.io/lagos-life-ghana/">Play</a> • <a href="https://github.com/desurfofficial-ship-it/lagos-life-ghana">GitHub</a>
     </footer>
   </div>
@@ -167,11 +171,26 @@
       <h2>Account</h2>
       <p id="accountInfo"></p>
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+        <button class="primary" onclick="signInWithGoogle()">Sync / Sign In with Google</button>
+        <button onclick="saveGame()">Save Now (Cloud & Local)</button>
         <button onclick="exportSave()">Export Save Code</button>
-        <button onclick="saveGame()">Save Locally</button>
         <button onclick="promptNewGame()">New Life</button>
+        <button onclick="signOutAccount()">Sign Out</button>
       </div>
       <div class="modal-actions"><button onclick="closeAccount()">Close</button></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="visitPlayerModal">
+    <div class="modal">
+      <h2>Visit Online Resident</h2>
+      <p>Enter another player's Resident UID to visit their flat in Accra.</p>
+      <input type="text" id="visitPlayerUidInput" placeholder="Paste Resident UID" maxlength="128" />
+      <div id="visitPlayerResult" style="margin-bottom:12px"></div>
+      <div class="modal-actions">
+        <button onclick="closeVisitPlayerModal()">Close</button>
+        <button class="primary" onclick="lookupResidentByUid()">Visit Flat</button>
+      </div>
     </div>
   </div>
 
@@ -205,475 +224,6 @@
 
   <div class="toast" id="toast"></div>
 
-  <script>
-    // ===================== CORE DATA =====================
-    const LOCATIONS = {
-      home:{name:"Your Flat (Osu)",emoji:"🏠",desc:"Your place in Osu.",actions:["sleep","cook","watch","clean"]},
-      makola:{name:"Makola Market",emoji:"🛒",desc:"Commercial heart of Accra.",actions:["buy_food","sell","bargain","load_goods"]},
-      labadi:{name:"Labadi Beach",emoji:"🏖️",desc:"Sand, sea, reset energy.",actions:["swim","relax","kelewele","party"]},
-      square:{name:"Independence Square",emoji:"🇬🇭",desc:"Black Star Square.",actions:["reflect","photo","meet"]},
-      legon:{name:"University of Ghana",emoji:"🎓",desc:"Legon campus.",actions:["study","lecture","network"]},
-      kaneshie:{name:"Kaneshie",emoji:"🥬",desc:"Fresh food and real energy.",actions:["banku","hustle","gist"]},
-      tech:{name:"Tech Hub",emoji:"💻",desc:"Where builders gather.",actions:["code","pitch","freelance"]},
-      church:{name:"Church",emoji:"⛪",desc:"Community and peace.",actions:["worship","fellowship","donate"]},
-      mall:{name:"Accra Mall",emoji:"🏬",desc:"Shopping and cinema.",actions:["shop","cinema","foodcourt"]},
-      circle:{name:"Circle",emoji:"🚌",desc:"Kwame Nkrumah Circle.",actions:["street_food","side_hustle","observe"]}
-    };
-
-    const ACTIONS = {
-      sleep:{title:"Sleep",cost:"Energy +++",fn:()=>{change("energy",50);change("hunger",-12);advanceTime(8);log("You slept well.");}},
-      cook:{title:"Cook",cost:"₵6",fn:()=>{if(spend(6)){change("hunger",40);change("happy",8);log("Home-cooked meal.");}}},
-      watch:{title:"Watch TV",cost:"Happy +",fn:()=>{change("happy",18);change("energy",-6);advanceTime(2);log("Relaxed with a show.");}},
-      clean:{title:"Clean",cost:"Happy +",fn:()=>{change("happy",10);change("health",5);change("energy",-10);log("Place feels better.");}},
-      buy_food:{title:"Street food",cost:"₵12",fn:()=>{if(spend(12)){change("hunger",42);change("happy",10);log("Waakye hit different.");}}},
-      sell:{title:"Sell goods",cost:"Earn ₵25-60",fn:()=>{const e=25+Math.floor(Math.random()*36);change("money",e);change("energy",-18);log(`Sold goods for ₵${e}.`);}},
-      bargain:{title:"Bargain",cost:"Skill",fn:()=>{if(Math.random()>0.35){change("money",18);log("Good bargain.");}else{change("happy",-5);log("They held firm.");}}},
-      load_goods:{title:"Load goods",cost:"Earn ₵15",fn:()=>{change("money",15);change("energy",-20);log("Helped load goods.");}},
-      swim:{title:"Swim",cost:"Health +",fn:()=>{change("energy",-16);change("health",18);change("happy",22);log("Ocean reset.");}},
-      relax:{title:"Chill",cost:"Happy ++",fn:()=>{change("happy",28);change("energy",12);log("Beach therapy.");}},
-      kelewele:{title:"Kelewele",cost:"₵8",fn:()=>{if(spend(8)){change("hunger",28);change("happy",18);log("Spicy kelewele.");}}},
-      party:{title:"Party",cost:"₵35",fn:()=>{if(spend(35)){change("social",35);change("happy",30);change("energy",-25);log("Good night out.");}}},
-      reflect:{title:"Reflect",cost:"Happy +",fn:()=>{change("happy",16);log("Quiet moment at the Square.");}},
-      photo:{title:"Photos",cost:"Happy +",fn:()=>{change("happy",12);log("Snapped some shots.");}},
-      meet:{title:"Meet people",cost:"Social ++",fn:()=>{change("social",26);log("New connections.");}},
-      study:{title:"Study",cost:"Energy -",fn:()=>{change("energy",-22);change("happy",6);if(state.career==="student")change("money",8);log("Studied hard.");}},
-      lecture:{title:"Lecture",cost:"Energy -",fn:()=>{change("energy",-16);change("social",12);log("Attended lecture.");}},
-      network:{title:"Network",cost:"Social +++",fn:()=>{change("social",32);change("energy",-12);log("Network grew.");}},
-      banku:{title:"Banku & Tilapia",cost:"₵28",fn:()=>{if(spend(28)){change("hunger",55);change("happy",22);change("health",6);log("Banku and tilapia.");}}},
-      hustle:{title:"Side hustle",cost:"Earn ₵18-40",fn:()=>{const e=18+Math.floor(Math.random()*23);change("money",e);change("energy",-20);log(`Hustle paid ₵${e}.`);}},
-      gist:{title:"Catch gist",cost:"Social +",fn:()=>{change("social",20);change("happy",10);log("Got the latest gist.");}},
-      code:{title:"Code",cost:"Energy --",fn:()=>{change("energy",-28);if(Math.random()>0.45){const e=45+Math.floor(Math.random()*70);change("money",e);log(`Shipped work for ₵${e}.`);}else log("Coded for hours.");}},
-      pitch:{title:"Pitch",cost:"Risk",fn:()=>{if(Math.random()>0.55){change("money",120);change("happy",35);log("Pitch went well!");}else{change("happy",-12);log("Pitch missed.");}}},
-      freelance:{title:"Freelance",cost:"Earn ₵60-140",fn:()=>{const e=60+Math.floor(Math.random()*81);change("money",e);change("energy",-32);log(`Freelance: ₵${e}.`);}},
-      worship:{title:"Service",cost:"Happy ++",fn:()=>{change("happy",28);change("social",16);log("Service was uplifting.");}},
-      fellowship:{title:"Fellowship",cost:"Social ++",fn:()=>{change("social",28);change("happy",16);log("Good fellowship.");}},
-      donate:{title:"Give",cost:"₵20",fn:()=>{if(spend(20)){change("happy",18);log("You gave.");}}},
-      shop:{title:"Shop",cost:"₵20-80",fn:()=>{const c=20+Math.floor(Math.random()*61);if(spend(c)){change("happy",20);log(`Spent ₵${c}.`);}}},
-      cinema:{title:"Cinema",cost:"₵45",fn:()=>{if(spend(45)){change("happy",30);change("social",8);log("Watched a film.");}}},
-      foodcourt:{title:"Food court",cost:"₵35",fn:()=>{if(spend(35)){change("hunger",45);change("happy",12);log("Ate at the mall.");}}},
-      street_food:{title:"Street food",cost:"₵10",fn:()=>{if(spend(10)){change("hunger",35);change("happy",8);log("Quick bite.");}}},
-      side_hustle:{title:"Quick hustle",cost:"Earn ₵12-30",fn:()=>{const e=12+Math.floor(Math.random()*19);change("money",e);change("energy",-14);log(`Quick ₵${e}.`);}},
-      observe:{title:"Observe",cost:"Insight",fn:()=>{change("happy",12);log("Watched the city move.");}}
-    };
-
-    const CAREERS = {
-      unemployed:{name:"Unemployed",pay:0,desc:"Pure hustle.",reqMoney:0},
-      trader:{name:"Market Trader",pay:35,desc:"Buy and sell.",reqMoney:80},
-      developer:{name:"Developer",pay:70,desc:"Build software.",reqMoney:0},
-      teacher:{name:"Teacher",pay:45,desc:"Teach the next generation.",reqMoney:0},
-      musician:{name:"Musician",pay:30,desc:"Create and perform.",reqMoney:40},
-      driver:{name:"Driver",pay:40,desc:"Move people around Accra.",reqMoney:100},
-      student:{name:"Student",pay:10,desc:"Focus on learning.",reqMoney:0}
-    };
-
-    const DIALOGUE = {
-      ama:{chat:["How is life treating you?","You look well today.","Anything you need, just say."],hang:["We cooked and talked for hours.","She shared stories from work."],gift:["She pressed money into your hand.","Ama: 'Take this. No argument."]},
-      kofi:{chat:["Any wahala? Talk to me.","You know I dey your side.","How the hustle?"],hang:["You both fixed things and talked life.","Solid time with Kofi."],gift:["Kofi forced money into your hand.","He wouldn't let you leave empty-handed."]},
-      abena:{chat:["You look like you need good news.","Come, sit. Tell me everything."],hang:["She ordered food for both of you.","Abena made you feel at home."],gift:["She sent you money without asking.","Abena: 'Just a small something."]},
-      kwame:{chat:["The hustle continues. How far?","We go make am one day."],hang:["You talked goals and strategy.","Two grinders comparing notes."],gift:["He shared a small win with you.","Kwame: 'We rise together."]},
-      efua:{chat:["Have you heard the latest highlife?","You need more music in your life."],hang:["Music, stories, pure vibes.","Efua's energy is contagious."],gift:["She gave you something thoughtful.","Efua always finds a way to bless people."]}
-    };
-
-    const DEFAULT_FRIENDS = [
-      {id:"ama",name:"Ama",house:"Ama's Place (Adenta)",emoji:"🏡",money:240,affinity:42,mood:"content",bio:"Works in banking. Steady and caring.",status:"at home",lastInteract:0,timesVisited:0,routine:{0:"at home",1:"at work",2:"at home",3:"sleeping"}},
-      {id:"kofi",name:"Kofi",house:"Kofi's Spot (Tema)",emoji:"🏠",money:160,affinity:38,mood:"focused",bio:"Mechanic and side hustler. Very loyal.",status:"at work",lastInteract:0,timesVisited:0,routine:{0:"at work",1:"at work",2:"at home",3:"sleeping"}},
-      {id:"abena",name:"Abena",house:"Abena's Flat (East Legon)",emoji:"🏢",money:340,affinity:55,mood:"happy",bio:"Runs a boutique. Generous when she can.",status:"at home",lastInteract:0,timesVisited:0,routine:{0:"at home",1:"at shop",2:"out",3:"at home"}},
-      {id:"kwame",name:"Kwame",house:"Kwame's Room (Madina)",emoji:"👨🏻",money:95,affinity:33,mood:"tired",bio:"Student and part-time rider.",status:"at school",lastInteract:0,timesVisited:0,routine:{0:"at school",1:"riding",2:"at home",3:"sleeping"}},
-      {id:"efua",name:"Efua",house:"Efua's Home (Dansoman)",emoji:"👩🏻",money:190,affinity:48,mood:"cheerful",bio:"Teacher by day, highlife lover by night.",status:"at home",lastInteract:0,timesVisited:0,routine:{0:"at school",1:"at school",2:"at home",3:"out"}}
-    ];
-
-    // ===================== STATE & ACCOUNT =====================
-    let account = {
-      playerId: null,
-      displayName: null,
-      isGuest: true,
-      createdAt: null
-    };
-
-    let state = null;
-    const TIME = ["Morning","Afternoon","Evening","Night"];
-    let sendTarget = null;
-
-    function generatePlayerId(){
-      return 'accra_' + Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
-    }
-
-    function createDefaultState(name){
-      return {
-        name: name || "Accra Resident",
-        day:1, time:0, location:"home", career:"unemployed",
-        money:180, hunger:75, energy:85, happy:65, social:45, health:90,
-        visiting:null, pendingInvite:null,
-        friends: JSON.parse(JSON.stringify(DEFAULT_FRIENDS)),
-        log: [`Welcome ${name || "Resident"}. This is your life in Accra.`],
-        version: 3
-      };
-    }
-
-    // ===================== AUTH =====================
-    function continueAsGuest(){
-      account = {
-        playerId: generatePlayerId(),
-        displayName: "Guest",
-        isGuest: true,
-        createdAt: new Date().toISOString()
-      };
-      // try load existing local
-      const saved = localStorage.getItem("lifeInAccra_state");
-      if(saved){
-        try{ state = JSON.parse(saved); } catch(e){ state = createDefaultState("Guest"); }
-      } else {
-        state = createDefaultState("Guest");
-      }
-      enterGame();
-    }
-
-    function showCreateAccount(){
-      document.getElementById("createModal").classList.add("show");
-      document.getElementById("createName").focus();
-    }
-    function closeCreate(){ document.getElementById("createModal").classList.remove("show"); }
-
-    function createAccount(){
-      const name = document.getElementById("createName").value.trim();
-      if(!name || name.length < 2){ toast("Enter a name (at least 2 characters)"); return; }
-      account = {
-        playerId: generatePlayerId(),
-        displayName: name,
-        isGuest: false,
-        createdAt: new Date().toISOString()
-      };
-      state = createDefaultState(name);
-      localStorage.setItem("lifeInAccra_account", JSON.stringify(account));
-      saveGame();
-      closeCreate();
-      enterGame();
-      toast(`Account created. Your ID: ${account.playerId.slice(0,12)}...`);
-    }
-
-    function showLogin(){
-      document.getElementById("loginModal").classList.add("show");
-    }
-    function closeLogin(){ document.getElementById("loginModal").classList.remove("show"); }
-
-    function importSave(){
-      const code = document.getElementById("importCode").value.trim();
-      if(!code){ toast("Paste a save code"); return; }
-      try{
-        const data = JSON.parse(atob(code));
-        if(data.account && data.state){
-          account = data.account;
-          state = data.state;
-          localStorage.setItem("lifeInAccra_account", JSON.stringify(account));
-          localStorage.setItem("lifeInAccra_state", JSON.stringify(state));
-          closeLogin();
-          enterGame();
-          toast("Save loaded");
-        } else throw new Error("Invalid");
-      }catch(e){ toast("Invalid save code"); }
-    }
-
-    function enterGame(){
-      document.getElementById("authScreen").classList.add("hidden");
-      document.getElementById("gameApp").classList.remove("hidden");
-      updateFriendStatuses();
-      render();
-    }
-
-    function logout(){
-      document.getElementById("accountInfo").innerHTML = `
-        <strong>${account.displayName}</strong> ${account.isGuest ? "(Guest)" : ""}<br>
-        Player ID: <code style="font-size:.8rem">${account.playerId}</code><br>
-        <span style="font-size:.8rem;color:var(--muted)">Created: ${account.createdAt ? new Date(account.createdAt).toLocaleDateString() : "—"}</span>`;
-      document.getElementById("accountModal").classList.add("show");
-    }
-    function closeAccount(){ document.getElementById("accountModal").classList.remove("show"); }
-
-    function exportSave(){
-      const payload = { account, state, exportedAt: new Date().toISOString() };
-      const code = btoa(JSON.stringify(payload));
-      navigator.clipboard.writeText(code).then(()=>{
-        toast("Save code copied to clipboard");
-      }).catch(()=>{
-        prompt("Copy this save code:", code);
-      });
-    }
-
-    // ===================== HELPERS =====================
-    function clamp(v){return Math.max(0,Math.min(100,Math.round(v)));}
-    function change(stat,amt){if(stat==="money")state.money=Math.max(0,Math.round(state.money+amt));else state[stat]=clamp(state[stat]+amt);}
-    function spend(amt){if(state.money<amt){toast("Not enough ₵");return false;}state.money-=amt;return true;}
-    function log(msg){state.log.unshift(`Day ${state.day}: ${msg}`);if(state.log.length>50)state.log.pop();}
-    function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");clearTimeout(window._tt);window._tt=setTimeout(()=>t.classList.remove("show"),2800);}
-    function pick(arr){return arr[Math.floor(Math.random()*arr.length)];}
-    function milestoneText(aff){
-      if(aff>=90) return "Closest friend";
-      if(aff>=70) return "Trusted friend";
-      if(aff>=55) return "Good friend";
-      if(aff>=40) return "Friend";
-      if(aff>=25) return "Acquaintance";
-      return "New connection";
-    }
-
-    function updateFriendStatuses(){
-      if(!state) return;
-      state.friends.forEach(f=>{
-        f.status = f.routine[state.time] || "at home";
-        if(Math.random()<0.3){ f.mood = pick(["content","happy","focused","cheerful","tired","stressed","relaxed"]); }
-        f.money += 6 + Math.floor(Math.random()*16);
-      });
-    }
-
-    function advanceTime(hrs=2){
-      state.time += Math.ceil(hrs/3.5);
-      while(state.time>=4){
-        state.time-=4; state.day++;
-        change("hunger",-18); change("energy",-8); change("social",-4); change("happy",-3);
-        const pay = CAREERS[state.career]?.pay || 0;
-        if(pay>0){ change("money",pay); log(`Career pay +₵${pay}`); }
-        updateFriendStatuses();
-        log(`— Day ${state.day} —`);
-        if(Math.random()<0.38) generateInvite();
-      }
-      if(Math.random()<0.2) randomSocialEvent();
-      checkCritical();
-      render();
-    }
-
-    function generateInvite(){
-      const available = state.friends.filter(f=>f.affinity>=28 && !["sleeping","at work","at school"].includes(f.status));
-      if(!available.length) return;
-      const f = pick(available);
-      state.pendingInvite = f.id;
-      document.getElementById("inviteText").textContent = pick([
-        `${f.name} is inviting you over.`,
-        `${f.name}: "You free? Come pass by."`,
-        `${f.name} wants to hang out.`,
-        `Message from ${f.name}: "I dey house, make you come."`
-      ]);
-      document.getElementById("inviteBanner").classList.add("show");
-      document.getElementById("acceptInviteBtn").onclick = ()=>acceptInvite();
-    }
-    function acceptInvite(){ if(!state.pendingInvite) return; visitFriend(state.pendingInvite); state.pendingInvite=null; document.getElementById("inviteBanner").classList.remove("show"); }
-    function dismissInvite(){ state.pendingInvite=null; document.getElementById("inviteBanner").classList.remove("show"); toast("Invite dismissed"); }
-
-    function randomSocialEvent(){
-      const f = pick(state.friends);
-      if(f.affinity>=50 && Math.random()>0.45 && f.money>45){
-        const amt = 15+Math.floor(Math.random()*35);
-        f.money -= amt; change("money",amt); f.affinity = Math.min(100,f.affinity+3);
-        log(`${f.name} sent you ₵${amt}. ${pick(DIALOGUE[f.id].gift)}`);
-        toast(`${f.name} sent you ₵${amt}`);
-      } else if(f.affinity>=30){ log(`${f.name} checked on you.`); }
-    }
-
-    function checkCritical(){
-      if(state.hunger<=5){change("health",-8);toast("You're starving");}
-      if(state.energy<=5)toast("Exhausted — sleep");
-      if(state.health<=15)toast("Health is low");
-    }
-
-    // ===================== RENDER & ACTIONS (same as before) =====================
-    function render(){
-      if(!state) return;
-      document.getElementById("charName").textContent = state.name;
-      document.getElementById("charJob").textContent = CAREERS[state.career]?.name || "Unemployed";
-      document.getElementById("playerIdDisplay").textContent = `ID: ${account.playerId ? account.playerId.slice(0,16)+"..." : "—"}`;
-
-      const stats = [
-        {key:"money",label:"Wallet",val:`₵${state.money}`,cls:"money"},
-        {key:"hunger",label:"Hunger",val:state.hunger,cls:"hunger"},
-        {key:"energy",label:"Energy",val:state.energy,cls:"energy"},
-        {key:"happy",label:"Happy",val:state.happy,cls:"happy"},
-        {key:"social",label:"Social",val:state.social,cls:"social"},
-        {key:"health",label:"Health",val:state.health,cls:"health"}
-      ];
-      document.getElementById("stats").innerHTML = stats.map(s=>{
-        const low = s.key!=="money"&&s.val<20 ? " low" : "";
-        const bar = s.key==="money" ? "" : `<div class="stat-bar"><div class="stat-bar-fill" style="width:${s.val}%"></div></div>`;
-        return `<div class="stat ${s.cls}${low}"><div class="stat-label">${s.label}</div><div class="stat-value">${s.val}</div>${bar}</div>`;
-      }).join("");
-
-      document.getElementById("dayInfo").textContent = `Day ${state.day} • ${TIME[state.time]}`;
-
-      const npcPanel = document.getElementById("npcPanel");
-      if(state.visiting){
-        const f = state.friends.find(x=>x.id===state.visiting);
-        document.getElementById("locationCard").innerHTML = `<div class="location-emoji">${f.emoji}</div><div class="location-name">${f.house}</div><div class="location-desc">${f.bio}</div>`;
-        document.getElementById("actions").innerHTML = "";
-        npcPanel.style.display = "block";
-        document.getElementById("npcTitle").textContent = `With ${f.name}`;
-        document.getElementById("npcInfo").innerHTML = `Wallet: ₵${f.money} • Friendship: ${f.affinity}/100 • ${f.status}`;
-        document.getElementById("npcMood").textContent = `Mood: ${f.mood}`;
-        document.getElementById("npcMilestone").textContent = milestoneText(f.affinity);
-
-        let acts = `<button class="small primary" onclick="openSend('${f.id}')">Send Money</button>
-          <button class="small" onclick="chatFriend('${f.id}')">Chat</button>
-          <button class="small" onclick="hangOut('${f.id}')">Hang out</button>`;
-        if(f.affinity>=40) acts += ` <button class="small" onclick="eatTogether('${f.id}')">Eat together</button>`;
-        if(f.affinity>=55) acts += ` <button class="small" onclick="deepTalk('${f.id}')">Deep talk</button>`;
-        if(f.affinity>=70) acts += ` <button class="small" onclick="askFavor('${f.id}')">Ask favor</button>`;
-        acts += ` <button class="small" onclick="leaveFriend()">Leave</button>`;
-        document.getElementById("npcActions").innerHTML = acts;
-      } else {
-        const loc = LOCATIONS[state.location];
-        document.getElementById("locationCard").innerHTML = `<div class="location-emoji">${loc.emoji}</div><div class="location-name">${loc.name}</div><div class="location-desc">${loc.desc}</div>`;
-        document.getElementById("actions").innerHTML = loc.actions.map(k=>{
-          const a = ACTIONS[k]; return `<button class="action-btn" onclick="doAction('${k}')"><span class="title">${a.title}</span><span class="cost">${a.cost}</span></button>`;
-        }).join("");
-        npcPanel.style.display = "none";
-      }
-
-      const c = CAREERS[state.career];
-      document.getElementById("careerInfo").textContent = `${c.name} — ${c.desc}${c.pay?` (+₵${c.pay}/day)`:""}`;
-      document.getElementById("careerActions").innerHTML = `<button class="small" onclick="showCareerModal()">Switch</button>${state.career!=="unemployed"?` <button class="small" onclick="workShift()">Work shift</button>`:""}`;
-
-      document.getElementById("locationsList").innerHTML = Object.entries(LOCATIONS).map(([k,l])=>
-        `<button class="loc-btn ${!state.visiting&&k===state.location?"active":""}" onclick="travel('${k}')"><span>${l.emoji}</span><span>${l.name}</span></button>`
-      ).join("");
-
-      document.getElementById("friendsList").innerHTML = state.friends.map(f=>
-        `<button class="friend-btn ${state.visiting===f.id?"active":""}" onclick="visitFriend('${f.id}')">
-          <span>${f.emoji}</span><span>${f.name}</span>
-          <span class="meta">${f.status}<br>₵${f.money} • ${f.affinity}</span>
-        </button>`
-      ).join("");
-
-      document.getElementById("log").innerHTML = state.log.slice(0,9).map(e=>`<div class="log-entry">${e}</div>`).join("") || "<div class='log-entry'>Your life begins...</div>";
-    }
-
-    function doAction(key){
-      if(state.energy<8&&key!=="sleep"){toast("Too tired");return;}
-      if(state.time===3&&key!=="sleep"){toast("It's night. Go sleep.");return;}
-      ACTIONS[key].fn();
-      if(key!=="sleep") advanceTime(2); else render();
-    }
-    function travel(key){
-      if(state.visiting) state.visiting=null;
-      if(key===state.location&&!state.visiting) return;
-      if(state.energy<10){toast("Too tired");return;}
-      if(state.time===3){toast("Night. Stay home.");return;}
-      state.location=key; state.visiting=null;
-      change("energy",-8); change("money",-3);
-      log(`Went to ${LOCATIONS[key].name}`);
-      advanceTime(1);
-    }
-    function visitFriend(id){
-      const f=state.friends.find(x=>x.id===id);
-      if(f.status==="sleeping"){toast(`${f.name} is sleeping`);return;}
-      if(state.energy<10){toast("Too tired");return;}
-      if(state.time===3){toast("Too late");return;}
-      state.visiting=id; f.lastInteract=state.day; f.timesVisited=(f.timesVisited||0)+1;
-      change("energy",-10); change("money",-5); change("social",8);
-      log(`Visited ${f.name}`);
-      advanceTime(1);
-    }
-    function leaveFriend(){ state.visiting=null; log("You left."); render(); }
-    function chatFriend(id){
-      const f=state.friends.find(x=>x.id===id);
-      const line=pick(DIALOGUE[f.id].chat);
-      f.affinity=Math.min(100,f.affinity+5); f.lastInteract=state.day;
-      change("social",14); change("happy",10); change("energy",-5);
-      log(`${f.name}: "${line}"`); advanceTime(1);
-    }
-    function hangOut(id){
-      const f=state.friends.find(x=>x.id===id);
-      if(state.energy<15){toast("Too tired");return;}
-      f.affinity=Math.min(100,f.affinity+10); f.lastInteract=state.day;
-      change("social",24); change("happy",18); change("energy",-15);
-      log(`Hung out with ${f.name}. ${pick(DIALOGUE[f.id].hang)}`); advanceTime(2);
-    }
-    function eatTogether(id){
-      const f=state.friends.find(x=>x.id===id);
-      if(state.money<20){toast("Not enough");return;}
-      change("money",-20); f.money=Math.max(0,f.money-10);
-      f.affinity=Math.min(100,f.affinity+8); f.lastInteract=state.day;
-      change("hunger",40); change("social",18); change("happy",16);
-      log(`Ate together with ${f.name}`); advanceTime(2);
-    }
-    function deepTalk(id){
-      const f=state.friends.find(x=>x.id===id);
-      f.affinity=Math.min(100,f.affinity+12); f.lastInteract=state.day;
-      change("social",20); change("happy",22); change("energy",-8);
-      log(`Deep talk with ${f.name}`);
-      if(f.affinity>=70) toast(`You and ${f.name} are trusted friends`);
-      advanceTime(2);
-    }
-    function askFavor(id){
-      const f=state.friends.find(x=>x.id===id);
-      if(f.affinity<70){toast("Not close enough");return;}
-      f.lastInteract=state.day;
-      if(Math.random()>0.28){
-        const amt=25+Math.floor(Math.random()*45);
-        if(f.money>=amt){ f.money-=amt; change("money",amt); f.affinity=Math.min(100,f.affinity+3); log(`${f.name} helped with ₵${amt}`); toast(`${f.name} came through`); }
-        else log(`${f.name} wanted to help but is tight.`);
-      } else { f.affinity=Math.max(0,f.affinity-3); log(`${f.name} couldn't help this time.`); }
-      advanceTime(1);
-    }
-    function openSend(id){ sendTarget=id; const f=state.friends.find(x=>x.id===id); document.getElementById("sendToText").textContent=`Send to ${f.name} (₵${f.money})`; document.getElementById("sendAmount").value=""; document.getElementById("sendModal").classList.add("show"); }
-    function closeSendModal(){ document.getElementById("sendModal").classList.remove("show"); sendTarget=null; }
-    function confirmSend(){
-      const amt=Math.floor(Number(document.getElementById("sendAmount").value));
-      if(!amt||amt<1){toast("Enter amount");return;}
-      if(amt>state.money){toast("Not enough");return;}
-      const f=state.friends.find(x=>x.id===sendTarget);
-      state.money-=amt; f.money+=amt; f.affinity=Math.min(100,f.affinity+Math.min(18,Math.floor(amt/8))); f.lastInteract=state.day;
-      change("social",8); change("happy",6); log(`Sent ₵${amt} to ${f.name}`); closeSendModal(); render(); toast(`Sent ₵${amt}`);
-    }
-    function workShift(){
-      if(state.energy<25){toast("Too tired");return;}
-      const pay=Math.round((CAREERS[state.career].pay||20)*1.4);
-      change("money",pay); change("energy",-30); log(`Worked a shift. +₵${pay}`); advanceTime(4);
-    }
-    function showCareerModal(){
-      document.getElementById("careerOptions").innerHTML=Object.entries(CAREERS).map(([k,c])=>{
-        const locked=c.reqMoney&&state.money<c.reqMoney;
-        return `<button style="text-align:left;padding:12px" ${locked?"disabled":""} onclick="setCareer('${k}')"><strong>${c.name}</strong>${c.pay?` • ₵${c.pay}/day`:""}<br><span style="font-size:.8rem;color:var(--muted)">${c.desc}${locked?` (Need ₵${c.reqMoney})`:""}</span></button>`;
-      }).join("");
-      document.getElementById("careerModal").classList.add("show");
-    }
-    function closeCareerModal(){ document.getElementById("careerModal").classList.remove("show"); }
-    function setCareer(key){
-      const c=CAREERS[key];
-      if(c.reqMoney&&state.money<c.reqMoney){toast("Not enough");return;}
-      if(c.reqMoney) change("money",-c.reqMoney);
-      state.career=key; log(`Started as ${c.name}`); closeCareerModal(); render();
-    }
-    function showSummary(){
-      const c=CAREERS[state.career];
-      const top=state.friends.slice().sort((a,b)=>b.affinity-a.affinity).map(f=>`${f.name} (${f.affinity} — ${milestoneText(f.affinity)})`).join("<br>");
-      document.getElementById("summaryBody").innerHTML=`<strong>${state.name}</strong><br>Day ${state.day} • ${c.name}<br><br>Wallet: ₵${state.money}<br>Hunger ${state.hunger} • Energy ${state.energy}<br>Happy ${state.happy} • Social ${state.social} • Health ${state.health}<br><br><strong>Friendships</strong><br>${top}`;
-      document.getElementById("summaryModal").classList.add("show");
-    }
-    function closeSummary(){ document.getElementById("summaryModal").classList.remove("show"); }
-
-    function promptNewGame(){
-      if(!confirm("Start a new life? Current progress will be overwritten when you save.")) return;
-      state = createDefaultState(account.displayName || "Resident");
-      closeAccount();
-      render();
-      toast("New life started");
-    }
-
-    function saveGame(){
-      localStorage.setItem("lifeInAccra_account", JSON.stringify(account));
-      localStorage.setItem("lifeInAccra_state", JSON.stringify(state));
-      toast("Saved locally");
-      // Future: cloudSave(account.playerId, state)
-    }
-
-    // ===================== INIT =====================
-    // Check for existing account
-    const savedAccount = localStorage.getItem("lifeInAccra_account");
-    if(savedAccount){
-      try{
-        account = JSON.parse(savedAccount);
-        const savedState = localStorage.getItem("lifeInAccra_state");
-        if(savedState) state = JSON.parse(savedState);
-        else state = createDefaultState(account.displayName);
-        enterGame();
-      }catch(e){}
-    }
-  </script>
+  <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
