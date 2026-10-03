@@ -2,25 +2,64 @@
 
 **Play:** https://desurfofficial-ship-it.github.io/lagos-life-ghana/
 
-Live your story in Accra. Hustle, visit friends at their houses, send money, build relationships, and manage your life.
+Single-player life simulation set in Accra with deep NPC friends, wallets, visiting, and money transfer.
 
-## Features
+---
 
-- **Your wallet** — earn, spend, and send money
-- **Friends with houses** — Ama, Kofi, Abena, Kwame, Efua each have their own place and wallet
-- **Visit & hang out** — go to their houses, chat, hang out, raise friendship
-- **Send money** — transfer ₵ directly to any friend
-- **They can send back** — friends with high affinity sometimes MoMo you
+## Current Features
+
+- Character + wallet + needs system
+- 10 Accra locations
 - Careers with daily pay
-- 10 locations across Accra
-- Needs system (Hunger, Energy, Happiness, Social, Health)
-- Save / Load
+- 5 friends with houses, routines, moods, personalities
+- Visit friends, chat, hang out, eat together, deep talk, ask favors
+- Send & receive money
+- Friendship milestones
+- Local save/load
+- **Account foundation** (Guest or named account, persistent Player ID)
 
-## How to play
+---
 
-1. Open the link above
-2. Enter your name
-3. Travel, work, visit friends, send money, manage your stats
-4. Save when you want
+## Roadmap to Multiplayer
 
-Built as a single-file browser game. Works offline after first load.
+### Step 1 — Done (foundation)
+- Single-player game with rich NPCs
+- Account UI + Player ID
+- Structured save format ready for cloud
+
+### Step 2 — User accounts + Cloud save (next)
+To enable real cloud saves across devices you need a backend.
+
+**Recommended (easiest):**
+1. Create a free [Firebase](https://console.firebase.google.com/) project
+2. Enable **Authentication** (Email/Password or Anonymous)
+3. Create a **Firestore** database
+4. Add your Firebase config to the game
+5. Uncomment/connect the cloud save functions
+
+Alternative: [Supabase](https://supabase.com/) (similar free tier).
+
+### Step 3 — Real friends list + visiting
+Once accounts exist:
+- Players can add each other by Player ID or username
+- Visit another player's house (load their public house state)
+- Basic presence (online/offline)
+
+### Step 4 — Real-time chat & presence
+- WebSockets or Firebase Realtime / Firestore listeners
+- Live chat when visiting
+- See who is online
+
+---
+
+## Tech
+
+- Pure HTML/CSS/JS (no build step)
+- localStorage for saves
+- Architecture prepared for Firebase Auth + Firestore
+
+---
+
+## License
+
+Open source. Built for Ghanaians.
