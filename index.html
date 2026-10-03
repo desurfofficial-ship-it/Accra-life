@@ -61,8 +61,8 @@
     .auth-options{display:flex;flex-direction:column;gap:10px}
     .auth-options button{padding:14px;font-size:1rem}
     .hidden{display:none!important}
-    .cloud-status{font-size:.75rem;color:var(--muted);margin-top:8px}
-    .cloud-status.on{color:var(--green)}
+    .cloud-status{font-size:.8rem;margin-top:12px;padding:8px 12px;border-radius:8px;background:var(--surface2)}
+    .cloud-status.on{color:var(--green)}.cloud-status.off{color:var(--muted)}.cloud-status.err{color:var(--danger)}
   </style>
 </head>
 <body>
@@ -75,7 +75,7 @@
       <button onclick="showEmailAuth('login')">Sign In (Email)</button>
       <button onclick="showImport()">Load Save Code</button>
     </div>
-    <p class="cloud-status" id="cloudStatus">Cloud: checking...</p>
+    <div class="cloud-status off" id="cloudStatus">Cloud: connecting...</div>
   </div>
 
   <div class="app hidden" id="gameApp">
@@ -133,18 +133,17 @@
     </div>
 
     <footer>
-      Life in Accra • Firebase project: perse-504514<br>
+      Life in Accra • Cloud: perse-504514<br>
       <a href="https://desurfofficial-ship-it.github.io/lagos-life-ghana/">Play</a> • <a href="https://github.com/desurfofficial-ship-it/lagos-life-ghana">GitHub</a>
     </footer>
   </div>
 
-  <!-- Email Auth Modal -->
   <div class="modal-overlay" id="emailModal">
     <div class="modal">
       <h2 id="emailModalTitle">Create Account</h2>
       <p id="emailModalDesc">Use email to sync your save across devices.</p>
-      <input type="email" id="authEmail" placeholder="Email" />
-      <input type="password" id="authPassword" placeholder="Password (min 6)" />
+      <input type="email" id="authEmail" placeholder="Email" autocomplete="email" />
+      <input type="password" id="authPassword" placeholder="Password (min 6)" autocomplete="new-password" />
       <input type="text" id="authDisplayName" placeholder="Display name" style="display:none" />
       <div class="modal-actions">
         <button onclick="closeEmailModal()">Cancel</button>
@@ -209,54 +208,67 @@
 
   <div class="toast" id="toast"></div>
 
-  <!-- Firebase SDK (compat for simple single-file use) -->
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 
   <script>
-    // ===================== FIREBASE CONFIG =====================
-    // Replace these values from Firebase Console → Project settings → Your apps
+    // ===================== FIREBASE (perse-504514) =====================
     const firebaseConfig = {
-      apiKey: "REPLACE_WITH_YOUR_API_KEY",
+      apiKey: "AIzaSyD0w_ui0v1qyVJoPU_T_5mFScEqZ0a1eCE",
       authDomain: "perse-504514.firebaseapp.com",
       projectId: "perse-504514",
-      storageBucket: "perse-504514.appspot.com",
-      messagingSenderId: "REPLACE_WITH_SENDER_ID",
-      appId: "REPLACE_WITH_APP_ID"
+      storageBucket: "perse-504514.firebasestorage.app",
+      messagingSenderId: "441326167419",
+      appId: "1:441326167419:web:2c9090467cc78731f4c9de"
     };
 
-    // Auto-detect if config is filled in
-    const FIREBASE_READY = firebaseConfig.apiKey && !firebaseConfig.apiKey.includes("REPLACE");
-
     let fbApp = null, fbAuth = null, fbDb = null, currentUser = null;
+    let firebaseReady = false;
 
     function initFirebase(){
-      if(!FIREBASE_READY){
-        document.getElementById("cloudStatus").textContent = "Cloud: not configured (local only)";
-        return false;
-      }
       try{
         fbApp = firebase.initializeApp(firebaseConfig);
         fbAuth = firebase.auth();
         fbDb = firebase.firestore();
-        document.getElementById("cloudStatus").textContent = "Cloud: ready";
-        document.getElementById("cloudStatus").classList.add("on");
+        firebaseReady = true;
+        setCloudStatus("Cloud: connected", "on");
 
-        // Auto-login if already signed in
         fbAuth.onAuthStateChanged(async (user) => {
-          if(user && !state){
+          if(user){
             currentUser = user;
-            await loadCloudSave(user.uid);
-            enterGame();
+            // Only auto-enter if we're still on auth screen
+            if(document.getElementById("authScreen") && !document.getElementById("authScreen").classList.contains("hidden")){
+              account = {
+                playerId: user.uid,
+                displayName: user.displayName || user.email?.split("@")[0] || "Player",
+                isGuest: false,
+                uid: user.uid
+              };
+              const loaded = await loadCloudSave(user.uid);
+              if(!loaded){
+                // try local first, else new
+                const local = localStorage.getItem("lifeInAccra_state");
+                if(local){ try{ state = JSON.parse(local); } catch(e){ state = createDefaultState(account.displayName); } }
+                else state = createDefaultState(account.displayName);
+                await cloudSave();
+              }
+              enterGame();
+            }
           }
         });
-        return true;
       }catch(e){
         console.error(e);
-        document.getElementById("cloudStatus").textContent = "Cloud: error";
-        return false;
+        setCloudStatus("Cloud: error — " + (e.message||"failed"), "err");
+        firebaseReady = false;
       }
+    }
+
+    function setCloudStatus(msg, cls){
+      const el = document.getElementById("cloudStatus");
+      if(!el) return;
+      el.textContent = msg;
+      el.className = "cloud-status " + (cls||"off");
     }
 
     // ===================== GAME DATA =====================
@@ -364,9 +376,10 @@
     }
 
     function showEmailAuth(mode){
+      if(!firebaseReady){ toast("Firebase still connecting..."); return; }
       authMode = mode;
       document.getElementById("emailModalTitle").textContent = mode === "signup" ? "Create Account" : "Sign In";
-      document.getElementById("emailModalDesc").textContent = mode === "signup" ? "Email + password. Your progress will sync to the cloud." : "Sign in to load your cloud save.";
+      document.getElementById("emailModalDesc").textContent = mode === "signup" ? "Email + password. Progress syncs to the cloud." : "Sign in to load your cloud save.";
       document.getElementById("authDisplayName").style.display = mode === "signup" ? "block" : "none";
       document.getElementById("emailSubmitBtn").textContent = mode === "signup" ? "Create" : "Sign In";
       document.getElementById("emailModal").classList.add("show");
@@ -374,13 +387,10 @@
     function closeEmailModal(){ document.getElementById("emailModal").classList.remove("show"); }
 
     async function submitEmailAuth(){
-      if(!FIREBASE_READY || !fbAuth){
-        toast("Firebase not configured yet. Use Guest for now.");
-        return;
-      }
+      if(!firebaseReady || !fbAuth){ toast("Firebase not ready"); return; }
       const email = document.getElementById("authEmail").value.trim();
       const password = document.getElementById("authPassword").value;
-      const displayName = document.getElementById("authDisplayName").value.trim() || email.split("@")[0];
+      const displayName = document.getElementById("authDisplayName").value.trim() || (email.split("@")[0] || "Player");
       if(!email || password.length < 6){ toast("Valid email + password (6+ chars) required"); return; }
 
       try{
@@ -400,7 +410,6 @@
         };
         localStorage.setItem("lifeInAccra_account", JSON.stringify(account));
 
-        // Load cloud or create new
         const loaded = await loadCloudSave(currentUser.uid);
         if(!loaded){
           state = createDefaultState(account.displayName);
@@ -408,10 +417,15 @@
         }
         closeEmailModal();
         enterGame();
-        toast(authMode === "signup" ? "Account created" : "Signed in");
+        toast(authMode === "signup" ? "Account created + cloud save on" : "Signed in");
       }catch(e){
         console.error(e);
-        toast(e.message || "Auth failed");
+        let msg = e.message || "Auth failed";
+        if(e.code === "auth/email-already-in-use") msg = "Email already registered. Sign in instead.";
+        if(e.code === "auth/wrong-password" || e.code === "auth/invalid-credential") msg = "Wrong email or password.";
+        if(e.code === "auth/user-not-found") msg = "No account with that email.";
+        if(e.code === "auth/operation-not-allowed") msg = "Email/Password not enabled in Firebase Console.";
+        toast(msg);
       }
     }
 
@@ -421,32 +435,43 @@
         const doc = await fbDb.collection("players").doc(uid).get();
         if(doc.exists){
           const data = doc.data();
-          if(data.state){
+          if(data && data.state){
             state = data.state;
             localStorage.setItem("lifeInAccra_state", JSON.stringify(state));
             return true;
           }
         }
-      }catch(e){ console.error("Cloud load failed", e); }
+      }catch(e){
+        console.error("Cloud load failed", e);
+        if(e.code === "permission-denied"){
+          toast("Firestore permission denied — check security rules");
+        }
+      }
       return false;
     }
 
     async function cloudSave(){
-      if(!fbDb || !currentUser) return;
+      if(!fbDb || !currentUser) return false;
       try{
         await fbDb.collection("players").doc(currentUser.uid).set({
           displayName: account.displayName,
           state: state,
           updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
-        // also update public profile for future multiplayer
         await fbDb.collection("profiles").doc(currentUser.uid).set({
           displayName: account.displayName,
           day: state.day,
           career: state.career,
           updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
-      }catch(e){ console.error("Cloud save failed", e); }
+        return true;
+      }catch(e){
+        console.error("Cloud save failed", e);
+        if(e.code === "permission-denied"){
+          toast("Cloud save blocked — deploy firestore.rules");
+        }
+        return false;
+      }
     }
 
     function showImport(){ document.getElementById("importModal").classList.add("show"); }
@@ -473,7 +498,7 @@
     }
 
     function showAccount(){
-      const cloud = currentUser ? `Signed in as ${currentUser.email || currentUser.uid}` : "Local / Guest only";
+      const cloud = currentUser ? `Signed in: ${currentUser.email || currentUser.uid}` : "Local / Guest only";
       document.getElementById("accountInfo").innerHTML = `
         <strong>${account.displayName}</strong> ${account.isGuest ? "(Guest)" : ""}<br>
         Player ID: <code style="font-size:.75rem">${account.playerId}</code><br>
@@ -738,7 +763,7 @@
     function closeSummary(){ document.getElementById("summaryModal").classList.remove("show"); }
 
     function promptNewGame(){
-      if(!confirm("Start a new life? Current progress will be overwritten when you save.")) return;
+      if(!confirm("Start a new life? Progress will be overwritten when you save.")) return;
       state = createDefaultState(account.displayName || "Resident");
       closeAccount(); render(); toast("New life started");
     }
@@ -747,8 +772,8 @@
       localStorage.setItem("lifeInAccra_account", JSON.stringify(account));
       localStorage.setItem("lifeInAccra_state", JSON.stringify(state));
       if(currentUser){
-        await cloudSave();
-        toast("Saved (local + cloud)");
+        const ok = await cloudSave();
+        toast(ok ? "Saved (local + cloud)" : "Saved locally (cloud failed)");
       } else {
         toast("Saved locally");
       }
@@ -756,16 +781,6 @@
 
     // INIT
     initFirebase();
-    const savedAccount = localStorage.getItem("lifeInAccra_account");
-    if(savedAccount && !FIREBASE_READY){
-      try{
-        account = JSON.parse(savedAccount);
-        const savedState = localStorage.getItem("lifeInAccra_state");
-        if(savedState) state = JSON.parse(savedState);
-        else state = createDefaultState(account.displayName);
-        enterGame();
-      }catch(e){}
-    }
   </script>
 </body>
 </html>

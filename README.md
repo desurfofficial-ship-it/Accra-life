@@ -2,57 +2,50 @@
 
 **Play:** https://desurfofficial-ship-it.github.io/lagos-life-ghana/
 
-Single-player life simulation in Accra with deep NPC friends, wallets, visiting, and money transfer.
-Now with **Firebase Auth + Cloud Save** foundation.
+Life simulation set in Accra with NPC friends, wallets, visiting, money transfer, and **Firebase cloud save**.
+
+Firebase project: `perse-504514`
 
 ---
 
-## Firebase Setup (Project: `perse-504514`)
+## Final setup checklist
 
-### 1. Get your Web app config
-1. Open [Firebase Console](https://console.firebase.google.com/project/perse-504514/settings/general)
-2. Scroll to **Your apps** → create a **Web** app if needed
-3. Copy the `firebaseConfig` values
-4. Paste them into `firebase-config.js` and set `FIREBASE_READY = true`
+### 1. Enable Email/Password Auth
+1. Open [Authentication](https://console.firebase.google.com/project/perse-504514/authentication/providers)
+2. Enable **Email/Password**
 
-### 2. Enable Authentication
-1. Go to **Authentication** → **Sign-in method**
-2. Enable:
-   - **Anonymous** (for guests who want cloud save later)
-   - **Email/Password**
+### 2. Create Firestore (if not done)
+1. Open [Firestore](https://console.firebase.google.com/project/perse-504514/firestore)
+2. Create database (production mode is fine)
+3. Go to **Rules** tab and paste the contents of `firestore.rules`, then **Publish**
 
-### 3. Create Firestore database
-1. Go to **Firestore Database** → Create database
-2. Start in **production mode**
-3. Choose a location close to Ghana (e.g. `europe-west` or `us-east1`)
-4. Deploy the security rules from `firestore.rules`:
-
-```bash
-npx -y firebase-tools@latest login
-npx -y firebase-tools@latest use perse-504514
-npx -y firebase-tools@latest deploy --only firestore:rules
-```
-
-Or paste the rules manually in the Console under Firestore → Rules.
-
-### 4. Authorized domains
-Under Authentication → Settings → Authorized domains, make sure these are listed:
+### 3. Authorized domains
+Authentication → Settings → Authorized domains — add:
 - `localhost`
 - `desurfofficial-ship-it.github.io`
-- `perse-504514.firebaseapp.com`
+
+---
+
+## How to play with cloud save
+
+1. Open the game
+2. Click **Create Account (Email)**
+3. Enter email + password + display name
+4. Play and press **Save** — progress goes to Firestore
+5. On another device: **Sign In** with the same email → cloud load
+
+Guest mode still works fully offline (localStorage only).
 
 ---
 
 ## Features
 
-- Character + wallet + needs
 - 10 Accra locations + careers
 - 5 friends with houses, routines, moods, personalities
-- Visit, chat, hang out, eat, deep talk, ask favors, send money
+- Visit, chat, hang out, eat together, deep talk, ask favors, send money
 - Friendship milestones
-- Local save (always works)
-- Cloud save (when Firebase is configured)
-- Account system with Player ID
+- Local + cloud save
+- Account system with Firebase Auth
 
 ---
 
@@ -60,14 +53,7 @@ Under Authentication → Settings → Authorized domains, make sure these are li
 
 | Step | Status |
 |------|--------|
-| Single-player + rich NPCs | ✅ Done |
-| Account foundation + local save | ✅ Done |
-| Firebase Auth + Cloud save | 🔸 Code ready — needs your config |
+| Single-player + rich NPCs | Done |
+| Firebase Auth + Cloud save | Done (enable Auth + Rules) |
 | Real friends list + visiting | Next |
 | Real-time chat & presence | Later |
-
----
-
-## License
-
-Open source. Built for Ghanaians.
