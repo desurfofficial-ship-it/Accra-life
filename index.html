@@ -62,7 +62,11 @@
     .auth-options button{padding:14px;font-size:1rem}
     .hidden{display:none!important}
     .cloud-status{font-size:.8rem;margin-top:12px;padding:8px 12px;border-radius:8px;background:var(--surface2)}
-    .cloud-status.on{color:var(--green)}.cloud-status.off{color:var(--muted)}.cloud-status.err{color:var(--danger)}
+        .cloud-status.err{color:var(--danger)}
+    .add-friend-row{display:flex;gap:6px;margin-bottom:8px}
+    .add-friend-row input{flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--surface2);background:var(--bg);color:var(--text);font-family:inherit;font-size:.85rem}
+    .section-label{font-size:.7rem;color:var(--muted);text-transform:uppercase;margin:8px 0 4px;letter-spacing:.4px}
+
   </style>
 </head>
 <body>
@@ -127,7 +131,17 @@
       </div>
       <div class="sidebar">
         <div class="panel"><h3>Travel</h3><div class="locations-list" id="locationsList"></div></div>
-        <div class="panel"><h3>Friends</h3><div class="friends-list" id="friendsList"></div></div>
+        <div class="panel">
+          <h3>Friends</h3>
+          <div class="add-friend-row" id="addFriendRow" style="display:none">
+            <input type="text" id="addFriendInput" placeholder="Player ID or name" />
+            <button class="small primary" onclick="addRealFriend()">Add</button>
+          </div>
+          <div class="section-label" id="realFriendsLabel" style="display:none">Players</div>
+          <div class="friends-list" id="realFriendsList"></div>
+          <div class="section-label">NPCs</div>
+          <div class="friends-list" id="friendsList"></div>
+        </div>
         <div class="panel"><h3>Life Log</h3><div class="log" id="log"></div></div>
       </div>
     </div>
@@ -203,6 +217,18 @@
       <h2>Life Summary</h2>
       <div id="summaryBody" style="color:var(--muted);font-size:.95rem;line-height:1.6;margin-bottom:16px"></div>
       <div class="modal-actions"><button onclick="closeSummary()">Close</button></div>
+    </div>
+  </div>
+
+  
+  <div class="modal-overlay" id="realVisitModal">
+    <div class="modal">
+      <h2 id="realVisitTitle">Player House</h2>
+      <div id="realVisitBody" style="color:var(--muted);font-size:.95rem;line-height:1.6;margin-bottom:16px"></div>
+      <div class="modal-actions" style="flex-wrap:wrap;gap:8px">
+        <button class="primary" onclick="sendMoneyToReal()">Send Money</button>
+        <button onclick="closeRealVisit()">Leave</button>
+      </div>
     </div>
   </div>
 
@@ -358,8 +384,9 @@
       return {
         name: name || "Accra Resident", day:1, time:0, location:"home", career:"unemployed",
         money:180, hunger:75, energy:85, happy:65, social:45, health:90,
-        visiting:null, pendingInvite:null,
+        visiting:null, pendingInvite:null, visitingReal:null,
         friends: JSON.parse(JSON.stringify(DEFAULT_FRIENDS)),
+        realFriends: [],
         log: [`Welcome ${name || "Resident"}. This is your life in Accra.`],
         version: 4
       };
@@ -462,6 +489,9 @@
           displayName: account.displayName,
           day: state.day,
           career: state.career,
+          money: state.money,
+          location: state.location || "home",
+          lastActive: firebase.firestore.FieldValue.serverTimestamp(),
           updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
         return true;
@@ -493,7 +523,11 @@
     function enterGame(){
       document.getElementById("authScreen").classList.add("hidden");
       document.getElementById("gameApp").classList.remove("hidden");
+      const canAdd = !!(currentUser && firebaseReady);
+      document.getElementById("addFriendRow").style.display = canAdd ? "flex" : "none";
+      document.getElementById("realFriendsLabel").style.display = canAdd ? "block" : "none";
       updateFriendStatuses();
+      if(canAdd) loadRealFriends();
       render();
     }
 
@@ -658,6 +692,8 @@
       ).join("");
 
       document.getElementById("log").innerHTML = state.log.slice(0,9).map(e=>`<div class="log-entry">${e}</div>`).join("") || "<div class='log-entry'>Your life begins...</div>";
+      renderRealFriends();
+
     }
 
     function doAction(key){
@@ -768,10 +804,182 @@
       closeAccount(); render(); toast("New life started");
     }
 
+
+    // ===================== REAL PLAYERS =====================
+    let realVisitTarget = null;
+
+    async function loadRealFriends(){
+      if(!fbDb || !currentUser) return;
+      try{
+        const snap = await fbDb.collection("players").doc(currentUser.uid).collection("friends").get();
+        const list = [];
+        for(const doc of snap.docs){
+          const data = doc.data();
+          list.push({ uid: doc.id, displayName: data.displayName || "Player", addedAt: data.addedAt });
+        }
+        // refresh public profiles
+        for(const f of list){
+          try{
+            const p = await fbDb.collection("profiles").doc(f.uid).get();
+            if(p.exists){
+              const d = p.data();
+              f.displayName = d.displayName || f.displayName;
+              f.day = d.day;
+              f.career = d.career;
+              f.money = d.money;
+            }
+          }catch(e){}
+        }
+        if(!state.realFriends) state.realFriends = [];
+        state.realFriends = list;
+        renderRealFriends();
+      }catch(e){ console.error("loadRealFriends", e); }
+    }
+
+    function renderRealFriends(){
+      const el = document.getElementById("realFriendsList");
+      if(!el) return;
+      const list = state.realFriends || [];
+      if(!list.length){
+        el.innerHTML = currentUser ? '<div style="font-size:.8rem;color:var(--muted);padding:4px 0">Add players by ID or name</div>' : '';
+        return;
+      }
+      el.innerHTML = list.map(f => `
+        <button class="friend-btn" onclick="visitRealFriend('${f.uid}')">
+          <span>👤</span><span>${f.displayName}</span>
+          <span class="meta">Day ${f.day||"?"}<br>${f.career||""}</span>
+        </button>`).join("");
+    }
+
+    async function addRealFriend(){
+      if(!fbDb || !currentUser){ toast("Sign in to add real players"); return; }
+      const q = document.getElementById("addFriendInput").value.trim();
+      if(!q || q.length < 2){ toast("Enter a name or player ID"); return; }
+      if(q === currentUser.uid || q === account.displayName){ toast("That's you"); return; }
+
+      try{
+        let targetUid = null;
+        let targetName = null;
+
+        // Try as UID first
+        let prof = await fbDb.collection("profiles").doc(q).get();
+        if(prof.exists){
+          targetUid = q;
+          targetName = prof.data().displayName || q;
+        } else {
+          // Search by displayName (simple scan — fine for small player base)
+          const all = await fbDb.collection("profiles").limit(50).get();
+          const match = all.docs.find(d => (d.data().displayName||"").toLowerCase() === q.toLowerCase());
+          if(match){
+            targetUid = match.id;
+            targetName = match.data().displayName;
+          }
+        }
+
+        if(!targetUid){ toast("Player not found. They must have created an account and saved once."); return; }
+
+        await fbDb.collection("players").doc(currentUser.uid).collection("friends").doc(targetUid).set({
+          displayName: targetName,
+          addedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        // reciprocal optional — one-way add is fine for MVP
+        document.getElementById("addFriendInput").value = "";
+        toast(`Added ${targetName}`);
+        await loadRealFriends();
+      }catch(e){
+        console.error(e);
+        toast(e.code === "permission-denied" ? "Permission denied — check rules" : "Could not add friend");
+      }
+    }
+
+    async function visitRealFriend(uid){
+      if(!fbDb) return;
+      try{
+        const prof = await fbDb.collection("profiles").doc(uid).get();
+        if(!prof.exists){ toast("Player profile not found"); return; }
+        const d = prof.data();
+        realVisitTarget = { uid, ...d };
+        document.getElementById("realVisitTitle").textContent = `${d.displayName || "Player"}'s Place`;
+        document.getElementById("realVisitBody").innerHTML = `
+          <strong>${d.displayName || "Player"}</strong><br>
+          Day ${d.day ?? "—"} · ${d.career || "Unknown career"}<br>
+          Wallet (public): ₵${d.money ?? "—"}<br>
+          Last area: ${d.location || "—"}<br><br>
+          You're visiting their house.`;
+        document.getElementById("realVisitModal").classList.add("show");
+        change("social", 6);
+        log(`Visited ${d.displayName}'s place`);
+        render();
+      }catch(e){
+        console.error(e);
+        toast("Could not load player");
+      }
+    }
+
+    function closeRealVisit(){
+      document.getElementById("realVisitModal").classList.remove("show");
+      realVisitTarget = null;
+    }
+
+    async function sendMoneyToReal(){
+      if(!realVisitTarget || !currentUser || !fbDb){ toast("Not available"); return; }
+      const amtStr = prompt("How much ₵ to send?");
+      const amt = Math.floor(Number(amtStr));
+      if(!amt || amt < 1){ toast("Invalid amount"); return; }
+      if(amt > state.money){ toast("Not enough ₵"); return; }
+
+      try{
+        // Deduct from self (local + cloud)
+        state.money -= amt;
+        // Credit note on their profile (simple MVP transfer log)
+        await fbDb.collection("players").doc(realVisitTarget.uid).collection("inbox").add({
+          from: currentUser.uid,
+          fromName: account.displayName,
+          amount: amt,
+          type: "money",
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        await cloudSave();
+        log(`Sent ₵${amt} to ${realVisitTarget.displayName}`);
+        toast(`Sent ₵${amt} to ${realVisitTarget.displayName}`);
+        render();
+      }catch(e){
+        state.money += amt; // rollback local
+        console.error(e);
+        toast("Transfer failed");
+      }
+    }
+
+    async function claimInbox(){
+      if(!fbDb || !currentUser) return;
+      try{
+        const snap = await fbDb.collection("players").doc(currentUser.uid).collection("inbox").get();
+        let total = 0;
+        const batch = fbDb.batch();
+        snap.docs.forEach(doc => {
+          const d = doc.data();
+          if(d.type === "money" && d.amount){
+            total += d.amount;
+            batch.delete(doc.ref);
+          }
+        });
+        if(total > 0){
+          await batch.commit();
+          change("money", total);
+          log(`Received ₵${total} from other players`);
+          toast(`You received ₵${total}`);
+          await cloudSave();
+          render();
+        }
+      }catch(e){ console.error("inbox", e); }
+    }
+
+
     async function saveGame(){
       localStorage.setItem("lifeInAccra_account", JSON.stringify(account));
       localStorage.setItem("lifeInAccra_state", JSON.stringify(state));
       if(currentUser){
+        await claimInbox();
         const ok = await cloudSave();
         toast(ok ? "Saved (local + cloud)" : "Saved locally (cloud failed)");
       } else {
