@@ -230,9 +230,9 @@
       try{
         fbApp = firebase.initializeApp(firebaseConfig);
         fbAuth = firebase.auth();
-        fbDb = firebase.firestore();
+        fbDb = firebase.app().firestore("ai-studio-lagoslifeghana-6e4cf7ba-acfc-432e-bffe-16110c9e9d77");
         firebaseReady = true;
-        setCloudStatus("Cloud: connected", "on");
+        setCloudStatus("Cloud: connected (named DB)", "on");
 
         fbAuth.onAuthStateChanged(async (user) => {
           if(user){
