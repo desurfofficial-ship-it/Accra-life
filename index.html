@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>Life in Accra</title>
-  <meta name="description" content="Live your story in Accra. Visit friends, send money, build real relationships." />
+  <meta name="description" content="Live your story in Accra. Visit friends, build relationships, send money." />
   <meta name="theme-color" content="#0c1017" />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -36,10 +36,10 @@
     .action-btn{background:var(--surface2);border:1px solid transparent;padding:12px 10px;border-radius:11px;text-align:left;display:flex;flex-direction:column;gap:3px}
     .action-btn:hover{border-color:var(--accent);background:#2a3a52}.action-btn .title{font-weight:600;font-size:.9rem}.action-btn .cost{font-size:.75rem;color:var(--muted)}
     .sidebar{display:flex;flex-direction:column;gap:12px}
-    .locations-list,.friends-list{display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto}
+    .locations-list,.friends-list{display:flex;flex-direction:column;gap:6px;max-height:250px;overflow-y:auto}
     .loc-btn,.friend-btn{background:var(--surface2);text-align:left;padding:10px 12px;border-radius:10px;display:flex;align-items:center;gap:8px;font-size:.9rem}
     .loc-btn.active,.friend-btn.active{background:var(--accent);color:#111;font-weight:600}
-    .friend-btn .meta{margin-left:auto;font-size:.75rem;color:var(--muted);text-align:right}
+    .friend-btn .meta{margin-left:auto;font-size:.75rem;color:var(--muted);text-align:right;line-height:1.3}
     .log{max-height:170px;overflow-y:auto;font-size:.82rem}.log-entry{padding:5px 0;border-bottom:1px solid var(--surface2);color:var(--muted)}
     .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface2);padding:11px 20px;border-radius:12px;box-shadow:var(--shadow);opacity:0;transition:.3s;z-index:200;font-weight:500;font-size:.9rem;max-width:90%;text-align:center}.toast.show{opacity:1}
     .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;z-index:150;padding:16px}.modal-overlay.show{display:flex}
@@ -50,9 +50,11 @@
     footer{text-align:center;padding:28px 0 10px;color:var(--muted);font-size:.82rem}footer a{color:var(--accent);text-decoration:none}
     .stat.low .stat-value{color:var(--danger)}
     .npc-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-    .mood{font-size:.85rem;margin-top:4px}
+    .mood{font-size:.85rem;margin-top:6px;color:var(--accent)}
     .invite-banner{background:linear-gradient(90deg,#1f2a3d,#2a3a52);border:1px solid var(--accent);border-radius:12px;padding:12px 14px;margin-bottom:12px;display:none}
     .invite-banner.show{display:block}
+    .milestone{font-size:.8rem;color:var(--green);margin-top:4px}
+    .last-interact{font-size:.75rem;color:var(--muted);margin-top:2px}
   </style>
 </head>
 <body>
@@ -94,6 +96,8 @@
           <h3 id="npcTitle">With friend</h3>
           <div id="npcInfo" style="color:var(--muted);font-size:.9rem"></div>
           <div class="mood" id="npcMood"></div>
+          <div class="milestone" id="npcMilestone"></div>
+          <div class="last-interact" id="npcLast"></div>
           <div class="npc-actions" id="npcActions"></div>
         </div>
         <div class="panel">
@@ -214,33 +218,52 @@
       student:{name:"Student",pay:10,desc:"Focus on learning.",reqMoney:0}
     };
 
-    const PERSONALITIES = {
-      warm: {chat:"Ama smiled. 'How is life treating you?'",hang:"You cooked and laughed for hours.",gift:"She insisted you take some money for transport."},
-      loyal: {chat:"Kofi: 'Any wahala, just call me.'",hang:"You fixed things and talked life.",gift:"He forced ₵ into your hand. 'Take it.'"},
-      generous: {chat:"Abena: 'You look like you need good news today.'",hang:"She ordered food for both of you.",gift:"She sent you money without asking."},
-      grinder: {chat:"Kwame: 'The hustle continues. How far?'",hang:"You both talked goals and strategy.",gift:"He shared a small win with you."},
-      lively: {chat:"Efua: 'Have you heard the latest highlife track?'",hang:"Music, stories, pure vibes.",gift:"She gave you something small but thoughtful."}
+    const DIALOGUE = {
+      ama: {
+        chat:["How is life treating you?", "You look well today.", "Anything you need, just say.", "Bank work is stressful but we manage."],
+        hang:["We cooked and talked for hours.", "She shared stories from work.", "Quiet, comfortable time together."],
+        gift:["She pressed some money into your hand for transport.", "Ama: 'Take this. No argument.'"]
+      },
+      kofi: {
+        chat:["Any wahala? Talk to me.", "The garage was busy today.", "You know I dey your side.", "How the hustle?"],
+        hang:["You both fixed a few things and talked life.", "Solid, no-nonsense time with Kofi.", "He listened more than he spoke."],
+        gift:["Kofi forced money into your hand. 'Take it.'", "He wouldn't let you leave empty-handed."]
+      },
+      abena: {
+        chat:["You look like you need good news.", "The boutique is moving small-small.", "Come, sit. Tell me everything.", "I was just thinking about you."],
+        hang:["She ordered food for both of you.", "Laughs, advice, and good energy.", "Abena made you feel at home."],
+        gift:["She sent you money without being asked.", "Abena: 'Just a small something.'"]
+      },
+      kwame: {
+        chat:["The hustle continues. How far?", "School + riding is no joke.", "We go make am one day.", "You holding up?"],
+        hang:["You talked goals and strategy.", "Two grinders comparing notes.", "Motivating session with Kwame."],
+        gift:["He shared a small win with you.", "Kwame: 'We rise together.'"]
+      },
+      efua: {
+        chat:["Have you heard the latest highlife?", "Teaching is rewarding but tiring.", "You need more music in your life.", "Dansoman vibes are different."],
+        hang:["Music, stories, pure vibes.", "You both ended up dancing a little.", "Efua's energy is contagious."],
+        gift:["She gave you something small but thoughtful.", "Efua always finds a way to bless people."]
+      }
     };
 
     const DEFAULT_FRIENDS = [
-      {id:"ama",name:"Ama",house:"Ama's Place (Adenta)",emoji:"🏡",money:240,affinity:42,mood:"content",personality:"warm",bio:"Works in banking. Steady and caring.",status:"at home",
+      {id:"ama",name:"Ama",house:"Ama's Place (Adenta)",emoji:"🏡",money:240,affinity:42,mood:"content",bio:"Works in banking. Steady and caring.",status:"at home",lastInteract:0,timesVisited:0,
         routine:{0:"at home",1:"at work",2:"at home",3:"sleeping"}},
-      {id:"kofi",name:"Kofi",house:"Kofi's Spot (Tema)",emoji:"🏠",money:160,affinity:38,mood:"focused",personality:"loyal",bio:"Mechanic and side hustler. Very loyal.",status:"at work",
+      {id:"kofi",name:"Kofi",house:"Kofi's Spot (Tema)",emoji:"🏠",money:160,affinity:38,mood:"focused",bio:"Mechanic and side hustler. Very loyal.",status:"at work",lastInteract:0,timesVisited:0,
         routine:{0:"at work",1:"at work",2:"at home",3:"sleeping"}},
-      {id:"abena",name:"Abena",house:"Abena's Flat (East Legon)",emoji:"🏢",money:340,affinity:55,mood:"happy",personality:"generous",bio:"Runs a boutique. Generous when she can.",status:"at home",
+      {id:"abena",name:"Abena",house:"Abena's Flat (East Legon)",emoji:"🏢",money:340,affinity:55,mood:"happy",bio:"Runs a boutique. Generous when she can.",status:"at home",lastInteract:0,timesVisited:0,
         routine:{0:"at home",1:"at shop",2:"out",3:"at home"}},
-      {id:"kwame",name:"Kwame",house:"Kwame's Room (Madina)",emoji:"👨🏻",money:95,affinity:33,mood:"tired",personality:"grinder",bio:"Student and part-time rider. Always grinding.",status:"at school",
+      {id:"kwame",name:"Kwame",house:"Kwame's Room (Madina)",emoji:"👨🏻",money:95,affinity:33,mood:"tired",bio:"Student and part-time rider. Always grinding.",status:"at school",lastInteract:0,timesVisited:0,
         routine:{0:"at school",1:"riding",2:"at home",3:"sleeping"}},
-      {id:"efua",name:"Efua",house:"Efua's Home (Dansoman)",emoji:"👩🏻",money:190,affinity:48,mood:"cheerful",personality:"lively",bio:"Teacher by day, highlife lover by night.",status:"at home",
+      {id:"efua",name:"Efua",house:"Efua's Home (Dansoman)",emoji:"👩🏻",money:190,affinity:48,mood:"cheerful",bio:"Teacher by day, highlife lover by night.",status:"at home",lastInteract:0,timesVisited:0,
         routine:{0:"at school",1:"at school",2:"at home",3:"out"}}
     ];
 
     let state = {
       name:"New Resident",day:1,time:0,location:"home",career:"unemployed",
       money:180,hunger:75,energy:85,happy:65,social:45,health:90,
-      visiting:null,
+      visiting:null,pendingInvite:null,
       friends:JSON.parse(JSON.stringify(DEFAULT_FRIENDS)),
-      pendingInvite:null,
       log:[]
     };
 
@@ -252,17 +275,25 @@
     function spend(amt){if(state.money<amt){toast("Not enough ₵");return false;}state.money-=amt;return true;}
     function log(msg){state.log.unshift(`Day ${state.day}: ${msg}`);if(state.log.length>50)state.log.pop();}
     function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");clearTimeout(window._tt);window._tt=setTimeout(()=>t.classList.remove("show"),2800);}
+    function pick(arr){return arr[Math.floor(Math.random()*arr.length)];}
+
+    function milestoneText(aff){
+      if(aff>=90) return "Closest friend";
+      if(aff>=70) return "Trusted friend";
+      if(aff>=55) return "Good friend";
+      if(aff>=40) return "Friend";
+      if(aff>=25) return "Acquaintance";
+      return "New connection";
+    }
 
     function updateFriendStatuses(){
       state.friends.forEach(f=>{
         f.status = f.routine[state.time] || "at home";
-        // mood shifts
-        if(Math.random()<0.3){
-          const moods=["content","happy","focused","cheerful","tired","stressed"];
-          f.mood = moods[Math.floor(Math.random()*moods.length)];
+        if(Math.random()<0.35){
+          const moods=["content","happy","focused","cheerful","tired","stressed","relaxed"];
+          f.mood = pick(moods);
         }
-        // small income
-        f.money += 8 + Math.floor(Math.random()*20);
+        f.money += 8 + Math.floor(Math.random()*18);
       });
     }
 
@@ -275,28 +306,28 @@
         if(pay>0){change("money",pay);log(`Career pay +₵${pay}`);}
         updateFriendStatuses();
         log(`— Day ${state.day} —`);
-        // chance of invite next day
-        if(Math.random()<0.35) generateInvite();
+        if(Math.random()<0.4) generateInvite();
       }
-      if(Math.random()<0.2) randomSocialEvent();
+      if(Math.random()<0.22) randomSocialEvent();
       checkCritical();
       render();
     }
 
     function generateInvite(){
-      const available = state.friends.filter(f=>f.affinity>30 && f.status!=="sleeping");
+      const available = state.friends.filter(f=>f.affinity>=28 && f.status!=="sleeping" && f.status!=="at work" && f.status!=="at school");
       if(!available.length) return;
-      const f = available[Math.floor(Math.random()*available.length)];
+      const f = pick(available);
       state.pendingInvite = f.id;
       const msgs = [
-        `${f.name} is inviting you to come over.`,
+        `${f.name} is inviting you over.`,
         `${f.name}: "You free? Come pass by."`,
-        `${f.name} wants to hang out at their place.`,
-        `Message from ${f.name}: "I dey house, make you come."`
+        `${f.name} wants to hang out.`,
+        `Message from ${f.name}: "I dey house, make you come."`,
+        `${f.name}: "It's been a minute. Come around."`
       ];
-      document.getElementById("inviteText").textContent = msgs[Math.floor(Math.random()*msgs.length)];
+      document.getElementById("inviteText").textContent = pick(msgs);
       document.getElementById("inviteBanner").classList.add("show");
-      document.getElementById("acceptInviteBtn").onclick = ()=>{acceptInvite();};
+      document.getElementById("acceptInviteBtn").onclick = ()=>acceptInvite();
     }
 
     function acceptInvite(){
@@ -312,16 +343,17 @@
     }
 
     function randomSocialEvent(){
-      const f = state.friends[Math.floor(Math.random()*state.friends.length)];
-      if(f.affinity > 50 && Math.random()>0.5 && f.money > 40){
-        const amt = 15 + Math.floor(Math.random()*30);
+      const f = pick(state.friends);
+      if(f.affinity>=50 && Math.random()>0.45 && f.money>45){
+        const amt = 15 + Math.floor(Math.random()*35);
         f.money -= amt;
         change("money",amt);
-        f.affinity = Math.min(100,f.affinity+4);
-        log(`${f.name} sent you ₵${amt}. "Just small support."`);
+        f.affinity = Math.min(100,f.affinity+3);
+        const line = pick(DIALOGUE[f.id].gift);
+        log(`${f.name} sent you ₵${amt}. ${line}`);
         toast(`${f.name} sent you ₵${amt}`);
-      } else if(f.affinity > 35){
-        log(`${f.name} checked on you: "How you dey?"`);
+      } else if(f.affinity>=30){
+        log(`${f.name} checked on you.`);
       }
     }
 
@@ -361,8 +393,10 @@
         document.getElementById("actions").innerHTML="";
         npcPanel.style.display="block";
         document.getElementById("npcTitle").textContent=`With ${f.name}`;
-        document.getElementById("npcInfo").innerHTML=`Wallet: ₵${f.money} &nbsp;•&nbsp; Friendship: ${f.affinity}/100 &nbsp;•&nbsp; Currently: ${f.status}`;
+        document.getElementById("npcInfo").innerHTML=`Wallet: ₵${f.money} &nbsp;•&nbsp; Friendship: ${f.affinity}/100 &nbsp;•&nbsp; ${f.status}`;
         document.getElementById("npcMood").textContent=`Mood: ${f.mood}`;
+        document.getElementById("npcMilestone").textContent=milestoneText(f.affinity);
+        document.getElementById("npcLast").textContent=f.lastInteract ? `Last visit: Day ${f.lastInteract}` : "First time visiting";
 
         let acts = `
           <button class="small primary" onclick="openSend('${f.id}')">Send Money</button>
@@ -394,8 +428,7 @@
       ).join("");
 
       document.getElementById("friendsList").innerHTML=state.friends.map(f=>{
-        const busy = f.status==="sleeping" || f.status==="at work" || f.status==="at school" || f.status==="riding";
-        return `<button class="friend-btn ${state.visiting===f.id?"active":""}" onclick="visitFriend('${f.id}')" ${busy&&state.visiting!==f.id?"": ""}>
+        return `<button class="friend-btn ${state.visiting===f.id?"active":""}" onclick="visitFriend('${f.id}')">
           <span>${f.emoji}</span><span>${f.name}</span>
           <span class="meta">${f.status}<br>₵${f.money} • ${f.affinity}</span>
         </button>`;
@@ -426,8 +459,10 @@
       const f=state.friends.find(x=>x.id===id);
       if(f.status==="sleeping"){toast(`${f.name} is sleeping`);return;}
       if(state.energy<10){toast("Too tired");return;}
-      if(state.time===3){toast("Too late to visit");return;}
+      if(state.time===3){toast("Too late");return;}
       state.visiting=id;
+      f.lastInteract = state.day;
+      f.timesVisited = (f.timesVisited||0)+1;
       change("energy",-10);change("money",-5);change("social",8);
       log(`Visited ${f.name} at ${f.house}`);
       advanceTime(1);
@@ -437,28 +472,31 @@
 
     function chatFriend(id){
       const f=state.friends.find(x=>x.id===id);
-      const p=PERSONALITIES[f.personality];
+      const line = pick(DIALOGUE[f.id].chat);
       f.affinity=Math.min(100,f.affinity+5);
+      f.lastInteract=state.day;
       change("social",14);change("happy",10);change("energy",-5);
-      log(`Chat with ${f.name}: ${p.chat}`);
+      log(`${f.name}: "${line}"`);
       advanceTime(1);
     }
 
     function hangOut(id){
       const f=state.friends.find(x=>x.id===id);
       if(state.energy<15){toast("Too tired");return;}
-      const p=PERSONALITIES[f.personality];
+      const line = pick(DIALOGUE[f.id].hang);
       f.affinity=Math.min(100,f.affinity+10);
+      f.lastInteract=state.day;
       change("social",24);change("happy",18);change("energy",-15);
-      log(`Hung out with ${f.name}. ${p.hang}`);
+      log(`Hung out with ${f.name}. ${line}`);
       advanceTime(2);
     }
 
     function eatTogether(id){
       const f=state.friends.find(x=>x.id===id);
       if(state.money<20){toast("Not enough for food");return;}
-      change("money",-20);f.money-=10;
+      change("money",-20);f.money=Math.max(0,f.money-10);
       f.affinity=Math.min(100,f.affinity+8);
+      f.lastInteract=state.day;
       change("hunger",40);change("social",18);change("happy",16);
       log(`You and ${f.name} ate together.`);
       advanceTime(2);
@@ -467,25 +505,28 @@
     function deepTalk(id){
       const f=state.friends.find(x=>x.id===id);
       f.affinity=Math.min(100,f.affinity+12);
+      f.lastInteract=state.day;
       change("social",20);change("happy",22);change("energy",-8);
       log(`Deep conversation with ${f.name}. You both feel closer.`);
+      if(f.affinity>=70 && f.affinity-12<70) toast(`You and ${f.name} are now trusted friends`);
       advanceTime(2);
     }
 
     function askFavor(id){
       const f=state.friends.find(x=>x.id===id);
       if(f.affinity<70){toast("Not close enough yet");return;}
-      if(Math.random()>0.3){
-        const amt=25+Math.floor(Math.random()*40);
+      f.lastInteract=state.day;
+      if(Math.random()>0.28){
+        const amt=25+Math.floor(Math.random()*45);
         if(f.money>=amt){
-          f.money-=amt;change("money",amt);f.affinity+=3;
+          f.money-=amt;change("money",amt);f.affinity=Math.min(100,f.affinity+3);
           log(`${f.name} helped you with ₵${amt}.`);
           toast(`${f.name} came through`);
         } else {
-          log(`${f.name} wanted to help but is also tight right now.`);
+          log(`${f.name} wanted to help but is tight right now.`);
         }
       } else {
-        f.affinity-=4;
+        f.affinity=Math.max(0,f.affinity-3);
         log(`${f.name} couldn't help this time.`);
       }
       advanceTime(1);
@@ -506,6 +547,7 @@
       const f=state.friends.find(x=>x.id===sendTarget);
       state.money-=amt;f.money+=amt;
       f.affinity=Math.min(100,f.affinity+Math.min(18,Math.floor(amt/8)));
+      f.lastInteract=state.day;
       change("social",8);change("happy",6);
       log(`You sent ₵${amt} to ${f.name}.`);
       closeSendModal();render();toast(`Sent ₵${amt}`);
@@ -536,13 +578,13 @@
 
     function showSummary(){
       const c=CAREERS[state.career];
-      const top=state.friends.slice().sort((a,b)=>b.affinity-a.affinity).slice(0,3).map(f=>`${f.name} (${f.affinity})`).join(", ");
+      const top=state.friends.slice().sort((a,b)=>b.affinity-a.affinity).map(f=>`${f.name} (${f.affinity} — ${milestoneText(f.affinity)})`).join("<br>");
       document.getElementById("summaryBody").innerHTML=`
         <strong>${state.name}</strong><br>Day ${state.day} • ${c.name}<br><br>
         Wallet: ₵${state.money}<br>
         Hunger ${state.hunger} • Energy ${state.energy}<br>
         Happy ${state.happy} • Social ${state.social} • Health ${state.health}<br><br>
-        Closest: ${top}`;
+        <strong>Friendships</strong><br>${top}`;
       document.getElementById("summaryModal").classList.add("show");
     }
     function closeSummary(){document.getElementById("summaryModal").classList.remove("show");}
