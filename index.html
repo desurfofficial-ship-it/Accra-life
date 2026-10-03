@@ -4,23 +4,22 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>Life in Accra</title>
-  <meta name="description" content="Live your story in Accra. Hustle, visit friends, send money, build your life." />
+  <meta name="description" content="Live your story in Accra. Visit friends, send money, build real relationships." />
   <meta name="theme-color" content="#0c1017" />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    :root{--bg:#0c1017;--surface:#161d2a;--surface2:#1f2a3d;--accent:#f59e0b;--accent-hover:#fbbf24;--green:#10b981;--text:#f1f5f9;--muted:#94a3b8;--danger:#ef4444;--radius:14px;--shadow:0 6px 24px rgba(0,0,0,.45)}
+    :root{--bg:#0c1017;--surface:#161d2a;--surface2:#1f2a3d;--accent:#f59e0b;--green:#10b981;--text:#f1f5f9;--muted:#94a3b8;--danger:#ef4444;--radius:14px;--shadow:0 6px 24px rgba(0,0,0,.45)}
     *{box-sizing:border-box;margin:0;padding:0}body{font-family:'Outfit',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.45;-webkit-tap-highlight-color:transparent}
     .app{max-width:1100px;margin:0 auto;padding:12px 14px 40px}
-    header{display:flex;justify-content:space-between;align-items:center;padding:10px 0 18px;flex-wrap:wrap;gap:10px}
+    header{display:flex;justify-content:space-between;align-items:center;padding:10px 0 16px;flex-wrap:wrap;gap:10px}
     .logo{font-size:1.4rem;font-weight:700}.logo span{color:var(--accent)}
-    .header-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-    .day-info{font-size:.9rem;color:var(--muted)}
+    .header-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.day-info{font-size:.9rem;color:var(--muted)}
     button{background:var(--surface2);border:none;color:var(--text);padding:9px 14px;border-radius:11px;font-family:inherit;font-weight:500;cursor:pointer;transition:.18s;font-size:.88rem}
     button:hover{background:var(--accent);color:#111}button.primary{background:var(--accent);color:#111;font-weight:600}
     button:disabled{opacity:.45;cursor:not-allowed}button.small{padding:7px 11px;font-size:.82rem}
-    .char-bar{background:var(--surface);border-radius:var(--radius);padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;box-shadow:var(--shadow)}
+    .char-bar{background:var(--surface);border-radius:var(--radius);padding:12px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;box-shadow:var(--shadow)}
     .char-name{font-weight:600;font-size:1.05rem}.char-job{font-size:.85rem;color:var(--muted)}
-    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
     @media(min-width:640px){.stats{grid-template-columns:repeat(6,1fr)}}
     .stat{background:var(--surface);border-radius:12px;padding:10px 12px;box-shadow:var(--shadow)}
     .stat-label{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
@@ -37,12 +36,11 @@
     .action-btn{background:var(--surface2);border:1px solid transparent;padding:12px 10px;border-radius:11px;text-align:left;display:flex;flex-direction:column;gap:3px}
     .action-btn:hover{border-color:var(--accent);background:#2a3a52}.action-btn .title{font-weight:600;font-size:.9rem}.action-btn .cost{font-size:.75rem;color:var(--muted)}
     .sidebar{display:flex;flex-direction:column;gap:12px}
-    .locations-list,.friends-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto}
+    .locations-list,.friends-list{display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto}
     .loc-btn,.friend-btn{background:var(--surface2);text-align:left;padding:10px 12px;border-radius:10px;display:flex;align-items:center;gap:8px;font-size:.9rem}
     .loc-btn.active,.friend-btn.active{background:var(--accent);color:#111;font-weight:600}
-    .loc-btn:hover:not(.active),.friend-btn:hover:not(.active){background:#2a3a52}
-    .friend-btn .bal{margin-left:auto;font-size:.8rem;color:var(--muted)}
-    .log{max-height:180px;overflow-y:auto;font-size:.82rem}.log-entry{padding:5px 0;border-bottom:1px solid var(--surface2);color:var(--muted)}
+    .friend-btn .meta{margin-left:auto;font-size:.75rem;color:var(--muted);text-align:right}
+    .log{max-height:170px;overflow-y:auto;font-size:.82rem}.log-entry{padding:5px 0;border-bottom:1px solid var(--surface2);color:var(--muted)}
     .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface2);padding:11px 20px;border-radius:12px;box-shadow:var(--shadow);opacity:0;transition:.3s;z-index:200;font-weight:500;font-size:.9rem;max-width:90%;text-align:center}.toast.show{opacity:1}
     .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;z-index:150;padding:16px}.modal-overlay.show{display:flex}
     .modal{background:var(--surface);border-radius:18px;padding:24px;max-width:400px;width:100%;box-shadow:var(--shadow)}
@@ -50,8 +48,11 @@
     .modal input{width:100%;padding:11px 14px;border-radius:10px;border:1px solid var(--surface2);background:var(--bg);color:var(--text);font-family:inherit;font-size:1rem;margin-bottom:12px}
     .modal-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
     footer{text-align:center;padding:28px 0 10px;color:var(--muted);font-size:.82rem}footer a{color:var(--accent);text-decoration:none}
-    .stat.low .stat-value{color:var(--danger);animation:pulse 1.2s infinite}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+    .stat.low .stat-value{color:var(--danger)}
     .npc-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+    .mood{font-size:.85rem;margin-top:4px}
+    .invite-banner{background:linear-gradient(90deg,#1f2a3d,#2a3a52);border:1px solid var(--accent);border-radius:12px;padding:12px 14px;margin-bottom:12px;display:none}
+    .invite-banner.show{display:block}
   </style>
 </head>
 <body>
@@ -66,6 +67,14 @@
         <button class="small primary" onclick="promptNewGame()">New Life</button>
       </div>
     </header>
+
+    <div class="invite-banner" id="inviteBanner">
+      <div id="inviteText"></div>
+      <div style="margin-top:8px;display:flex;gap:8px">
+        <button class="small primary" id="acceptInviteBtn">Accept</button>
+        <button class="small" onclick="dismissInvite()">Later</button>
+      </div>
+    </div>
 
     <div class="char-bar">
       <div>
@@ -82,19 +91,20 @@
         <div class="location-card" id="locationCard"></div>
         <div class="panel"><h3>Actions</h3><div class="actions" id="actions"></div></div>
         <div class="panel" id="npcPanel" style="display:none">
-          <h3 id="npcTitle">Visiting</h3>
-          <div id="npcInfo" style="color:var(--muted);font-size:.9rem;margin-bottom:8px"></div>
+          <h3 id="npcTitle">With friend</h3>
+          <div id="npcInfo" style="color:var(--muted);font-size:.9rem"></div>
+          <div class="mood" id="npcMood"></div>
           <div class="npc-actions" id="npcActions"></div>
         </div>
         <div class="panel">
           <h3>Career</h3>
-          <div class="career-info" id="careerInfo" style="font-size:.9rem;margin-bottom:8px"></div>
+          <div id="careerInfo" style="font-size:.9rem;margin-bottom:8px"></div>
           <div id="careerActions"></div>
         </div>
       </div>
       <div class="sidebar">
         <div class="panel"><h3>Travel</h3><div class="locations-list" id="locationsList"></div></div>
-        <div class="panel"><h3>Friends & Houses</h3><div class="friends-list" id="friendsList"></div></div>
+        <div class="panel"><h3>Friends</h3><div class="friends-list" id="friendsList"></div></div>
         <div class="panel"><h3>Life Log</h3><div class="log" id="log"></div></div>
       </div>
     </div>
@@ -147,12 +157,12 @@
   <script>
     const LOCATIONS = {
       home:{name:"Your Flat (Osu)",emoji:"🏠",desc:"Your place in Osu.",actions:["sleep","cook","watch","clean"]},
-      makola:{name:"Makola Market",emoji:"🛒",desc:"The commercial heart of Accra.",actions:["buy_food","sell","bargain","load_goods"]},
-      labadi:{name:"Labadi Beach",emoji:"🏖️",desc:"Sand, sea, and reset energy.",actions:["swim","relax","kelewele","party"]},
+      makola:{name:"Makola Market",emoji:"🛒",desc:"Commercial heart of Accra.",actions:["buy_food","sell","bargain","load_goods"]},
+      labadi:{name:"Labadi Beach",emoji:"🏖️",desc:"Sand, sea, reset energy.",actions:["swim","relax","kelewele","party"]},
       square:{name:"Independence Square",emoji:"🇬🇭",desc:"Black Star Square.",actions:["reflect","photo","meet"]},
       legon:{name:"University of Ghana",emoji:"🎓",desc:"Legon campus.",actions:["study","lecture","network"]},
-      kaneshie:{name:"Kaneshie",emoji:"🥬",desc:"Fresh food and real Accra energy.",actions:["banku","hustle","gist"]},
-      tech:{name:"Tech Hub",emoji:"💻",desc:"Where the builders gather.",actions:["code","pitch","freelance"]},
+      kaneshie:{name:"Kaneshie",emoji:"🥬",desc:"Fresh food and real energy.",actions:["banku","hustle","gist"]},
+      tech:{name:"Tech Hub",emoji:"💻",desc:"Where builders gather.",actions:["code","pitch","freelance"]},
       church:{name:"Church",emoji:"⛪",desc:"Community and peace.",actions:["worship","fellowship","donate"]},
       mall:{name:"Accra Mall",emoji:"🏬",desc:"Shopping and cinema.",actions:["shop","cinema","foodcourt"]},
       circle:{name:"Circle",emoji:"🚌",desc:"Kwame Nkrumah Circle.",actions:["street_food","side_hustle","observe"]}
@@ -161,7 +171,7 @@
     const ACTIONS = {
       sleep:{title:"Sleep",cost:"Energy +++",fn:()=>{change("energy",50);change("hunger",-12);advanceTime(8);log("You slept well.");}},
       cook:{title:"Cook",cost:"₵6",fn:()=>{if(spend(6)){change("hunger",40);change("happy",8);log("Home-cooked meal.");}}},
-      watch:{title:"Watch TV",cost:"Happy +",fn:()=>{change("happy",18);change("energy",-6);advanceTime(2);log("You relaxed with a show.");}},
+      watch:{title:"Watch TV",cost:"Happy +",fn:()=>{change("happy",18);change("energy",-6);advanceTime(2);log("Relaxed with a show.");}},
       clean:{title:"Clean",cost:"Happy +",fn:()=>{change("happy",10);change("health",5);change("energy",-10);log("Place feels better.");}},
       buy_food:{title:"Street food",cost:"₵12",fn:()=>{if(spend(12)){change("hunger",42);change("happy",10);log("Waakye hit different.");}}},
       sell:{title:"Sell goods",cost:"Earn ₵25-60",fn:()=>{const e=25+Math.floor(Math.random()*36);change("money",e);change("energy",-18);log(`Sold goods for ₵${e}.`);}},
@@ -204,20 +214,33 @@
       student:{name:"Student",pay:10,desc:"Focus on learning.",reqMoney:0}
     };
 
-    // NPC friends with houses and wallets
+    const PERSONALITIES = {
+      warm: {chat:"Ama smiled. 'How is life treating you?'",hang:"You cooked and laughed for hours.",gift:"She insisted you take some money for transport."},
+      loyal: {chat:"Kofi: 'Any wahala, just call me.'",hang:"You fixed things and talked life.",gift:"He forced ₵ into your hand. 'Take it.'"},
+      generous: {chat:"Abena: 'You look like you need good news today.'",hang:"She ordered food for both of you.",gift:"She sent you money without asking."},
+      grinder: {chat:"Kwame: 'The hustle continues. How far?'",hang:"You both talked goals and strategy.",gift:"He shared a small win with you."},
+      lively: {chat:"Efua: 'Have you heard the latest highlife track?'",hang:"Music, stories, pure vibes.",gift:"She gave you something small but thoughtful."}
+    };
+
     const DEFAULT_FRIENDS = [
-      {id:"ama",name:"Ama",house:"Ama's Place (Adenta)",emoji:"🏡",money:220,affinity:40,bio:"Works in banking. Always has good advice."},
-      {id:"kofi",name:"Kofi",house:"Kofi's Spot (Tema)",emoji:"🏠",money:150,affinity:35,bio:"Mechanic and side hustler. Loyal friend."},
-      {id:"abena",name:"Abena",house:"Abena's Flat (East Legon)",emoji:"🏢",money:310,affinity:50,bio:"Runs a small boutique. Generous when she can."},
-      {id:"kwame",name:"Kwame",house:"Kwame's Room (Madina)",emoji:"👨🏻",money:90,affinity:30,bio:"Student and part-time rider. Always grinding."},
-      {id:"efua",name:"Efua",house:"Efua's Home (Dansoman)",emoji:"👩🏻",money:180,affinity:45,bio:"Teacher by day, highlife lover by night."}
+      {id:"ama",name:"Ama",house:"Ama's Place (Adenta)",emoji:"🏡",money:240,affinity:42,mood:"content",personality:"warm",bio:"Works in banking. Steady and caring.",status:"at home",
+        routine:{0:"at home",1:"at work",2:"at home",3:"sleeping"}},
+      {id:"kofi",name:"Kofi",house:"Kofi's Spot (Tema)",emoji:"🏠",money:160,affinity:38,mood:"focused",personality:"loyal",bio:"Mechanic and side hustler. Very loyal.",status:"at work",
+        routine:{0:"at work",1:"at work",2:"at home",3:"sleeping"}},
+      {id:"abena",name:"Abena",house:"Abena's Flat (East Legon)",emoji:"🏢",money:340,affinity:55,mood:"happy",personality:"generous",bio:"Runs a boutique. Generous when she can.",status:"at home",
+        routine:{0:"at home",1:"at shop",2:"out",3:"at home"}},
+      {id:"kwame",name:"Kwame",house:"Kwame's Room (Madina)",emoji:"👨🏻",money:95,affinity:33,mood:"tired",personality:"grinder",bio:"Student and part-time rider. Always grinding.",status:"at school",
+        routine:{0:"at school",1:"riding",2:"at home",3:"sleeping"}},
+      {id:"efua",name:"Efua",house:"Efua's Home (Dansoman)",emoji:"👩🏻",money:190,affinity:48,mood:"cheerful",personality:"lively",bio:"Teacher by day, highlife lover by night.",status:"at home",
+        routine:{0:"at school",1:"at school",2:"at home",3:"out"}}
     ];
 
     let state = {
       name:"New Resident",day:1,time:0,location:"home",career:"unemployed",
       money:180,hunger:75,energy:85,happy:65,social:45,health:90,
-      visiting:null, // friend id or null
+      visiting:null,
       friends:JSON.parse(JSON.stringify(DEFAULT_FRIENDS)),
+      pendingInvite:null,
       log:[]
     };
 
@@ -228,7 +251,20 @@
     function change(stat,amt){if(stat==="money")state.money=Math.max(0,Math.round(state.money+amt));else state[stat]=clamp(state[stat]+amt);}
     function spend(amt){if(state.money<amt){toast("Not enough ₵");return false;}state.money-=amt;return true;}
     function log(msg){state.log.unshift(`Day ${state.day}: ${msg}`);if(state.log.length>50)state.log.pop();}
-    function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");clearTimeout(window._tt);window._tt=setTimeout(()=>t.classList.remove("show"),2600);}
+    function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");clearTimeout(window._tt);window._tt=setTimeout(()=>t.classList.remove("show"),2800);}
+
+    function updateFriendStatuses(){
+      state.friends.forEach(f=>{
+        f.status = f.routine[state.time] || "at home";
+        // mood shifts
+        if(Math.random()<0.3){
+          const moods=["content","happy","focused","cheerful","tired","stressed"];
+          f.mood = moods[Math.floor(Math.random()*moods.length)];
+        }
+        // small income
+        f.money += 8 + Math.floor(Math.random()*20);
+      });
+    }
 
     function advanceTime(hrs=2){
       state.time += Math.ceil(hrs/3.5);
@@ -237,33 +273,56 @@
         change("hunger",-18);change("energy",-8);change("social",-4);change("happy",-3);
         const pay=CAREERS[state.career]?.pay||0;
         if(pay>0){change("money",pay);log(`Career pay +₵${pay}`);}
-        // friends also earn a little
-        state.friends.forEach(f=>{f.money += 10 + Math.floor(Math.random()*25);});
+        updateFriendStatuses();
         log(`— Day ${state.day} —`);
+        // chance of invite next day
+        if(Math.random()<0.35) generateInvite();
       }
-      if(Math.random()<0.16)randomEvent();
+      if(Math.random()<0.2) randomSocialEvent();
       checkCritical();
       render();
     }
 
-    function randomEvent(){
-      const events=[
-        ()=>{change("money",35);log("MoMo from family. +₵35");},
-        ()=>{change("happy",-15);change("energy",-10);log("Long traffic and delay.");},
-        ()=>{const f=state.friends[Math.floor(Math.random()*state.friends.length)];f.affinity=Math.min(100,f.affinity+8);log(`${f.name} checked up on you.`);},
-        ()=>{change("health",-10);log("Feeling under the weather.");},
-        ()=>{change("happy",20);log("Good song on the radio. Mood up.");},
-        ()=>{change("money",-15);log("Small expenses added up.");},
-        ()=>{
-          const f=state.friends.filter(x=>x.affinity>40)[0];
-          if(f && f.money>30 && Math.random()>0.5){
-            const amt=15+Math.floor(Math.random()*25);
-            f.money-=amt;change("money",amt);f.affinity+=5;
-            log(`${f.name} sent you ₵${amt}.`);
-          }
-        }
+    function generateInvite(){
+      const available = state.friends.filter(f=>f.affinity>30 && f.status!=="sleeping");
+      if(!available.length) return;
+      const f = available[Math.floor(Math.random()*available.length)];
+      state.pendingInvite = f.id;
+      const msgs = [
+        `${f.name} is inviting you to come over.`,
+        `${f.name}: "You free? Come pass by."`,
+        `${f.name} wants to hang out at their place.`,
+        `Message from ${f.name}: "I dey house, make you come."`
       ];
-      events[Math.floor(Math.random()*events.length)]();
+      document.getElementById("inviteText").textContent = msgs[Math.floor(Math.random()*msgs.length)];
+      document.getElementById("inviteBanner").classList.add("show");
+      document.getElementById("acceptInviteBtn").onclick = ()=>{acceptInvite();};
+    }
+
+    function acceptInvite(){
+      if(!state.pendingInvite) return;
+      visitFriend(state.pendingInvite);
+      state.pendingInvite = null;
+      document.getElementById("inviteBanner").classList.remove("show");
+    }
+    function dismissInvite(){
+      state.pendingInvite = null;
+      document.getElementById("inviteBanner").classList.remove("show");
+      toast("Invite dismissed");
+    }
+
+    function randomSocialEvent(){
+      const f = state.friends[Math.floor(Math.random()*state.friends.length)];
+      if(f.affinity > 50 && Math.random()>0.5 && f.money > 40){
+        const amt = 15 + Math.floor(Math.random()*30);
+        f.money -= amt;
+        change("money",amt);
+        f.affinity = Math.min(100,f.affinity+4);
+        log(`${f.name} sent you ₵${amt}. "Just small support."`);
+        toast(`${f.name} sent you ₵${amt}`);
+      } else if(f.affinity > 35){
+        log(`${f.name} checked on you: "How you dey?"`);
+      }
     }
 
     function checkCritical(){
@@ -292,7 +351,6 @@
 
       document.getElementById("dayInfo").textContent=`Day ${state.day} • ${TIME[state.time]}`;
 
-      // Location or NPC house
       const npcPanel=document.getElementById("npcPanel");
       if(state.visiting){
         const f=state.friends.find(x=>x.id===state.visiting);
@@ -303,12 +361,18 @@
         document.getElementById("actions").innerHTML="";
         npcPanel.style.display="block";
         document.getElementById("npcTitle").textContent=`With ${f.name}`;
-        document.getElementById("npcInfo").innerHTML=`Wallet: ₵${f.money} &nbsp;•&nbsp; Friendship: ${f.affinity}/100`;
-        document.getElementById("npcActions").innerHTML=`
+        document.getElementById("npcInfo").innerHTML=`Wallet: ₵${f.money} &nbsp;•&nbsp; Friendship: ${f.affinity}/100 &nbsp;•&nbsp; Currently: ${f.status}`;
+        document.getElementById("npcMood").textContent=`Mood: ${f.mood}`;
+
+        let acts = `
           <button class="small primary" onclick="openSend('${f.id}')">Send Money</button>
           <button class="small" onclick="chatFriend('${f.id}')">Chat</button>
-          <button class="small" onclick="hangOut('${f.id}')">Hang out</button>
-          <button class="small" onclick="leaveFriend()">Leave</button>`;
+          <button class="small" onclick="hangOut('${f.id}')">Hang out</button>`;
+        if(f.affinity>=40) acts += ` <button class="small" onclick="eatTogether('${f.id}')">Eat together</button>`;
+        if(f.affinity>=55) acts += ` <button class="small" onclick="deepTalk('${f.id}')">Deep talk</button>`;
+        if(f.affinity>=70) acts += ` <button class="small" onclick="askFavor('${f.id}')">Ask favor</button>`;
+        acts += ` <button class="small" onclick="leaveFriend()">Leave</button>`;
+        document.getElementById("npcActions").innerHTML=acts;
       } else {
         const loc=LOCATIONS[state.location];
         document.getElementById("locationCard").innerHTML=`
@@ -329,12 +393,13 @@
         `<button class="loc-btn ${!state.visiting&&k===state.location?"active":""}" onclick="travel('${k}')"><span>${l.emoji}</span><span>${l.name}</span></button>`
       ).join("");
 
-      document.getElementById("friendsList").innerHTML=state.friends.map(f=>
-        `<button class="friend-btn ${state.visiting===f.id?"active":""}" onclick="visitFriend('${f.id}')">
+      document.getElementById("friendsList").innerHTML=state.friends.map(f=>{
+        const busy = f.status==="sleeping" || f.status==="at work" || f.status==="at school" || f.status==="riding";
+        return `<button class="friend-btn ${state.visiting===f.id?"active":""}" onclick="visitFriend('${f.id}')" ${busy&&state.visiting!==f.id?"": ""}>
           <span>${f.emoji}</span><span>${f.name}</span>
-          <span class="bal">₵${f.money}</span>
-        </button>`
-      ).join("");
+          <span class="meta">${f.status}<br>₵${f.money} • ${f.affinity}</span>
+        </button>`;
+      }).join("");
 
       document.getElementById("log").innerHTML=state.log.slice(0,10).map(e=>`<div class="log-entry">${e}</div>`).join("")||`<div class="log-entry">Your life in Accra begins...</div>`;
     }
@@ -347,7 +412,7 @@
     }
 
     function travel(key){
-      if(state.visiting){state.visiting=null;}
+      if(state.visiting) state.visiting=null;
       if(key===state.location&&!state.visiting)return;
       if(state.energy<10){toast("Too tired to move");return;}
       if(state.time===3){toast("Night. Stay home.");return;}
@@ -358,37 +423,72 @@
     }
 
     function visitFriend(id){
+      const f=state.friends.find(x=>x.id===id);
+      if(f.status==="sleeping"){toast(`${f.name} is sleeping`);return;}
       if(state.energy<10){toast("Too tired");return;}
       if(state.time===3){toast("Too late to visit");return;}
-      const f=state.friends.find(x=>x.id===id);
-      state.visiting=id;state.location="home"; // conceptual
-      change("energy",-10);change("money",-5);
-      change("social",8);
+      state.visiting=id;
+      change("energy",-10);change("money",-5);change("social",8);
       log(`Visited ${f.name} at ${f.house}`);
       advanceTime(1);
     }
 
-    function leaveFriend(){
-      state.visiting=null;
-      log("You left and headed back.");
-      render();
-    }
+    function leaveFriend(){state.visiting=null;log("You left.");render();}
 
     function chatFriend(id){
       const f=state.friends.find(x=>x.id===id);
-      f.affinity=Math.min(100,f.affinity+6);
-      change("social",15);change("happy",10);change("energy",-5);
-      log(`Had a good chat with ${f.name}.`);
+      const p=PERSONALITIES[f.personality];
+      f.affinity=Math.min(100,f.affinity+5);
+      change("social",14);change("happy",10);change("energy",-5);
+      log(`Chat with ${f.name}: ${p.chat}`);
       advanceTime(1);
     }
 
     function hangOut(id){
       const f=state.friends.find(x=>x.id===id);
       if(state.energy<15){toast("Too tired");return;}
-      f.affinity=Math.min(100,f.affinity+12);
-      change("social",25);change("happy",18);change("energy",-15);
-      log(`Hung out with ${f.name}. Good times.`);
+      const p=PERSONALITIES[f.personality];
+      f.affinity=Math.min(100,f.affinity+10);
+      change("social",24);change("happy",18);change("energy",-15);
+      log(`Hung out with ${f.name}. ${p.hang}`);
       advanceTime(2);
+    }
+
+    function eatTogether(id){
+      const f=state.friends.find(x=>x.id===id);
+      if(state.money<20){toast("Not enough for food");return;}
+      change("money",-20);f.money-=10;
+      f.affinity=Math.min(100,f.affinity+8);
+      change("hunger",40);change("social",18);change("happy",16);
+      log(`You and ${f.name} ate together.`);
+      advanceTime(2);
+    }
+
+    function deepTalk(id){
+      const f=state.friends.find(x=>x.id===id);
+      f.affinity=Math.min(100,f.affinity+12);
+      change("social",20);change("happy",22);change("energy",-8);
+      log(`Deep conversation with ${f.name}. You both feel closer.`);
+      advanceTime(2);
+    }
+
+    function askFavor(id){
+      const f=state.friends.find(x=>x.id===id);
+      if(f.affinity<70){toast("Not close enough yet");return;}
+      if(Math.random()>0.3){
+        const amt=25+Math.floor(Math.random()*40);
+        if(f.money>=amt){
+          f.money-=amt;change("money",amt);f.affinity+=3;
+          log(`${f.name} helped you with ₵${amt}.`);
+          toast(`${f.name} came through`);
+        } else {
+          log(`${f.name} wanted to help but is also tight right now.`);
+        }
+      } else {
+        f.affinity-=4;
+        log(`${f.name} couldn't help this time.`);
+      }
+      advanceTime(1);
     }
 
     function openSend(id){
@@ -404,14 +504,11 @@
       if(!amt||amt<1){toast("Enter a valid amount");return;}
       if(amt>state.money){toast("You don't have enough");return;}
       const f=state.friends.find(x=>x.id===sendTarget);
-      state.money-=amt;
-      f.money+=amt;
-      f.affinity=Math.min(100,f.affinity+Math.min(20,Math.floor(amt/10)));
-      change("social",8);change("happy",5);
+      state.money-=amt;f.money+=amt;
+      f.affinity=Math.min(100,f.affinity+Math.min(18,Math.floor(amt/8)));
+      change("social",8);change("happy",6);
       log(`You sent ₵${amt} to ${f.name}.`);
-      closeSendModal();
-      render();
-      toast(`Sent ₵${amt} to ${f.name}`);
+      closeSendModal();render();toast(`Sent ₵${amt}`);
     }
 
     function workShift(){
@@ -439,13 +536,13 @@
 
     function showSummary(){
       const c=CAREERS[state.career];
-      const topFriends=state.friends.slice().sort((a,b)=>b.affinity-a.affinity).slice(0,3).map(f=>`${f.name} (${f.affinity})`).join(", ");
+      const top=state.friends.slice().sort((a,b)=>b.affinity-a.affinity).slice(0,3).map(f=>`${f.name} (${f.affinity})`).join(", ");
       document.getElementById("summaryBody").innerHTML=`
         <strong>${state.name}</strong><br>Day ${state.day} • ${c.name}<br><br>
         Wallet: ₵${state.money}<br>
         Hunger ${state.hunger} • Energy ${state.energy}<br>
         Happy ${state.happy} • Social ${state.social} • Health ${state.health}<br><br>
-        Closest friends: ${topFriends}`;
+        Closest: ${top}`;
       document.getElementById("summaryModal").classList.add("show");
     }
     function closeSummary(){document.getElementById("summaryModal").classList.remove("show");}
@@ -458,12 +555,13 @@
     function startNewLife(){
       const name=document.getElementById("nameInput").value.trim()||"Accra Resident";
       state={
-        name,day:1,time:0,location:"home",career:"unemployed",visiting:null,
+        name,day:1,time:0,location:"home",career:"unemployed",visiting:null,pendingInvite:null,
         money:180,hunger:75,energy:85,happy:65,social:45,health:90,
         friends:JSON.parse(JSON.stringify(DEFAULT_FRIENDS)),
         log:[`Welcome ${name}. This is your life in Accra.`]
       };
       document.getElementById("nameModal").classList.remove("show");
+      document.getElementById("inviteBanner").classList.remove("show");
       render();toast(`Welcome, ${name}`);
     }
 
@@ -479,6 +577,7 @@
     }else{
       try{state=JSON.parse(localStorage.getItem("lifeInAccra"));if(!state.friends)state.friends=JSON.parse(JSON.stringify(DEFAULT_FRIENDS));}catch(e){}
     }
+    updateFriendStatuses();
     render();
   </script>
 </body>
