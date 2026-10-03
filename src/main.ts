@@ -9,7 +9,7 @@ import {
   getDoc,
   setDoc,
   updateDoc,
-  serverTimestamp
+  Timestamp
 } from 'firebase/firestore';
 import {
   auth,
@@ -20,7 +20,7 @@ import {
 } from './firebase';
 
 // ===================== BLUEPRINT VALIDATION CONSTANTS =====================
-const ID_REGEX = /^[a-zA-Z0-9_\-]+$/;
+const ID_REGEX = /^[a-zA-Z0-9_-]+$/;
 const OWNER_ID_MAX_LEN = 128;
 const PLAYER_ID_MAX_LEN = 64;
 const NAME_MAX_LEN = 32;
@@ -371,15 +371,18 @@ function applyFirestoreDocToState(data: Record<string, unknown>) {
   state = base;
 }
 
+let cloudOpPromise: Promise<void> | null = null;
+
 async function syncCloudSave(user: User, showNotification = true): Promise<void> {
   if (!ID_REGEX.test(user.uid)) return;
-  const userPath = `users/${user.uid}`;
-  const profilePath = `publicProfiles/${user.uid}`;
-  const userRef = doc(db, 'users', user.uid);
-  const profileRef = doc(db, 'publicProfiles', user.uid);
+  const userPath = `players/${user.uid}`;
+  const profilePath = `profiles/${user.uid}`;
+  const userRef = doc(db, 'players', user.uid);
+  const profileRef = doc(db, 'profiles', user.uid);
 
   const saveBase = buildSanitizedSavePayload(user.uid);
   const profileBase = buildSanitizedPublicProfilePayload(user.uid);
+  const nowTs = Timestamp.now();
 
   // Save private user game state
   let existingSaveSnap;
@@ -391,10 +394,10 @@ async function syncCloudSave(user: User, showNotification = true): Promise<void>
 
   if (existingSaveSnap && existingSaveSnap.exists()) {
     try {
-      const { ownerId: _o, playerId: _p, ...mutableSaveFields } = saveBase;
+      const { ownerId: _o, ...mutableSaveFields } = saveBase;
       await updateDoc(userRef, {
         ...mutableSaveFields,
-        updatedAt: serverTimestamp()
+        updatedAt: nowTs
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, userPath);
@@ -403,8 +406,8 @@ async function syncCloudSave(user: User, showNotification = true): Promise<void>
     try {
       await setDoc(userRef, {
         ...saveBase,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        createdAt: nowTs,
+        updatedAt: nowTs
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, userPath);
@@ -421,10 +424,10 @@ async function syncCloudSave(user: User, showNotification = true): Promise<void>
 
   if (existingProfileSnap && existingProfileSnap.exists()) {
     try {
-      const { ownerId: _o, playerId: _p, ...mutableProfileFields } = profileBase;
+      const { ownerId: _o, ...mutableProfileFields } = profileBase;
       await updateDoc(profileRef, {
         ...mutableProfileFields,
-        updatedAt: serverTimestamp()
+        updatedAt: nowTs
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, profilePath);
@@ -433,8 +436,8 @@ async function syncCloudSave(user: User, showNotification = true): Promise<void>
     try {
       await setDoc(profileRef, {
         ...profileBase,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        createdAt: nowTs,
+        updatedAt: nowTs
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, profilePath);
@@ -447,48 +450,60 @@ async function syncCloudSave(user: User, showNotification = true): Promise<void>
 }
 
 async function loadOrInitializeCloudUser(user: User): Promise<void> {
-  const safeDisplayName = sanitizeString(user.displayName || 'Accra Resident', NAME_MAX_LEN, 'Accra Resident');
-  const safePlayerId = sanitizeId(`accra_${user.uid.slice(0, 12)}`, PLAYER_ID_MAX_LEN);
+  if (cloudOpPromise) {
+    await cloudOpPromise;
+    return;
+  }
 
-  account = {
-    playerId: safePlayerId,
-    uid: user.uid,
-    displayName: safeDisplayName,
-    isGuest: false,
-    createdAt: user.metadata.creationTime || new Date().toISOString()
+  const runLoad = async () => {
+    const safeDisplayName = sanitizeString(user.displayName || 'Accra Resident', NAME_MAX_LEN, 'Accra Resident');
+    const safePlayerId = sanitizeId(`accra_${user.uid.slice(0, 12)}`, PLAYER_ID_MAX_LEN);
+
+    account = {
+      playerId: safePlayerId,
+      uid: user.uid,
+      displayName: safeDisplayName,
+      isGuest: false,
+      createdAt: user.metadata.creationTime || new Date().toISOString()
+    };
+
+    const userPath = `players/${user.uid}`;
+    const userRef = doc(db, 'players', user.uid);
+    let snap;
+    try {
+      snap = await getDoc(userRef);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, userPath);
+    }
+
+    if (snap && snap.exists()) {
+      const data = snap.data();
+      if (typeof data.playerId === 'string') {
+        account.playerId = sanitizeId(data.playerId, PLAYER_ID_MAX_LEN);
+      }
+      applyFirestoreDocToState(data);
+      localStorage.setItem('lifeInAccra_account', JSON.stringify(account));
+      localStorage.setItem('lifeInAccra_state', JSON.stringify(state));
+      enterGame();
+      toast(`Welcome back, ${state?.name}! Cloud save loaded.`);
+    } else {
+      if (!state) {
+        state = createDefaultState(safeDisplayName);
+      } else {
+        state.name = safeDisplayName;
+      }
+      localStorage.setItem('lifeInAccra_account', JSON.stringify(account));
+      localStorage.setItem('lifeInAccra_state', JSON.stringify(state));
+      await syncCloudSave(user, false);
+      enterGame();
+      toast(`Signed in as ${safeDisplayName}. Cloud save initialized!`);
+    }
   };
 
-  const userPath = `users/${user.uid}`;
-  const userRef = doc(db, 'users', user.uid);
-  let snap;
-  try {
-    snap = await getDoc(userRef);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.GET, userPath);
-  }
-
-  if (snap && snap.exists()) {
-    const data = snap.data();
-    if (typeof data.playerId === 'string') {
-      account.playerId = sanitizeId(data.playerId, PLAYER_ID_MAX_LEN);
-    }
-    applyFirestoreDocToState(data);
-    localStorage.setItem('lifeInAccra_account', JSON.stringify(account));
-    localStorage.setItem('lifeInAccra_state', JSON.stringify(state));
-    enterGame();
-    toast(`Welcome back, ${state?.name}! Cloud save loaded.`);
-  } else {
-    if (!state) {
-      state = createDefaultState(safeDisplayName);
-    } else {
-      state.name = safeDisplayName;
-    }
-    localStorage.setItem('lifeInAccra_account', JSON.stringify(account));
-    localStorage.setItem('lifeInAccra_state', JSON.stringify(state));
-    await syncCloudSave(user, false);
-    enterGame();
-    toast(`Signed in as ${safeDisplayName}. Cloud save initialized!`);
-  }
+  cloudOpPromise = runLoad().finally(() => {
+    cloudOpPromise = null;
+  });
+  await cloudOpPromise;
 }
 
 // ===================== AUTH & MULTIPLAYER ACTIONS =====================
@@ -553,10 +568,10 @@ async function lookupResidentByUid(): Promise<void> {
     return;
   }
 
-  const profilePath = `publicProfiles/${rawUid}`;
+  const profilePath = `profiles/${rawUid}`;
   let snap;
   try {
-    snap = await getDoc(doc(db, 'publicProfiles', rawUid));
+    snap = await getDoc(doc(db, 'profiles', rawUid));
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, profilePath);
   }

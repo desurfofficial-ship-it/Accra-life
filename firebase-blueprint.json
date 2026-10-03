@@ -1,23 +1,23 @@
 {
   "entities": {
-    "UserSave": {
-      "title": "UserSave",
+    "Player": {
+      "title": "Player",
       "description": "Private cloud save state for an authenticated player in Life in Accra.",
       "type": "object",
       "properties": {
         "ownerId": {
           "type": "string",
-          "description": "Firebase Auth UID of the save owner.",
+          "description": "Firebase Auth UID of the player.",
           "minLength": 1,
           "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
+          "pattern": "^[a-zA-Z0-9_-]+$"
         },
         "playerId": {
           "type": "string",
           "description": "Unique player identifier in Accra.",
           "minLength": 1,
           "maxLength": 64,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
+          "pattern": "^[a-zA-Z0-9_-]+$"
         },
         "name": {
           "type": "string",
@@ -153,8 +153,8 @@
         "updatedAt"
       ]
     },
-    "PublicProfile": {
-      "title": "PublicProfile",
+    "Profile": {
+      "title": "Profile",
       "description": "Public resident profile allowing other signed-in players to visit a player house by ID.",
       "type": "object",
       "properties": {
@@ -163,14 +163,14 @@
           "description": "Firebase Auth UID of the resident.",
           "minLength": 1,
           "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
+          "pattern": "^[a-zA-Z0-9_-]+$"
         },
         "playerId": {
           "type": "string",
           "description": "Public Player ID string.",
           "minLength": 1,
           "maxLength": 64,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
+          "pattern": "^[a-zA-Z0-9_-]+$"
         },
         "displayName": {
           "type": "string",
@@ -225,12 +225,12 @@
     }
   },
   "firestore": {
-    "/users/{userId}": {
-      "schema": "UserSave",
+    "/players/{userId}": {
+      "schema": "Player",
       "description": "Private cloud game saves keyed by Firebase Auth UID."
     },
-    "/publicProfiles/{userId}": {
-      "schema": "PublicProfile",
+    "/profiles/{userId}": {
+      "schema": "Profile",
       "description": "Public resident house profiles keyed by Firebase Auth UID for visiting friends."
     }
   }

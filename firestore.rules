@@ -1,21 +1,167 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Each player can only read/write their own save
-    match /players/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Public profiles (for future multiplayer friends list)
-    match /profiles/{userId} {
-      allow read: if request.auth != null;
-      allow create, update: if request.auth != null && request.auth.uid == userId;
-      allow delete: if request.auth != null && request.auth.uid == userId;
-    }
-
+    // Pillar 1 & Phase 4.1: Global Safety Net (Default-Deny Catch-All)
     match /{document=**} {
       allow read, write: if false;
+    }
+
+    // Phase 3: Hardened Global Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerified() && request.auth.uid == userId;
+    }
+
+    function isValidCareer(career) {
+      return career is string && career.size() >= 1 && career.size() <= 32 &&
+        career in ['unemployed', 'trader', 'developer', 'teacher', 'musician', 'driver', 'student'];
+    }
+
+    function isValidLocation(loc) {
+      return loc is string && loc.size() >= 1 && loc.size() <= 32 &&
+        loc in ['home', 'makola', 'labadi', 'square', 'legon', 'kaneshie', 'tech', 'church', 'mall', 'circle'];
+    }
+
+    function isValidStat(val) {
+      return val is number && val >= 0 && val <= 100;
+    }
+
+    function isValidMoney(val) {
+      return val is number && val >= 0 && val <= 100000000;
+    }
+
+    // Pillar 2: Validation Blueprint for Player
+    function isValidPlayer(data) {
+      return data.keys().hasAll([
+          'ownerId', 'playerId', 'name', 'career', 'location',
+          'day', 'time', 'money', 'hunger', 'energy', 'happy', 'social', 'health',
+          'amaAffinity', 'kofiAffinity', 'abenaAffinity', 'kwameAffinity', 'efuaAffinity',
+          'amaMoney', 'kofiMoney', 'abenaMoney', 'kwameMoney', 'efuaMoney',
+          'recentLogs', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'ownerId', 'playerId', 'name', 'career', 'location',
+          'day', 'time', 'money', 'hunger', 'energy', 'happy', 'social', 'health',
+          'amaAffinity', 'kofiAffinity', 'abenaAffinity', 'kwameAffinity', 'efuaAffinity',
+          'amaMoney', 'kofiMoney', 'abenaMoney', 'kwameMoney', 'efuaMoney',
+          'recentLogs', 'createdAt', 'updatedAt'
+        ]) &&
+        data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 && data.ownerId.matches('^[a-zA-Z0-9_-]+$') &&
+        data.ownerId == request.auth.uid &&
+        data.playerId is string && data.playerId.size() >= 1 && data.playerId.size() <= 64 && data.playerId.matches('^[a-zA-Z0-9_-]+$') &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 32 &&
+        isValidCareer(data.career) &&
+        isValidLocation(data.location) &&
+        data.day is number && data.day >= 1 && data.day <= 100000 &&
+        data.time is number && data.time >= 0 && data.time <= 3 &&
+        isValidMoney(data.money) &&
+        isValidStat(data.hunger) &&
+        isValidStat(data.energy) &&
+        isValidStat(data.happy) &&
+        isValidStat(data.social) &&
+        isValidStat(data.health) &&
+        isValidStat(data.amaAffinity) &&
+        isValidStat(data.kofiAffinity) &&
+        isValidStat(data.abenaAffinity) &&
+        isValidStat(data.kwameAffinity) &&
+        isValidStat(data.efuaAffinity) &&
+        isValidMoney(data.amaMoney) &&
+        isValidMoney(data.kofiMoney) &&
+        isValidMoney(data.abenaMoney) &&
+        isValidMoney(data.kwameMoney) &&
+        isValidMoney(data.efuaMoney) &&
+        data.recentLogs is list && data.recentLogs.size() >= 1 && data.recentLogs.size() <= 20 &&
+        data.recentLogs[0] is string && data.recentLogs[0].size() >= 1 && data.recentLogs[0].size() <= 200 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // Pillar 2: Validation Blueprint for Profile
+    function isValidProfile(data) {
+      return data.keys().hasAll([
+          'ownerId', 'playerId', 'displayName', 'houseName',
+          'career', 'day', 'status', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'ownerId', 'playerId', 'displayName', 'houseName',
+          'career', 'day', 'status', 'createdAt', 'updatedAt'
+        ]) &&
+        data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 && data.ownerId.matches('^[a-zA-Z0-9_-]+$') &&
+        data.ownerId == request.auth.uid &&
+        data.playerId is string && data.playerId.size() >= 1 && data.playerId.size() <= 64 && data.playerId.matches('^[a-zA-Z0-9_-]+$') &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 32 &&
+        data.houseName is string && data.houseName.size() >= 1 && data.houseName.size() <= 64 &&
+        isValidCareer(data.career) &&
+        data.day is number && data.day >= 1 && data.day <= 100000 &&
+        data.status is string && data.status.size() >= 1 && data.status.size() <= 64 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // Private Player Game Saves
+    match /players/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+
+      allow create: if isOwner(userId) &&
+        isValidId(userId) &&
+        isValidPlayer(incoming()) &&
+        incoming().ownerId == userId;
+
+      allow update: if isOwner(userId) &&
+        isValidId(userId) &&
+        isValidPlayer(incoming()) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'playerId', 'name', 'career', 'location', 'day', 'time', 'money',
+          'hunger', 'energy', 'happy', 'social', 'health',
+          'amaAffinity', 'kofiAffinity', 'abenaAffinity', 'kwameAffinity', 'efuaAffinity',
+          'amaMoney', 'kofiMoney', 'abenaMoney', 'kwameMoney', 'efuaMoney',
+          'recentLogs', 'createdAt', 'updatedAt'
+        ]);
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+    }
+
+    // Public Resident Profiles (for visiting another player's flat by User ID)
+    match /profiles/{userId} {
+      allow get: if isVerified() && isValidId(userId);
+      allow list: if false;
+
+      allow create: if isOwner(userId) &&
+        isValidId(userId) &&
+        isValidProfile(incoming()) &&
+        incoming().ownerId == userId;
+
+      allow update: if isOwner(userId) &&
+        isValidId(userId) &&
+        isValidProfile(incoming()) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'playerId', 'displayName', 'houseName', 'career', 'day', 'status', 'createdAt', 'updatedAt'
+        ]);
+
+      allow delete: if isOwner(userId) && isValidId(userId);
     }
   }
 }
