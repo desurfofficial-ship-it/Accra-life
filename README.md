@@ -1,49 +1,26 @@
-# Accra Life
+# Life in Accra
 
-**Play now (no download):**  
-**https://desurfofficial-ship-it.github.io/lagos-life-ghana/**
+**Play:** https://desurfofficial-ship-it.github.io/lagos-life-ghana/
 
-> The superior Ghanaian alternative to *Lagos Life*.  
-> Authentic Accra hustle, careers, culture, and real Ghana vibes.
+Live your story in Accra. Hustle, visit friends at their houses, send money, build relationships, and manage your life.
 
----
+## Features
 
-## Quick Start
+- **Your wallet** — earn, spend, and send money
+- **Friends with houses** — Ama, Kofi, Abena, Kwame, Efua each have their own place and wallet
+- **Visit & hang out** — go to their houses, chat, hang out, raise friendship
+- **Send money** — transfer ₵ directly to any friend
+- **They can send back** — friends with high affinity sometimes MoMo you
+- Careers with daily pay
+- 10 locations across Accra
+- Needs system (Hunger, Energy, Happiness, Social, Health)
+- Save / Load
 
-1. Click the link above (or open `index.html` locally).
-2. Enter your name.
-3. Choose actions, travel by trotro, pick a career, manage your needs, and build your life.
-4. Save anytime.
+## How to play
 
----
+1. Open the link above
+2. Enter your name
+3. Travel, work, visit friends, send money, manage your stats
+4. Save when you want
 
-## Core Features
-
-- **Character name** + **7 careers** (Trader, Developer, Teacher, Musician, Driver, Student, Unemployed)
-- **10 Accra locations** with unique actions
-- **6 needs**: Money (₵), Hunger, Energy, Happiness, Social, Health
-- Trotro travel, daily career pay, work shifts, random events
-- Save / Load / New Life
-- Fully works offline after first load
-
----
-
-## Locations
-
-Osu Flat • Makola Market • Labadi Beach • Independence Square • University of Ghana • Kaneshie • Tech Hub • Church • Accra Mall • Kwame Nkrumah Circle
-
----
-
-## Why it’s better than the original Lagos Life
-
-- Real Ghanaian setting and culture instead of Lagos
-- Named character + meaningful career system with daily income
-- Stronger needs management and consequences
-- More locations and authentic actions (kelewele, banku & tilapia, trotro, highlife moments, MoMo…)
-- Clean modern UI that works well on mobile
-- Open source
-
----
-
-**Made for Ghanaians.**  
-Live link: https://desurfofficial-ship-it.github.io/lagos-life-ghana/
+Built as a single-file browser game. Works offline after first load.
