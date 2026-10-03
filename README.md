@@ -2,61 +2,69 @@
 
 **Play:** https://desurfofficial-ship-it.github.io/lagos-life-ghana/
 
-Single-player life simulation set in Accra with deep NPC friends, wallets, visiting, and money transfer.
+Single-player life simulation in Accra with deep NPC friends, wallets, visiting, and money transfer.
+Now with **Firebase Auth + Cloud Save** foundation.
 
 ---
 
-## Current Features
+## Firebase Setup (Project: `perse-504514`)
 
-- Character + wallet + needs system
-- 10 Accra locations
-- Careers with daily pay
+### 1. Get your Web app config
+1. Open [Firebase Console](https://console.firebase.google.com/project/perse-504514/settings/general)
+2. Scroll to **Your apps** → create a **Web** app if needed
+3. Copy the `firebaseConfig` values
+4. Paste them into `firebase-config.js` and set `FIREBASE_READY = true`
+
+### 2. Enable Authentication
+1. Go to **Authentication** → **Sign-in method**
+2. Enable:
+   - **Anonymous** (for guests who want cloud save later)
+   - **Email/Password**
+
+### 3. Create Firestore database
+1. Go to **Firestore Database** → Create database
+2. Start in **production mode**
+3. Choose a location close to Ghana (e.g. `europe-west` or `us-east1`)
+4. Deploy the security rules from `firestore.rules`:
+
+```bash
+npx -y firebase-tools@latest login
+npx -y firebase-tools@latest use perse-504514
+npx -y firebase-tools@latest deploy --only firestore:rules
+```
+
+Or paste the rules manually in the Console under Firestore → Rules.
+
+### 4. Authorized domains
+Under Authentication → Settings → Authorized domains, make sure these are listed:
+- `localhost`
+- `desurfofficial-ship-it.github.io`
+- `perse-504514.firebaseapp.com`
+
+---
+
+## Features
+
+- Character + wallet + needs
+- 10 Accra locations + careers
 - 5 friends with houses, routines, moods, personalities
-- Visit friends, chat, hang out, eat together, deep talk, ask favors
-- Send & receive money
+- Visit, chat, hang out, eat, deep talk, ask favors, send money
 - Friendship milestones
-- Local save/load
-- **Account foundation** (Guest or named account, persistent Player ID)
+- Local save (always works)
+- Cloud save (when Firebase is configured)
+- Account system with Player ID
 
 ---
 
-## Roadmap to Multiplayer
+## Roadmap
 
-### Step 1 — Done (foundation)
-- Single-player game with rich NPCs
-- Account UI + Player ID
-- Structured save format ready for cloud
-
-### Step 2 — User accounts + Cloud save (next)
-To enable real cloud saves across devices you need a backend.
-
-**Recommended (easiest):**
-1. Create a free [Firebase](https://console.firebase.google.com/) project
-2. Enable **Authentication** (Email/Password or Anonymous)
-3. Create a **Firestore** database
-4. Add your Firebase config to the game
-5. Uncomment/connect the cloud save functions
-
-Alternative: [Supabase](https://supabase.com/) (similar free tier).
-
-### Step 3 — Real friends list + visiting
-Once accounts exist:
-- Players can add each other by Player ID or username
-- Visit another player's house (load their public house state)
-- Basic presence (online/offline)
-
-### Step 4 — Real-time chat & presence
-- WebSockets or Firebase Realtime / Firestore listeners
-- Live chat when visiting
-- See who is online
-
----
-
-## Tech
-
-- Pure HTML/CSS/JS (no build step)
-- localStorage for saves
-- Architecture prepared for Firebase Auth + Firestore
+| Step | Status |
+|------|--------|
+| Single-player + rich NPCs | ✅ Done |
+| Account foundation + local save | ✅ Done |
+| Firebase Auth + Cloud save | 🔸 Code ready — needs your config |
+| Real friends list + visiting | Next |
+| Real-time chat & presence | Later |
 
 ---
 
