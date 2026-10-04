@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { InputManager } from './InputManager';
 
 export interface ColliderBox {
   id: string;
@@ -6,27 +7,24 @@ export interface ColliderBox {
   maxX: number;
   minZ: number;
   maxZ: number;
-}
-
-export interface InputState {
-  moveX: number; // -1 (left) to +1 (right)
-  moveZ: number; // -1 (forward) to +1 (backward)
-  sprint: boolean;
+  height?: number; // Optional height for camera occlusion checks
 }
 
 export class PlayerController {
   public readonly group: THREE.Group;
   public readonly position: THREE.Vector3;
   public readonly velocity: THREE.Vector3 = new THREE.Vector3();
-  public rotationY = 0;
+  public rotationY = Math.PI;
   public isMoving = false;
   public isSprinting = false;
 
+  private readonly inputManager: InputManager;
   private readonly walkSpeed = 4.6;
   private readonly sprintSpeed = 7.4;
   private readonly turnSmoothness = 12.0;
   private readonly playerRadius = 0.42;
-  private readonly worldLimit = 26;
+  private readonly worldBoundsX = 25.0;
+  private readonly worldBoundsZ = 17.2;
 
   private headMesh!: THREE.Mesh;
   private torsoMesh!: THREE.Mesh;
@@ -37,19 +35,21 @@ export class PlayerController {
   private shadowRing!: THREE.Mesh;
 
   private animClock = 0;
-  private keysPressed: Set<string> = new Set();
-  private joystickVector: { x: number; y: number } = { x: 0, y: 0 };
 
-  constructor(spawnPosition = new THREE.Vector3(0, 0, 6)) {
+  // Pre-allocated vector to avoid per-frame allocations in the animation loop
+  private readonly forwardVec = new THREE.Vector3(0, 0, -1);
+
+  constructor(inputManager: InputManager, spawnPosition = new THREE.Vector3(0, 0, 5.8)) {
+    this.inputManager = inputManager;
     this.group = new THREE.Group();
     this.group.name = 'PLAYER_ACTOR_001';
     this.group.position.copy(spawnPosition);
     this.position = this.group.position;
+    this.position.y = 0;
     this.rotationY = Math.PI;
     this.group.rotation.y = this.rotationY;
 
     this.buildStylizedCharacterMesh();
-    this.bindKeyboardListeners();
   }
 
   private buildStylizedCharacterMesh(): void {
@@ -63,15 +63,15 @@ export class PlayerController {
       roughness: 0.85
     });
     const shirtMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b, // Warm Accra gold-amber top
+      color: 0xf59e0b,
       roughness: 0.55
     });
     const accentTrimMat = new THREE.MeshStandardMaterial({
-      color: 0x059669, // Contemporary emerald collar/cuff trim
+      color: 0x059669,
       roughness: 0.5
     });
     const trousersMat = new THREE.MeshStandardMaterial({
-      color: 0x1e293b, // Clean dark slate trousers
+      color: 0x1e293b,
       roughness: 0.7
     });
     const sneakerMat = new THREE.MeshStandardMaterial({
@@ -92,7 +92,7 @@ export class PlayerController {
     this.shadowRing.position.y = 0.02;
     this.group.add(this.shadowRing);
 
-    // Torso (believable stylized proportions)
+    // Torso
     const torsoGeo = new THREE.BoxGeometry(0.52, 0.64, 0.28);
     this.torsoMesh = new THREE.Mesh(torsoGeo, shirtMat);
     this.torsoMesh.position.y = 1.06;
@@ -100,7 +100,7 @@ export class PlayerController {
     this.torsoMesh.receiveShadow = true;
     this.group.add(this.torsoMesh);
 
-    // Neckline / Kente-inspired modern collar band
+    // Neckline collar band
     const collarGeo = new THREE.BoxGeometry(0.54, 0.08, 0.30);
     const collarMesh = new THREE.Mesh(collarGeo, accentTrimMat);
     collarMesh.position.y = 1.35;
@@ -120,7 +120,7 @@ export class PlayerController {
     hairMesh.position.y = 0.16;
     this.headMesh.add(hairMesh);
 
-    // Eyes (helps clearly read facing direction)
+    // Eyes
     const eyeGeo = new THREE.BoxGeometry(0.05, 0.05, 0.03);
     const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111827 });
     const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
@@ -129,7 +129,7 @@ export class PlayerController {
     rightEye.position.set(0.09, 0.02, 0.19);
     this.headMesh.add(leftEye, rightEye);
 
-    // Left Arm Pivot (at shoulder height)
+    // Left Arm Pivot
     this.leftArmPivot = new THREE.Group();
     this.leftArmPivot.position.set(-0.35, 1.34, 0);
     const armGeo = new THREE.BoxGeometry(0.16, 0.56, 0.16);
@@ -152,7 +152,7 @@ export class PlayerController {
     this.rightArmPivot.add(rightSleeve, rightArm);
     this.group.add(this.rightArmPivot);
 
-    // Left Leg Pivot (at hip height)
+    // Left Leg Pivot
     this.leftLegPivot = new THREE.Group();
     this.leftLegPivot.position.set(-0.14, 0.74, 0);
     const legGeo = new THREE.BoxGeometry(0.20, 0.64, 0.20);
@@ -179,123 +179,113 @@ export class PlayerController {
     this.group.add(this.rightLegPivot);
   }
 
-  private bindKeyboardListeners(): void {
-    const movementCodes = new Set([
-      'KeyW', 'KeyA', 'KeyS', 'KeyD',
-      'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
-      'ShiftLeft', 'ShiftRight', 'Space'
-    ]);
-    window.addEventListener('keydown', (e) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (movementCodes.has(e.code)) {
-        e.preventDefault();
-      }
-      this.keysPressed.add(e.code);
-    });
-    window.addEventListener('keyup', (e) => {
-      this.keysPressed.delete(e.code);
-    });
-    window.addEventListener('blur', () => {
-      this.keysPressed.clear();
-    });
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState !== 'visible') {
-        this.keysPressed.clear();
-      }
-    });
-  }
-
   public setJoystickInput(x: number, y: number): void {
-    this.joystickVector.x = Math.max(-1, Math.min(1, x));
-    this.joystickVector.y = Math.max(-1, Math.min(1, y));
+    this.inputManager.setJoystickInput(x, y);
   }
 
   public setSprintState(active: boolean): void {
-    if (active) {
-      this.keysPressed.add('VirtualSprint');
-    } else {
-      this.keysPressed.delete('VirtualSprint');
-    }
-  }
-
-  private readInputState(): InputState {
-    let moveX = 0;
-    let moveZ = 0;
-
-    if (this.keysPressed.has('KeyW') || this.keysPressed.has('ArrowUp')) moveZ -= 1;
-    if (this.keysPressed.has('KeyS') || this.keysPressed.has('ArrowDown')) moveZ += 1;
-    if (this.keysPressed.has('KeyA') || this.keysPressed.has('ArrowLeft')) moveX -= 1;
-    if (this.keysPressed.has('KeyD') || this.keysPressed.has('ArrowRight')) moveX += 1;
-
-    if (Math.abs(this.joystickVector.x) > 0.05 || Math.abs(this.joystickVector.y) > 0.05) {
-      moveX = this.joystickVector.x;
-      moveZ = this.joystickVector.y;
-    }
-
-    const sprint =
-      this.keysPressed.has('ShiftLeft') ||
-      this.keysPressed.has('ShiftRight') ||
-      this.keysPressed.has('VirtualSprint');
-
-    return { moveX, moveZ, sprint };
+    this.inputManager.setVirtualSprint(active);
   }
 
   public update(dt: number, cameraYaw: number, colliders: ColliderBox[]): void {
-    const input = this.readInputState();
-    const inputMag = Math.hypot(input.moveX, input.moveZ);
+    const input = this.inputManager.getMovementInput();
 
-    this.isMoving = inputMag > 0.05;
+    this.isMoving = input.magnitude > 0.05;
     this.isSprinting = this.isMoving && input.sprint;
 
     if (this.isMoving) {
-      const normX = input.moveX / Math.max(1, inputMag);
-      const normZ = input.moveZ / Math.max(1, inputMag);
-
-      // Compute camera-relative movement vector on the XZ plane
+      // Camera-relative movement on the XZ plane
       const sinYaw = Math.sin(cameraYaw);
       const cosYaw = Math.cos(cameraYaw);
 
-      const worldDirX = normX * cosYaw + normZ * sinYaw;
-      const worldDirZ = -normX * sinYaw + normZ * cosYaw;
+      const worldDirX = input.moveX * cosYaw + input.moveZ * sinYaw;
+      const worldDirZ = -input.moveX * sinYaw + input.moveZ * cosYaw;
 
-      const speed = this.isSprinting ? this.sprintSpeed : this.walkSpeed;
+      const baseSpeed = this.isSprinting ? this.sprintSpeed : this.walkSpeed;
+      const speed = baseSpeed * input.magnitude;
       this.velocity.set(worldDirX * speed, 0, worldDirZ * speed);
 
-      // Smoothly rotate character to face movement direction
+      // Smoothly rotate character to face movement vector
       const targetAngle = Math.atan2(worldDirX, worldDirZ);
       this.rotationY = this.lerpAngle(this.rotationY, targetAngle, Math.min(1, dt * this.turnSmoothness));
       this.group.rotation.y = this.rotationY;
 
-      // Apply movement with separate X and Z collision resolution for smooth wall sliding
-      const nextX = this.position.x + this.velocity.x * dt;
-      if (!this.checkCollision(nextX, this.position.z, colliders)) {
-        this.position.x = THREE.MathUtils.clamp(nextX, -this.worldLimit, this.worldLimit);
-      }
+      // Substep movement to prevent tunneling through thin walls or poles at high dt
+      const steps = 2;
+      const stepDt = dt / steps;
+      for (let s = 0; s < steps; s++) {
+        const nextX = this.position.x + this.velocity.x * stepDt;
+        if (!this.checkCollision(nextX, this.position.z, colliders)) {
+          this.position.x = nextX;
+        }
 
-      const nextZ = this.position.z + this.velocity.z * dt;
-      if (!this.checkCollision(this.position.x, nextZ, colliders)) {
-        this.position.z = THREE.MathUtils.clamp(nextZ, -this.worldLimit, this.worldLimit);
+        const nextZ = this.position.z + this.velocity.z * stepDt;
+        if (!this.checkCollision(this.position.x, nextZ, colliders)) {
+          this.position.z = nextZ;
+        }
+
+        this.resolvePenetration(colliders);
       }
     } else {
       this.velocity.set(0, 0, 0);
+      this.resolvePenetration(colliders);
     }
+
+    // Clamp to neighborhood play area and keep player strictly grounded
+    this.position.x = THREE.MathUtils.clamp(this.position.x, -this.worldBoundsX, this.worldBoundsX);
+    this.position.z = THREE.MathUtils.clamp(this.position.z, -this.worldBoundsZ, this.worldBoundsZ);
+    this.position.y = 0;
 
     this.updateLocomotionAnimation(dt);
   }
 
   private checkCollision(x: number, z: number, colliders: ColliderBox[]): boolean {
     const r = this.playerRadius;
-    for (const box of colliders) {
-      if (
-        x + r > box.minX &&
-        x - r < box.maxX &&
-        z + r > box.minZ &&
-        z - r < box.maxZ
-      ) {
+    for (let i = 0; i < colliders.length; i++) {
+      const box = colliders[i];
+      // Circle vs AABB exact collision check
+      const closestX = Math.max(box.minX, Math.min(x, box.maxX));
+      const closestZ = Math.max(box.minZ, Math.min(z, box.maxZ));
+      const dx = x - closestX;
+      const dz = z - closestZ;
+      if (dx * dx + dz * dz < r * r) {
         return true;
       }
     }
     return false;
+  }
+
+  private resolvePenetration(colliders: ColliderBox[]): void {
+    const r = this.playerRadius;
+    for (let i = 0; i < colliders.length; i++) {
+      const box = colliders[i];
+      const closestX = Math.max(box.minX, Math.min(this.position.x, box.maxX));
+      const closestZ = Math.max(box.minZ, Math.min(this.position.z, box.maxZ));
+      const dx = this.position.x - closestX;
+      const dz = this.position.z - closestZ;
+      const distSq = dx * dx + dz * dz;
+
+      if (distSq < r * r) {
+        if (distSq > 0.00001) {
+          const dist = Math.sqrt(distSq);
+          const overlap = r - dist + 0.002;
+          this.position.x += (dx / dist) * overlap;
+          this.position.z += (dz / dist) * overlap;
+        } else {
+          // Player center is inside the AABB — push out along shallowest axis
+          const penLeft = Math.abs(this.position.x - box.minX);
+          const penRight = Math.abs(box.maxX - this.position.x);
+          const penBack = Math.abs(this.position.z - box.minZ);
+          const penFront = Math.abs(box.maxZ - this.position.z);
+          const minPen = Math.min(penLeft, penRight, penBack, penFront);
+
+          if (minPen === penLeft) this.position.x = box.minX - r - 0.01;
+          else if (minPen === penRight) this.position.x = box.maxX + r + 0.01;
+          else if (minPen === penBack) this.position.z = box.minZ - r - 0.01;
+          else this.position.z = box.maxZ + r + 0.01;
+        }
+      }
+    }
   }
 
   private updateLocomotionAnimation(dt: number): void {
@@ -310,7 +300,6 @@ export class PlayerController {
       this.leftArmPivot.rotation.x = -swing * 0.85;
       this.rightArmPivot.rotation.x = swing * 0.85;
 
-      // Subtle vertical bounce during stride
       const bounce = Math.abs(Math.cos(this.animClock)) * (this.isSprinting ? 0.055 : 0.032);
       this.torsoMesh.position.y = 1.06 + bounce;
       this.headMesh.position.y = 1.64 + bounce;
@@ -329,7 +318,8 @@ export class PlayerController {
   }
 
   public getForwardVector(): THREE.Vector3 {
-    return new THREE.Vector3(Math.sin(this.rotationY), 0, Math.cos(this.rotationY)).normalize();
+    this.forwardVec.set(Math.sin(this.rotationY), 0, Math.cos(this.rotationY)).normalize();
+    return this.forwardVec;
   }
 
   private lerpAngle(current: number, target: number, t: number): number {

@@ -28,6 +28,8 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
+      overscroll-behavior: none;
+      touch-action: none;
       background: #dfeffc;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       color: var(--text-main);
@@ -243,6 +245,35 @@
       background: var(--accent-gold);
       color: #111827;
       border-color: #fff;
+    }
+    @media (max-width: 640px) {
+      .phase1-hud-top {
+        top: 10px;
+        left: 10px;
+        right: 10px;
+      }
+      .brand-card {
+        padding: 8px 12px;
+        max-width: 215px;
+      }
+      .brand-title {
+        font-size: 0.98rem;
+      }
+      .controls-list {
+        display: none;
+      }
+      .touch-controls {
+        bottom: 14px;
+        left: 14px;
+        right: 14px;
+      }
+      .joystick-zone {
+        width: 98px;
+        height: 98px;
+      }
+      .interaction-prompt {
+        bottom: 124px;
+      }
     }
   </style>
 </head>

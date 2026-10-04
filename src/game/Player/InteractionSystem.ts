@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { InputManager } from './InputManager';
 
 export interface InteractableTarget {
   id: string;
@@ -18,12 +19,15 @@ export class InteractionSystem {
   private activeTarget: InteractableTarget | null = null;
   private indicatorRing: THREE.Mesh;
   private pulseClock = 0;
+  private lastInteractMs = 0;
+  private readonly cooldownMs = 250;
 
   private onActiveTargetChange?: (target: InteractableTarget | null) => void;
   private onInteractTriggered?: (target: InteractableTarget) => void;
 
   constructor(
     scene: THREE.Scene,
+    inputManager: InputManager,
     onActiveTargetChange?: (target: InteractableTarget | null) => void,
     onInteractTriggered?: (target: InteractableTarget) => void
   ) {
@@ -41,14 +45,12 @@ export class InteractionSystem {
     });
     this.indicatorRing = new THREE.Mesh(ringGeo, ringMat);
     this.indicatorRing.visible = false;
-    this.indicatorRing.position.y = 0.04;
+    this.indicatorRing.position.y = 0.24;
     scene.add(this.indicatorRing);
 
-    window.addEventListener('keydown', (e) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.code === 'KeyE' || e.code === 'Enter') {
-        this.triggerCurrentInteraction();
-      }
+    // Subscribe to single-press E / Enter via InputManager (key auto-repeat is filtered out)
+    inputManager.onInteractPressed(() => {
+      this.triggerCurrentInteraction();
     });
   }
 
@@ -62,6 +64,13 @@ export class InteractionSystem {
 
   public triggerCurrentInteraction(): boolean {
     if (!this.activeTarget) return false;
+
+    const now = performance.now();
+    if (now - this.lastInteractMs < this.cooldownMs) {
+      return false;
+    }
+    this.lastInteractMs = now;
+
     if (this.activeTarget.onInteract) {
       this.activeTarget.onInteract(this.activeTarget);
     }
@@ -77,7 +86,8 @@ export class InteractionSystem {
     let bestCandidate: InteractableTarget | null = null;
     let bestScore = Infinity;
 
-    for (const target of this.targets) {
+    for (let i = 0; i < this.targets.length; i++) {
+      const target = this.targets[i];
       const dx = target.position.x - playerPosition.x;
       const dz = target.position.z - playerPosition.z;
       const dist = Math.hypot(dx, dz);
@@ -87,9 +97,10 @@ export class InteractionSystem {
         const fdx = focusPoint.x - playerPosition.x;
         const fdz = focusPoint.z - playerPosition.z;
         const fLen = Math.hypot(fdx, fdz);
-        const dot = fLen > 0.001
-          ? (playerForward.x * (fdx / fLen) + playerForward.z * (fdz / fLen))
-          : 1;
+        const dot =
+          fLen > 0.001
+            ? playerForward.x * (fdx / fLen) + playerForward.z * (fdz / fLen)
+            : 1;
 
         // Always allow interaction when standing directly on the ring (dist <= 1.15)
         // or when generally facing the building/counter
@@ -114,7 +125,7 @@ export class InteractionSystem {
       this.indicatorRing.visible = true;
       this.indicatorRing.position.set(
         this.activeTarget.position.x,
-        Math.max(0.18, this.activeTarget.position.y),
+        Math.max(0.22, this.activeTarget.position.y),
         this.activeTarget.position.z
       );
       const scale = 1 + Math.sin(this.pulseClock) * 0.08;

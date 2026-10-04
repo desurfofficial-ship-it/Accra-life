@@ -150,6 +150,17 @@ export function buildFirstNeighborhoodBlock(scene: THREE.Scene): BuiltNeighborho
     buildStylizedShadeTree(scene, colliders, tx, tz);
   }
 
+  // 9. Street-End Boundary Bollards (marks the East/West ends of the Phase 1 block)
+  const bollardMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.6 });
+  for (const bx of [-25.6, 25.6]) {
+    for (const bz of [-5.8, -2.2, 0, 2.2, 5.8]) {
+      const bollard = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.85, 10), bollardMat);
+      bollard.position.set(bx, 0.42, bz);
+      bollard.castShadow = true;
+      scene.add(bollard);
+    }
+  }
+
   return { colliders, interactables };
 }
 
@@ -330,12 +341,13 @@ function buildPlayerCompoundHouse(
 
   // Main House Collider (allows player to walk through the front gate onto the porch)
   colliders.push(
-    { id: 'ACC_HOUSE_001_MAIN', minX: -14.3, maxX: -6.7, minZ: 10.2, maxZ: 16.0 },
-    { id: 'ACC_HOUSE_001_WALL_L', minX: -15.3, maxX: -12.1, minZ: 8.0, maxZ: 8.5 },
-    { id: 'ACC_HOUSE_001_WALL_R', minX: -8.9, maxX: -5.7, minZ: 8.0, maxZ: 8.5 },
-    { id: 'ACC_HOUSE_001_WALL_W', minX: -15.4, maxX: -14.9, minZ: 8.0, maxZ: 16.4 },
-    { id: 'ACC_HOUSE_001_WALL_E', minX: -6.1, maxX: -5.5, minZ: 8.0, maxZ: 16.4 },
-    { id: 'ACC_HOUSE_001_WALL_BACK', minX: -15.4, maxX: -5.5, minZ: 15.9, maxZ: 16.4 }
+    { id: 'ACC_HOUSE_001_MAIN', minX: -14.3, maxX: -6.7, minZ: 10.2, maxZ: 16.0, height: 4.3 },
+    { id: 'ACC_HOUSE_001_POLYTANK', minX: -6.9, maxX: -5.5, minZ: 13.8, maxZ: 15.4, height: 4.2 },
+    { id: 'ACC_HOUSE_001_WALL_L', minX: -15.3, maxX: -12.1, minZ: 8.0, maxZ: 8.5, height: 1.5 },
+    { id: 'ACC_HOUSE_001_WALL_R', minX: -8.9, maxX: -5.7, minZ: 8.0, maxZ: 8.5, height: 1.5 },
+    { id: 'ACC_HOUSE_001_WALL_W', minX: -15.4, maxX: -14.9, minZ: 8.0, maxZ: 16.4, height: 1.7 },
+    { id: 'ACC_HOUSE_001_WALL_E', minX: -6.1, maxX: -5.5, minZ: 8.0, maxZ: 16.4, height: 1.7 },
+    { id: 'ACC_HOUSE_001_WALL_BACK', minX: -15.4, maxX: -5.5, minZ: 15.9, maxZ: 16.4, height: 1.7 }
   );
 
   interactables.push({
@@ -439,7 +451,8 @@ function buildProvisionStore(
     minX: -12.4,
     maxX: -6.6,
     minZ: -12.6,
-    maxZ: -7.6
+    maxZ: -7.6,
+    height: 3.8
   });
 
   interactables.push({
@@ -546,13 +559,48 @@ function buildFoodVendorJoint(
 
   scene.add(group);
 
-  colliders.push({
-    id: 'ACC_RESTAURANT_001',
-    minX: 5.1,
-    maxX: 11.9,
-    minZ: -12.6,
-    maxZ: -7.7
-  });
+  colliders.push(
+    {
+      id: 'ACC_RESTAURANT_001_KITCHEN',
+      minX: 5.2,
+      maxX: 11.8,
+      minZ: -12.8,
+      maxZ: -9.2,
+      height: 3.5
+    },
+    {
+      id: 'ACC_RESTAURANT_001_COUNTER',
+      minX: 5.7,
+      maxX: 9.7,
+      minZ: -9.2,
+      maxZ: -7.85,
+      height: 1.8
+    },
+    {
+      id: 'ACC_RESTAURANT_001_TABLE',
+      minX: 10.0,
+      maxX: 11.2,
+      minZ: -8.9,
+      maxZ: -7.7,
+      height: 1.0
+    },
+    {
+      id: 'ACC_RESTAURANT_001_POLE_L',
+      minX: 5.25,
+      maxX: 5.55,
+      minZ: -7.45,
+      maxZ: -7.15,
+      height: 2.8
+    },
+    {
+      id: 'ACC_RESTAURANT_001_POLE_R',
+      minX: 11.45,
+      maxX: 11.75,
+      minZ: -7.45,
+      maxZ: -7.15,
+      height: 2.8
+    }
+  );
 
   interactables.push({
     id: 'food_vendor',
@@ -636,13 +684,24 @@ function buildTrotroStop(
 
   scene.add(group);
 
-  colliders.push({
-    id: 'ACC_PROP_001',
-    minX: 6.7,
-    maxX: 11.3,
-    minZ: 5.5,
-    maxZ: 7.5
-  });
+  colliders.push(
+    {
+      id: 'ACC_PROP_001_SHELTER',
+      minX: 6.9,
+      maxX: 11.1,
+      minZ: 5.5,
+      maxZ: 7.5,
+      height: 2.7
+    },
+    {
+      id: 'ACC_PROP_001_SIGNPOST',
+      minX: 6.25,
+      maxX: 6.65,
+      minZ: 5.15,
+      maxZ: 5.55,
+      height: 2.7
+    }
+  );
 
   interactables.push({
     id: 'trotro_stop',
