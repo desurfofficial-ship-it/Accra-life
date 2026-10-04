@@ -82,6 +82,10 @@
     .real-friend-actions button{flex:1;padding:6px 8px;font-size:.78rem;border-radius:8px;background:var(--bg)}
     .real-friend-actions button:hover{background:var(--accent);color:#111}
     .unread-badge{background:var(--accent);color:#111;font-size:.68rem;font-weight:700;padding:1px 6px;border-radius:999px;margin-left:4px}
+    .online-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,.16);color:var(--green);border:1px solid rgba(16,185,129,.35);font-size:.66rem;font-weight:600;padding:1px 6px;border-radius:999px}
+    .online-badge::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
+    .offline-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(148,163,184,.12);color:var(--muted);font-size:.66rem;font-weight:500;padding:1px 6px;border-radius:999px}
+    .offline-badge::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--muted);opacity:.6}
     .friend-chat-box{margin-top:10px;background:var(--bg);border:1px solid var(--surface2);border-radius:12px;padding:10px;display:none;flex-direction:column;gap:8px}
     .friend-chat-box.show{display:flex}
     .friend-chat-header{display:flex;justify-content:space-between;align-items:center;font-size:.82rem;font-weight:600;padding-bottom:6px;border-bottom:1px solid var(--surface2)}

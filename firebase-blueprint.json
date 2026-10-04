@@ -150,6 +150,14 @@
           "type": "string",
           "description": "Last known area in Accra."
         },
+        "online": {
+          "type": "boolean",
+          "description": "Whether the player is currently active in the app."
+        },
+        "lastActiveMs": {
+          "type": "integer",
+          "description": "Epoch milliseconds of the latest presence heartbeat."
+        },
         "lastActive": {
           "type": "string",
           "format": "date-time",

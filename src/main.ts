@@ -152,6 +152,8 @@ interface RealFriend {
   career?: string;
   money?: number;
   location?: string;
+  online?: boolean;
+  lastActiveMs?: number;
 }
 
 interface ChatMessageItem {
@@ -207,6 +209,11 @@ let realVisitTarget: RealFriend | null = null;
 let activeChatFriend: { uid: string; displayName: string } | null = null;
 let activeChatUnsub: Unsubscribe | null = null;
 let inboxUnsub: Unsubscribe | null = null;
+let friendsListUnsub: Unsubscribe | null = null;
+const friendProfileUnsubs: Record<string, Unsubscribe> = {};
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let presenceCheckTimer: ReturnType<typeof setInterval> | null = null;
+const PRESENCE_TIMEOUT_MS = 65000;
 const unreadByFriend: Record<string, number> = {};
 
 const TIME = ['Morning', 'Afternoon', 'Evening', 'Night'];
@@ -480,9 +487,11 @@ async function cloudSave(): Promise<boolean> {
       career: safeCareer,
       money: Math.max(0, Math.round(Number(state.money) || 0)),
       location: state.location || 'home',
+      online: true,
+      lastActiveMs: Date.now(),
       lastActive: nowTs,
       updatedAt: nowTs
-    });
+    }, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, profilePath);
   }
@@ -528,6 +537,7 @@ function enterGame(): void {
   if (realLabel) realLabel.style.display = canAdd ? 'block' : 'none';
   updateFriendStatuses();
   if (canAdd) {
+    startPresenceHeartbeat();
     loadRealFriends();
     startInboxListener();
   }
@@ -568,6 +578,8 @@ function exportSave(): void {
 
 async function signOutUser(): Promise<void> {
   closeFriendChat();
+  await stopPresenceHeartbeat();
+  clearFriendListeners();
   if (inboxUnsub) {
     inboxUnsub();
     inboxUnsub = null;
@@ -587,47 +599,160 @@ async function signOutUser(): Promise<void> {
   toast('Signed out');
 }
 
-// ===================== REAL PLAYERS & REAL-TIME CHAT =====================
+// ===================== REAL PLAYERS, PRESENCE HEARTBEAT & REAL-TIME CHAT =====================
 function getChatId(uid1: string, uid2: string): string {
   return [uid1, uid2].sort().join('_');
 }
 
+function isFriendOnline(f: RealFriend): boolean {
+  if (f.online === false) return false;
+  if (typeof f.lastActiveMs !== 'number' || f.lastActiveMs <= 0) return false;
+  return Date.now() - f.lastActiveMs < PRESENCE_TIMEOUT_MS;
+}
+
+async function sendPresenceHeartbeat(online = true): Promise<void> {
+  if (!currentUser) return;
+  try {
+    const nowTs = Timestamp.now();
+    await setDoc(doc(db, 'profiles', currentUser.uid), {
+      ownerId: currentUser.uid,
+      displayName: (account.displayName || state?.name || 'Player').slice(0, 64),
+      online,
+      lastActiveMs: Date.now(),
+      lastActive: nowTs,
+      updatedAt: nowTs
+    }, { merge: true });
+  } catch (e) {
+    console.error('Presence heartbeat error', e);
+  }
+}
+
+function startPresenceHeartbeat(): void {
+  if (!currentUser) return;
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  if (presenceCheckTimer) clearInterval(presenceCheckTimer);
+
+  sendPresenceHeartbeat(true);
+
+  heartbeatTimer = setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      sendPresenceHeartbeat(true);
+    }
+  }, 25000);
+
+  // Periodically re-evaluate online status badges in case a friend's heartbeat expires
+  presenceCheckTimer = setInterval(() => {
+    renderRealFriends();
+  }, 15000);
+}
+
+async function stopPresenceHeartbeat(): Promise<void> {
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+  if (presenceCheckTimer) {
+    clearInterval(presenceCheckTimer);
+    presenceCheckTimer = null;
+  }
+  await sendPresenceHeartbeat(false);
+}
+
+function clearFriendListeners(): void {
+  if (friendsListUnsub) {
+    friendsListUnsub();
+    friendsListUnsub = null;
+  }
+  Object.keys(friendProfileUnsubs).forEach(uid => {
+    friendProfileUnsubs[uid]();
+    delete friendProfileUnsubs[uid];
+  });
+}
+
 async function loadRealFriends(): Promise<void> {
   if (!currentUser || !state) return;
-  try {
-    const friendsRef = collection(db, 'players', currentUser.uid, 'friends');
-    const snap = await getDocs(friendsRef);
-    const list: RealFriend[] = [];
-    snap.forEach(docSnap => {
-      const data = docSnap.data();
-      list.push({
-        uid: docSnap.id,
-        displayName: typeof data.displayName === 'string' ? data.displayName : 'Player',
-        addedAt: data.addedAt
+  clearFriendListeners();
+
+  const friendsPath = `players/${currentUser.uid}/friends`;
+  const friendsRef = collection(db, 'players', currentUser.uid, 'friends');
+
+  friendsListUnsub = onSnapshot(
+    friendsRef,
+    (snap) => {
+      if (!state) return;
+      const existingByUid: Record<string, RealFriend> = {};
+      (state.realFriends || []).forEach(f => {
+        existingByUid[f.uid] = f;
       });
-    });
 
-    for (const f of list) {
-      try {
-        const pSnap = await getDoc(doc(db, 'profiles', f.uid));
-        if (pSnap.exists()) {
-          const d = pSnap.data();
-          if (typeof d.displayName === 'string') f.displayName = d.displayName;
-          if (typeof d.day === 'number') f.day = d.day;
-          if (typeof d.career === 'string') f.career = d.career;
-          if (typeof d.money === 'number') f.money = d.money;
-          if (typeof d.location === 'string') f.location = d.location;
+      const nextList: RealFriend[] = [];
+      const currentUids = new Set<string>();
+
+      snap.forEach(docSnap => {
+        const data = docSnap.data();
+        const uid = docSnap.id;
+        currentUids.add(uid);
+        const prev = existingByUid[uid];
+        nextList.push({
+          uid,
+          displayName: typeof data.displayName === 'string' ? data.displayName : (prev?.displayName || 'Player'),
+          addedAt: data.addedAt,
+          day: prev?.day,
+          career: prev?.career,
+          money: prev?.money,
+          location: prev?.location,
+          online: prev?.online,
+          lastActiveMs: prev?.lastActiveMs
+        });
+      });
+
+      // Clean up profile listeners for removed friends
+      Object.keys(friendProfileUnsubs).forEach(uid => {
+        if (!currentUids.has(uid)) {
+          friendProfileUnsubs[uid]();
+          delete friendProfileUnsubs[uid];
         }
-      } catch {
-        // Ignore single profile read error
-      }
-    }
+      });
 
-    state.realFriends = list;
-    renderRealFriends();
-  } catch (e) {
-    console.error('loadRealFriends', e);
-  }
+      state.realFriends = nextList;
+      renderRealFriends();
+
+      // Attach real-time profile listener for each friend to detect online heartbeat & stats
+      nextList.forEach(friendItem => {
+        if (friendProfileUnsubs[friendItem.uid]) return;
+        friendProfileUnsubs[friendItem.uid] = onSnapshot(
+          doc(db, 'profiles', friendItem.uid),
+          (pSnap) => {
+            if (!state || !pSnap.exists()) return;
+            const d = pSnap.data();
+            const target = (state.realFriends || []).find(x => x.uid === friendItem.uid);
+            if (!target) return;
+
+            if (typeof d.displayName === 'string') target.displayName = d.displayName;
+            if (typeof d.day === 'number') target.day = d.day;
+            if (typeof d.career === 'string') target.career = d.career;
+            if (typeof d.money === 'number') target.money = d.money;
+            if (typeof d.location === 'string') target.location = d.location;
+            if (typeof d.online === 'boolean') target.online = d.online;
+
+            if (typeof d.lastActiveMs === 'number') {
+              target.lastActiveMs = d.lastActiveMs;
+            } else if (d.lastActive && typeof (d.lastActive as Timestamp).toMillis === 'function') {
+              target.lastActiveMs = (d.lastActive as Timestamp).toMillis();
+            }
+
+            renderRealFriends();
+          },
+          (err) => {
+            console.error('Friend profile listener error', err);
+          }
+        );
+      });
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.LIST, friendsPath);
+    }
+  );
 }
 
 function renderRealFriends(): void {
@@ -643,13 +768,18 @@ function renderRealFriends(): void {
   el.innerHTML = list.map(f => {
     const isChatting = activeChatFriend?.uid === f.uid;
     const unread = unreadByFriend[f.uid] || 0;
+    const online = isFriendOnline(f);
     const safeName = escapeHtml(f.displayName);
-    const badgeHtml = unread > 0 ? `<span class="unread-badge">${unread}</span>` : '';
+    const presenceBadge = online
+      ? '<span class="online-badge">Online</span>'
+      : '<span class="offline-badge">Offline</span>';
+    const unreadBadge = unread > 0 ? `<span class="unread-badge">${unread}</span>` : '';
     return `
       <div class="real-friend-card ${isChatting ? 'active-chat' : ''}">
         <div class="real-friend-top">
           <span>👤</span>
-          <strong>${safeName}</strong>${badgeHtml}
+          <strong>${safeName}</strong>
+          ${presenceBadge}${unreadBadge}
           <span class="meta">Day ${f.day || '?'} · ${escapeHtml(f.career || 'resident')}</span>
         </div>
         <div class="real-friend-actions">
@@ -1527,6 +1657,19 @@ async function saveGame(): Promise<void> {
 
 // ===================== INIT =====================
 setCloudStatus(`Cloud: connected (${firebaseConfig.firestoreDatabaseId})`, 'on');
+
+document.addEventListener('visibilitychange', () => {
+  if (!currentUser) return;
+  if (document.visibilityState === 'visible') {
+    sendPresenceHeartbeat(true);
+  }
+});
+
+window.addEventListener('pagehide', () => {
+  if (currentUser) {
+    sendPresenceHeartbeat(false);
+  }
+});
 
 onAuthStateChanged(auth, async (user) => {
   if (user) {
