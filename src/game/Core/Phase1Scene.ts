@@ -4,6 +4,7 @@ import { ColliderBox, PlayerController } from '../Player/PlayerController';
 import { ThirdPersonCamera } from '../Player/ThirdPersonCamera';
 import { InteractableTarget, InteractionSystem } from '../Player/InteractionSystem';
 import { buildFirstNeighborhoodBlock } from '../World/NeighborhoodBlock';
+import { CharacterRig } from '../Art/CharacterBuilder';
 import { Canvas3DFallbackRenderer } from './Canvas3DFallbackRenderer';
 
 export interface Phase1Callbacks {
@@ -47,6 +48,7 @@ export class Phase1Scene {
   public readonly player: PlayerController;
   public readonly thirdPersonCamera: ThirdPersonCamera;
   public readonly interactionSystem: InteractionSystem;
+  public readonly npcRigs: CharacterRig[];
 
   private readonly container: HTMLElement;
   private colliders: ColliderBox[] = [];
@@ -58,8 +60,8 @@ export class Phase1Scene {
     this.container = container;
     this.callbacks = callbacks;
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0xdfeffc);
-    this.scene.fog = new THREE.FogExp2(0xdfeffc, 0.013);
+    this.scene.background = new THREE.Color(0xdcebfa);
+    this.scene.fog = new THREE.FogExp2(0xdcebfa, 0.012);
 
     const initW = container.clientWidth || window.innerWidth;
     const initH = container.clientHeight || window.innerHeight;
@@ -71,14 +73,15 @@ export class Phase1Scene {
 
     this.setupLighting();
 
-    // Build the First Playable Accra Neighborhood Block
+    // Build the Phase 2 Visual Accra Neighborhood Block + 3 NPC Visual Archetypes
     const block = buildFirstNeighborhoodBlock(this.scene);
     this.colliders = block.colliders;
+    this.npcRigs = block.npcRigs;
 
     // Initialize centralized InputManager
     this.inputManager = new InputManager();
 
-    // Spawn player at a safe location on the South pedestrian walkway
+    // Spawn PLAYER_GHA_001 at a safe location on the South pedestrian walkway
     this.player = new PlayerController(this.inputManager, new THREE.Vector3(0, 0, 5.8));
     this.scene.add(this.player.group);
 
@@ -131,7 +134,7 @@ export class Phase1Scene {
           webgl.shadowMap.enabled = true;
           webgl.shadowMap.type = THREE.PCFSoftShadowMap;
           webgl.toneMapping = THREE.ACESFilmicToneMapping;
-          webgl.toneMappingExposure = 1.08;
+          webgl.toneMappingExposure = 1.1;
 
           webgl.domElement.addEventListener('webglcontextlost', (e) => {
             e.preventDefault();
@@ -165,12 +168,14 @@ export class Phase1Scene {
   }
 
   private setupLighting(): void {
-    const hemiLight = new THREE.HemisphereLight(0xfff7ed, 0x9ca3af, 0.85);
-    hemiLight.position.set(0, 30, 0);
+    // 1. Warm Accra Sky-to-Laterite Hemisphere Fill
+    const hemiLight = new THREE.HemisphereLight(0xfff7ed, 0xd8b48e, 0.92);
+    hemiLight.position.set(0, 32, 0);
     this.scene.add(hemiLight);
 
-    const sunLight = new THREE.DirectionalLight(0xfff1d6, 1.55);
-    sunLight.position.set(16, 26, 18);
+    // 2. Primary Golden Daylight Sun Key Light with Soft Shadows
+    const sunLight = new THREE.DirectionalLight(0xfff3d6, 1.55);
+    sunLight.position.set(18, 28, 20);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = 2048;
     sunLight.shadow.mapSize.height = 2048;
@@ -183,6 +188,11 @@ export class Phase1Scene {
     sunLight.shadow.camera.bottom = -d;
     sunLight.shadow.bias = -0.0005;
     this.scene.add(sunLight);
+
+    // 3. Soft Opposite Rim / Facial Readability Fill Light (no shadow map cost)
+    const rimLight = new THREE.DirectionalLight(0xe0f2fe, 0.45);
+    rimLight.position.set(-14, 14, -16);
+    this.scene.add(rimLight);
   }
 
   private animate = (): void => {
@@ -191,6 +201,11 @@ export class Phase1Scene {
     const dt = Math.min(this.clock.getDelta(), 0.1);
 
     this.player.update(dt, this.thirdPersonCamera.yaw, this.colliders);
+
+    for (let i = 0; i < this.npcRigs.length; i++) {
+      this.npcRigs[i].updateAnimation(dt, false, false, i * 1.8);
+    }
+
     this.thirdPersonCamera.update(dt, this.player.position, this.colliders);
     this.interactionSystem.update(dt, this.player.position, this.player.getForwardVector());
 
