@@ -153,7 +153,7 @@ export class ThirdPersonCamera {
     colliders: ColliderBox[],
     snap = false
   ): void {
-    // Support Q / E keyboard camera orbit
+    // Support Q / R keyboard camera orbit
     const orbitDir = this.inputManager.getCameraOrbitDirection();
     if (orbitDir !== 0) {
       const keyOrbitSpeed = 1.9;

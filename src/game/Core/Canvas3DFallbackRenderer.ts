@@ -1,16 +1,24 @@
 import * as THREE from 'three';
 
+interface ScreenPoint2D {
+  x: number;
+  y: number;
+}
+
 interface ProjectedBoxFace {
-  points: Array<{ x: number; y: number }>;
+  points: [ScreenPoint2D, ScreenPoint2D, ScreenPoint2D, ScreenPoint2D];
   depth: number;
   fillStyle: string;
   strokeStyle: string;
 }
 
+type SixFaceShades = [string, string, string, string, string, string];
+
 /**
- * Software 3D perspective renderer using HTML5 Canvas2D.
+ * Emergency software 3D perspective compatibility renderer using HTML5 Canvas2D.
  * Used automatically whenever WebGL / WebGL2 shader compilation is unavailable
- * or the WebGL context is lost, ensuring zero WebGL shader errors and full playability.
+ * or the WebGL context is lost. Preallocates and pools face/point structures,
+ * sky gradients, and shaded color strings to avoid per-frame GC churn.
  */
 export class Canvas3DFallbackRenderer {
   public readonly domElement: HTMLCanvasElement;
@@ -19,11 +27,20 @@ export class Canvas3DFallbackRenderer {
   private height = 600;
   private pixelRatio = 1;
 
+  private skyGradient: CanvasGradient | null = null;
   private readonly viewProjMatrix = new THREE.Matrix4();
   private readonly worldMatrix = new THREE.Matrix4();
   private readonly scratchCorner = new THREE.Vector3();
   private readonly scratchCenter = new THREE.Vector3();
-  private readonly scratchBox = new THREE.Box3();
+  private readonly currentCamPos = new THREE.Vector3();
+
+  // Reusable object pool for projected faces and active render list
+  private readonly facePool: ProjectedBoxFace[] = [];
+  private readonly activeFaces: ProjectedBoxFace[] = [];
+  private poolCursor = 0;
+
+  // Cache of 6 pre-shaded RGB strings keyed by material hex color
+  private readonly shadeColorCache: Map<number, SixFaceShades> = new Map();
 
   // 8 corners of a bounding box in world/projected space
   private readonly corners: THREE.Vector3[] = Array.from({ length: 8 }, () => new THREE.Vector3());
@@ -39,6 +56,10 @@ export class Canvas3DFallbackRenderer {
     { indices: [3, 2, 6, 7], shade: 1.08 }, // Top (+Y)
     { indices: [0, 1, 5, 4], shade: 0.65 }  // Bottom (-Y)
   ];
+
+  private static readonly DEFAULT_STROKE = 'rgba(15, 23, 42, 0.14)';
+  private static readonly depthComparator = (a: ProjectedBoxFace, b: ProjectedBoxFace): number =>
+    b.depth - a.depth;
 
   constructor(width: number, height: number) {
     this.domElement = document.createElement('canvas');
@@ -64,6 +85,12 @@ export class Canvas3DFallbackRenderer {
     this.domElement.width = Math.round(this.width * this.pixelRatio);
     this.domElement.height = Math.round(this.height * this.pixelRatio);
     this.ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
+
+    const grad = this.ctx.createLinearGradient(0, 0, 0, this.height);
+    grad.addColorStop(0, '#c7e2fa');
+    grad.addColorStop(0.55, '#dfeffc');
+    grad.addColorStop(1, '#d9b99b');
+    this.skyGradient = grad;
   }
 
   public render(scene: THREE.Scene, camera: THREE.PerspectiveCamera): void {
@@ -72,57 +99,98 @@ export class Canvas3DFallbackRenderer {
     camera.updateProjectionMatrix();
 
     this.viewProjMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    this.currentCamPos.copy(camera.position);
 
-    // 1. Sky & warm horizon gradient
-    const skyGrad = this.ctx.createLinearGradient(0, 0, 0, this.height);
-    skyGrad.addColorStop(0, '#c7e2fa');
-    skyGrad.addColorStop(0.55, '#dfeffc');
-    skyGrad.addColorStop(1, '#d9b99b');
-    this.ctx.fillStyle = skyGrad;
+    // 1. Draw cached sky & ground gradient
+    this.ctx.fillStyle = this.skyGradient || '#dfeffc';
     this.ctx.fillRect(0, 0, this.width, this.height);
 
-    const faces: ProjectedBoxFace[] = [];
+    // 2. Reset pool cursor and active face list without allocating new arrays
+    this.poolCursor = 0;
+    this.activeFaces.length = 0;
 
-    scene.traverseVisible((obj) => {
-      if (!(obj instanceof THREE.Mesh)) return;
-      const geom = obj.geometry as THREE.BufferGeometry;
-      if (!geom) return;
+    scene.traverseVisible(this.traverseSceneObject);
 
-      if (!geom.boundingBox) {
-        geom.computeBoundingBox();
-      }
-      const bbox = geom.boundingBox;
-      if (!bbox) return;
+    // 3. Sort active faces back-to-front by distance to camera
+    this.activeFaces.sort(Canvas3DFallbackRenderer.depthComparator);
 
-      // Skip huge ground plane so we draw it cleanly behind all 3D objects
-      const sizeX = bbox.max.x - bbox.min.x;
-      const sizeZ = bbox.max.z - bbox.min.z;
-      if (sizeX > 75 && sizeZ > 75) return;
-
-      const baseHex = this.extractMeshColorHex(obj);
-      this.projectMeshBoundingBox(obj, bbox, baseHex, camera.position, faces);
-    });
-
-    // Painter's algorithm: sort faces back-to-front by distance to camera
-    faces.sort((a, b) => b.depth - a.depth);
-
-    for (let i = 0; i < faces.length; i++) {
-      const f = faces[i];
+    this.ctx.lineWidth = 0.65;
+    for (let i = 0; i < this.activeFaces.length; i++) {
+      const f = this.activeFaces[i];
       const pts = f.points;
-      if (pts.length < 3) continue;
 
       this.ctx.beginPath();
       this.ctx.moveTo(pts[0].x, pts[0].y);
-      for (let j = 1; j < pts.length; j++) {
-        this.ctx.lineTo(pts[j].x, pts[j].y);
-      }
+      this.ctx.lineTo(pts[1].x, pts[1].y);
+      this.ctx.lineTo(pts[2].x, pts[2].y);
+      this.ctx.lineTo(pts[3].x, pts[3].y);
       this.ctx.closePath();
       this.ctx.fillStyle = f.fillStyle;
       this.ctx.fill();
       this.ctx.strokeStyle = f.strokeStyle;
-      this.ctx.lineWidth = 0.65;
       this.ctx.stroke();
     }
+  }
+
+  private readonly traverseSceneObject = (obj: THREE.Object3D): void => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    const geom = obj.geometry as THREE.BufferGeometry;
+    if (!geom) return;
+
+    if (!geom.boundingBox) {
+      geom.computeBoundingBox();
+    }
+    const bbox = geom.boundingBox;
+    if (!bbox) return;
+
+    // Skip huge ground plane so we draw it cleanly behind all 3D objects
+    const sizeX = bbox.max.x - bbox.min.x;
+    const sizeZ = bbox.max.z - bbox.min.z;
+    if (sizeX > 75 && sizeZ > 75) return;
+
+    const baseHex = this.extractMeshColorHex(obj);
+    this.projectMeshBoundingBox(obj, bbox, baseHex);
+  };
+
+  private acquirePooledFace(): ProjectedBoxFace {
+    if (this.poolCursor < this.facePool.length) {
+      const existing = this.facePool[this.poolCursor++];
+      return existing;
+    }
+    const created: ProjectedBoxFace = {
+      points: [
+        { x: 0, y: 0 },
+        { x: 0, y: 0 },
+        { x: 0, y: 0 },
+        { x: 0, y: 0 }
+      ],
+      depth: 0,
+      fillStyle: '#cccccc',
+      strokeStyle: Canvas3DFallbackRenderer.DEFAULT_STROKE
+    };
+    this.facePool.push(created);
+    this.poolCursor++;
+    return created;
+  }
+
+  private getShadedColorsForHex(baseHex: number): SixFaceShades {
+    let shades = this.shadeColorCache.get(baseHex);
+    if (!shades) {
+      const rBase = (baseHex >> 16) & 255;
+      const gBase = (baseHex >> 8) & 255;
+      const bBase = baseHex & 255;
+      const computed: string[] = [];
+      for (let f = 0; f < Canvas3DFallbackRenderer.BOX_FACES.length; f++) {
+        const shade = Canvas3DFallbackRenderer.BOX_FACES[f].shade;
+        const r = Math.min(255, Math.round(rBase * shade));
+        const g = Math.min(255, Math.round(gBase * shade));
+        const b = Math.min(255, Math.round(bBase * shade));
+        computed.push(`rgb(${r},${g},${b})`);
+      }
+      shades = computed as SixFaceShades;
+      this.shadeColorCache.set(baseHex, shades);
+    }
+    return shades;
   }
 
   private extractMeshColorHex(mesh: THREE.Mesh): number {
@@ -136,15 +204,13 @@ export class Canvas3DFallbackRenderer {
   private projectMeshBoundingBox(
     mesh: THREE.Mesh,
     bbox: THREE.Box3,
-    baseHex: number,
-    camPos: THREE.Vector3,
-    outFaces: ProjectedBoxFace[]
+    baseHex: number
   ): void {
     this.worldMatrix.copy(mesh.matrixWorld);
     const min = bbox.min;
     const max = bbox.max;
 
-    // 8 local corners
+    // 8 local corners transformed into world space
     this.corners[0].set(min.x, min.y, min.z).applyMatrix4(this.worldMatrix);
     this.corners[1].set(max.x, min.y, min.z).applyMatrix4(this.worldMatrix);
     this.corners[2].set(max.x, max.y, min.z).applyMatrix4(this.worldMatrix);
@@ -169,24 +235,21 @@ export class Canvas3DFallbackRenderer {
 
     if (!anyVisible) return;
 
-    const rBase = (baseHex >> 16) & 255;
-    const gBase = (baseHex >> 8) & 255;
-    const bBase = baseHex & 255;
-
-    // Flat ring/ground slab optimization: if height is very thin, only render top face
+    const shades = this.getShadedColorsForHex(baseHex);
     const isFlatSlab = max.y - min.y < 0.22;
 
     for (let f = 0; f < Canvas3DFallbackRenderer.BOX_FACES.length; f++) {
       if (isFlatSlab && f !== 4) continue;
 
-      const faceDef = Canvas3DFallbackRenderer.BOX_FACES[f];
-      const idx = faceDef.indices;
-
-      let validVerts = 0;
-      for (let k = 0; k < 4; k++) {
-        if (this.screenPts[idx[k]].visible) validVerts++;
+      const idx = Canvas3DFallbackRenderer.BOX_FACES[f].indices;
+      if (
+        !this.screenPts[idx[0]].visible ||
+        !this.screenPts[idx[1]].visible ||
+        !this.screenPts[idx[2]].visible ||
+        !this.screenPts[idx[3]].visible
+      ) {
+        continue;
       }
-      if (validVerts < 4) continue;
 
       // Face center in world space for accurate camera depth sorting
       this.scratchCenter
@@ -196,23 +259,20 @@ export class Canvas3DFallbackRenderer {
         .add(this.corners[idx[3]])
         .multiplyScalar(0.25);
 
-      const depth = this.scratchCenter.distanceToSquared(camPos);
-      const r = Math.min(255, Math.round(rBase * faceDef.shade));
-      const g = Math.min(255, Math.round(gBase * faceDef.shade));
-      const b = Math.min(255, Math.round(bBase * faceDef.shade));
-      const fill = `rgb(${r},${g},${b})`;
+      const pooled = this.acquirePooledFace();
+      pooled.points[0].x = this.screenPts[idx[0]].x;
+      pooled.points[0].y = this.screenPts[idx[0]].y;
+      pooled.points[1].x = this.screenPts[idx[1]].x;
+      pooled.points[1].y = this.screenPts[idx[1]].y;
+      pooled.points[2].x = this.screenPts[idx[2]].x;
+      pooled.points[2].y = this.screenPts[idx[2]].y;
+      pooled.points[3].x = this.screenPts[idx[3]].x;
+      pooled.points[3].y = this.screenPts[idx[3]].y;
+      pooled.depth = this.scratchCenter.distanceToSquared(this.currentCamPos);
+      pooled.fillStyle = shades[f];
+      pooled.strokeStyle = Canvas3DFallbackRenderer.DEFAULT_STROKE;
 
-      outFaces.push({
-        points: [
-          { x: this.screenPts[idx[0]].x, y: this.screenPts[idx[0]].y },
-          { x: this.screenPts[idx[1]].x, y: this.screenPts[idx[1]].y },
-          { x: this.screenPts[idx[2]].x, y: this.screenPts[idx[2]].y },
-          { x: this.screenPts[idx[3]].x, y: this.screenPts[idx[3]].y }
-        ],
-        depth,
-        fillStyle: fill,
-        strokeStyle: 'rgba(15, 23, 42, 0.14)'
-      });
+      this.activeFaces.push(pooled);
     }
   }
 }

@@ -37,6 +37,7 @@ export class InputManager {
       'ShiftLeft',
       'ShiftRight',
       'KeyQ',
+      'KeyR',
       'KeyE',
       'Space',
       'Enter'
@@ -51,10 +52,8 @@ export class InputManager {
         e.preventDefault();
       }
 
-      // Single-press interaction trigger (ignore key hold auto-repeat)
+      // Single-press interaction trigger (KeyE and Enter exclusively; ignore key hold auto-repeat)
       if ((e.code === 'KeyE' || e.code === 'Enter') && !e.repeat) {
-        // Only trigger interaction on KeyE if user is not holding Q+E for camera orbit,
-        // or always trigger if an interactable is active (handled by InteractionSystem)
         for (const cb of this.interactCallbacks) {
           cb();
         }
@@ -117,7 +116,7 @@ export class InputManager {
   public getCameraOrbitDirection(): number {
     let dir = 0;
     if (this.keysPressed.has('KeyQ')) dir += 1;
-    if (this.keysPressed.has('KeyE')) dir -= 1;
+    if (this.keysPressed.has('KeyR')) dir -= 1;
     return dir;
   }
 
