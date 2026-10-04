@@ -45,6 +45,8 @@ export class PlayerController {
     this.group.name = 'PLAYER_ACTOR_001';
     this.group.position.copy(spawnPosition);
     this.position = this.group.position;
+    this.rotationY = Math.PI;
+    this.group.rotation.y = this.rotationY;
 
     this.buildStylizedCharacterMesh();
     this.bindKeyboardListeners();
@@ -178,8 +180,16 @@ export class PlayerController {
   }
 
   private bindKeyboardListeners(): void {
+    const movementCodes = new Set([
+      'KeyW', 'KeyA', 'KeyS', 'KeyD',
+      'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+      'ShiftLeft', 'ShiftRight', 'Space'
+    ]);
     window.addEventListener('keydown', (e) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (movementCodes.has(e.code)) {
+        e.preventDefault();
+      }
       this.keysPressed.add(e.code);
     });
     window.addEventListener('keyup', (e) => {
@@ -187,6 +197,11 @@ export class PlayerController {
     });
     window.addEventListener('blur', () => {
       this.keysPressed.clear();
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') {
+        this.keysPressed.clear();
+      }
     });
   }
 

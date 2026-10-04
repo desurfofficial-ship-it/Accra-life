@@ -16,6 +16,7 @@ export class ThirdPersonCamera {
   private currentLookTarget = new THREE.Vector3();
   private desiredCameraPos = new THREE.Vector3();
   private isPointerDragging = false;
+  private activePointerId: number | null = null;
   private lastPointerX = 0;
   private lastPointerY = 0;
   private orbitKeys: Set<string> = new Set();
@@ -37,15 +38,17 @@ export class ThirdPersonCamera {
 
   private bindCameraControls(domElement: HTMLElement): void {
     domElement.addEventListener('pointerdown', (e) => {
+      if (this.activePointerId !== null) return;
       if (e.button === 0 || e.button === 2 || e.pointerType === 'touch') {
         this.isPointerDragging = true;
+        this.activePointerId = e.pointerId;
         this.lastPointerX = e.clientX;
         this.lastPointerY = e.clientY;
       }
     });
 
     window.addEventListener('pointermove', (e) => {
-      if (!this.isPointerDragging) return;
+      if (!this.isPointerDragging || e.pointerId !== this.activePointerId) return;
       const dx = e.clientX - this.lastPointerX;
       const dy = e.clientY - this.lastPointerY;
       this.lastPointerX = e.clientX;
@@ -60,9 +63,15 @@ export class ThirdPersonCamera {
       );
     });
 
-    window.addEventListener('pointerup', () => {
-      this.isPointerDragging = false;
-    });
+    const endDrag = (e: PointerEvent) => {
+      if (e.pointerId === this.activePointerId) {
+        this.isPointerDragging = false;
+        this.activePointerId = null;
+      }
+    };
+
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
 
     domElement.addEventListener('contextmenu', (e) => e.preventDefault());
 

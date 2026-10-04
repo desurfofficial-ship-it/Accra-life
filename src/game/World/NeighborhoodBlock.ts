@@ -333,8 +333,9 @@ function buildPlayerCompoundHouse(
     { id: 'ACC_HOUSE_001_MAIN', minX: -14.3, maxX: -6.7, minZ: 10.2, maxZ: 16.0 },
     { id: 'ACC_HOUSE_001_WALL_L', minX: -15.3, maxX: -12.1, minZ: 8.0, maxZ: 8.5 },
     { id: 'ACC_HOUSE_001_WALL_R', minX: -8.9, maxX: -5.7, minZ: 8.0, maxZ: 8.5 },
-    { id: 'ACC_HOUSE_001_WALL_W', minX: -15.4, maxX: -14.9, minZ: 8.0, maxZ: 16.3 },
-    { id: 'ACC_HOUSE_001_WALL_E', minX: -6.1, maxX: -5.5, minZ: 8.0, maxZ: 16.3 }
+    { id: 'ACC_HOUSE_001_WALL_W', minX: -15.4, maxX: -14.9, minZ: 8.0, maxZ: 16.4 },
+    { id: 'ACC_HOUSE_001_WALL_E', minX: -6.1, maxX: -5.5, minZ: 8.0, maxZ: 16.4 },
+    { id: 'ACC_HOUSE_001_WALL_BACK', minX: -15.4, maxX: -5.5, minZ: 15.9, maxZ: 16.4 }
   );
 
   interactables.push({
@@ -343,8 +344,9 @@ function buildPlayerCompoundHouse(
     title: 'Player Compound House (ACC_HOUSE_001)',
     promptLabel: 'Enter Home Veranda',
     interactionResponse: 'ACC_HOUSE_001: Compound House Entrance — Ready for home interior.',
-    position: new THREE.Vector3(-10.5, 0, 9.1),
-    radius: 2.7
+    position: new THREE.Vector3(-10.5, 0.24, 9.2),
+    lookAtPosition: new THREE.Vector3(-10.5, 0, 10.6),
+    radius: 3.1
   });
 }
 
@@ -446,8 +448,9 @@ function buildProvisionStore(
     title: 'Neighborhood Provision Store (ACC_SHOP_001)',
     promptLabel: 'Shop at Provision Counter',
     interactionResponse: 'ACC_SHOP_001: Provision Store Counter — Ready for shopping & Mobile Money.',
-    position: new THREE.Vector3(-9.5, 0, -6.8),
-    radius: 2.7
+    position: new THREE.Vector3(-9.5, 0.24, -6.7),
+    lookAtPosition: new THREE.Vector3(-9.5, 0, -8.2),
+    radius: 3.1
   });
 }
 
@@ -557,8 +560,9 @@ function buildFoodVendorJoint(
     title: 'Roadside Waakye & Jollof Joint (ACC_RESTAURANT_001)',
     promptLabel: 'Order at Food Showcase',
     interactionResponse: 'ACC_RESTAURANT_001: Waakye & Jollof Stand — Ready for food & hunger system.',
-    position: new THREE.Vector3(7.9, 0, -6.8),
-    radius: 2.7
+    position: new THREE.Vector3(7.9, 0.24, -6.7),
+    lookAtPosition: new THREE.Vector3(7.9, 0, -8.5),
+    radius: 3.1
   });
 }
 
@@ -646,8 +650,9 @@ function buildTrotroStop(
     title: 'Neighborhood Trotro Stop (ACC_PROP_001)',
     promptLabel: 'Wait at Trotro Stop',
     interactionResponse: 'ACC_PROP_001: Trotro Stop Shelter — Ready for Trotro & Taxi transport.',
-    position: new THREE.Vector3(9.0, 0, 4.3),
-    radius: 2.7
+    position: new THREE.Vector3(9.0, 0.24, 4.7),
+    lookAtPosition: new THREE.Vector3(9.0, 0, 6.2),
+    radius: 3.1
   });
 }
 

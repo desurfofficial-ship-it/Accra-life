@@ -7,6 +7,7 @@ export interface InteractableTarget {
   promptLabel: string;
   interactionResponse: string;
   position: THREE.Vector3;
+  lookAtPosition?: THREE.Vector3;
   radius: number;
   mesh?: THREE.Object3D;
   onInteract?: (target: InteractableTarget) => void;
@@ -82,10 +83,17 @@ export class InteractionSystem {
       const dist = Math.hypot(dx, dz);
 
       if (dist <= target.radius) {
-        // Favor objects the player is both close to and generally facing
-        const toTarget = new THREE.Vector3(dx, 0, dz).normalize();
-        const dot = playerForward.dot(toTarget); // -1 (behind) to +1 (directly ahead)
-        if (dot > -0.35) {
+        const focusPoint = target.lookAtPosition || target.position;
+        const fdx = focusPoint.x - playerPosition.x;
+        const fdz = focusPoint.z - playerPosition.z;
+        const fLen = Math.hypot(fdx, fdz);
+        const dot = fLen > 0.001
+          ? (playerForward.x * (fdx / fLen) + playerForward.z * (fdz / fLen))
+          : 1;
+
+        // Always allow interaction when standing directly on the ring (dist <= 1.15)
+        // or when generally facing the building/counter
+        if (dist <= 1.15 || dot > -0.25) {
           const score = dist - dot * 0.65;
           if (score < bestScore) {
             bestScore = score;
@@ -106,7 +114,7 @@ export class InteractionSystem {
       this.indicatorRing.visible = true;
       this.indicatorRing.position.set(
         this.activeTarget.position.x,
-        0.04,
+        Math.max(0.18, this.activeTarget.position.y),
         this.activeTarget.position.z
       );
       const scale = 1 + Math.sin(this.pulseClock) * 0.08;

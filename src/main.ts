@@ -48,15 +48,18 @@ if (container) {
 
   // Reset camera behind player
   resetCameraBtn?.addEventListener('click', () => {
+    resetCameraBtn.blur();
     phase1.thirdPersonCamera.resetBehindPlayer(phase1.player.rotationY);
   });
 
   // Click / tap on floating interaction prompt or right-side Interact button
   promptEl?.addEventListener('click', () => {
+    promptEl.blur();
     phase1.interactionSystem.triggerCurrentInteraction();
   });
 
   interactTriggerBtn?.addEventListener('click', () => {
+    interactTriggerBtn.blur();
     const triggered = phase1.interactionSystem.triggerCurrentInteraction();
     if (!triggered) {
       showInteractionFeedback('Walk closer to a building entrance or signpost to interact.');
@@ -65,6 +68,7 @@ if (container) {
 
   // Toggle Jog / Sprint state for touch/mouse convenience
   sprintToggleBtn?.addEventListener('click', () => {
+    sprintToggleBtn.blur();
     sprintToggled = !sprintToggled;
     phase1.player.setSprintState(sprintToggled);
     sprintToggleBtn.classList.toggle('active', sprintToggled);
