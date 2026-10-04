@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { InputManager } from './InputManager';
 import { buildStylizedGhanaianCharacter, CharacterRig } from '../Art/CharacterBuilder';
-import { getSurfaceHeightAt } from '../World/NeighborhoodBlock';
+import { getSurfaceHeightAt } from '../World/WorldSurface';
 
 export interface ColliderBox {
   id: string;

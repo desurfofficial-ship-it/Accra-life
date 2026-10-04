@@ -185,6 +185,7 @@ export const PHASE2_ASSET_REGISTRY: Record<string, RegisteredAssetMetadata> = {
 class SharedArtLibrary {
   private textures: Map<string, THREE.CanvasTexture> = new Map();
   private materials: Map<string, THREE.MeshStandardMaterial> = new Map();
+  private basicMaterials: Map<string, THREE.MeshBasicMaterial> = new Map();
 
   public getMaterial(
     key: string,
@@ -198,9 +199,22 @@ class SharedArtLibrary {
     return mat;
   }
 
+  public getBasicMaterial(
+    key: string,
+    options: THREE.MeshBasicMaterialParameters
+  ): THREE.MeshBasicMaterial {
+    let mat = this.basicMaterials.get(key);
+    if (!mat) {
+      mat = new THREE.MeshBasicMaterial(options);
+      this.basicMaterials.set(key, mat);
+    }
+    return mat;
+  }
+
   /**
    * High-resolution stylized facial feature texture mapped onto the front (+Z) curved face shell.
-   * Uses soft radial edge feathering so the facial map blends seamlessly into the 3D cranium.
+   * Uses a soft radial destination-in alpha feather and exact base skin tone so the facial features
+   * integrate invisibly into the 3D cranium without any sticker edge or border ring.
    */
   public getCharacterFaceTexture(
     key: string,
@@ -211,30 +225,24 @@ class SharedArtLibrary {
     return this.getOrCreateTexture(`face_${key}`, 512, 512, (ctx) => {
       ctx.clearRect(0, 0, 512, 512);
 
-      // Soft elliptical alpha mask so the curved face shell blends invisibly into the head
-      ctx.save();
-      ctx.beginPath();
-      ctx.ellipse(256, 256, 232, 236, 0, 0, Math.PI * 2);
-      ctx.clip();
-
+      // Base skin fill matching the 3D cranium material
       ctx.fillStyle = skinCss;
       ctx.fillRect(0, 0, 512, 512);
 
-      // Warm facial contour & cheek highlight
-      const cheekGrad = ctx.createRadialGradient(256, 240, 24, 256, 256, 235);
-      cheekGrad.addColorStop(0, 'rgba(255, 215, 175, 0.14)');
-      cheekGrad.addColorStop(0.7, 'rgba(255, 200, 155, 0.04)');
-      cheekGrad.addColorStop(1, 'rgba(25, 12, 6, 0.10)');
+      // Subtle center-face warmth (fades to 0 before the outer boundary so edges match skinCss 100%)
+      const cheekGrad = ctx.createRadialGradient(256, 248, 18, 256, 256, 175);
+      cheekGrad.addColorStop(0, 'rgba(255, 215, 175, 0.12)');
+      cheekGrad.addColorStop(1, 'rgba(255, 215, 175, 0.0)');
       ctx.fillStyle = cheekGrad;
       ctx.fillRect(0, 0, 512, 512);
 
       // Subtle nose bridge highlight & nostril shadow cues
-      ctx.fillStyle = 'rgba(255, 235, 205, 0.14)';
+      ctx.fillStyle = 'rgba(255, 235, 205, 0.13)';
       ctx.beginPath();
       ctx.roundRect(244, 205, 24, 86, 12);
       ctx.fill();
 
-      ctx.fillStyle = 'rgba(20, 8, 4, 0.25)';
+      ctx.fillStyle = 'rgba(20, 8, 4, 0.24)';
       ctx.beginPath();
       ctx.ellipse(240, 298, 9, 5, 0.25, 0, Math.PI * 2);
       ctx.ellipse(272, 298, 9, 5, -0.25, 0, Math.PI * 2);
@@ -248,7 +256,7 @@ class SharedArtLibrary {
         const side = i === 0 ? -1 : 1;
 
         // Upper orbital crease
-        ctx.strokeStyle = 'rgba(18, 9, 5, 0.35)';
+        ctx.strokeStyle = 'rgba(18, 9, 5, 0.34)';
         ctx.lineWidth = 3.5;
         ctx.beginPath();
         ctx.arc(ex, ey + 4, 36, Math.PI * 1.12, Math.PI * 1.88);
@@ -303,7 +311,7 @@ class SharedArtLibrary {
         ctx.stroke();
 
         // Subtle lower lid definition
-        ctx.strokeStyle = 'rgba(20, 10, 6, 0.32)';
+        ctx.strokeStyle = 'rgba(20, 10, 6, 0.30)';
         ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.arc(ex, ey - 3, 32, Math.PI * 0.12, Math.PI * 0.88);
@@ -335,7 +343,15 @@ class SharedArtLibrary {
       ctx.ellipse(256, 353, 20, 4.5, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.restore();
+      // Smooth radial alpha feather so the outer rim dissolves seamlessly into the 3D head
+      ctx.globalCompositeOperation = 'destination-in';
+      const featherMask = ctx.createRadialGradient(256, 256, 155, 256, 256, 244);
+      featherMask.addColorStop(0, 'rgba(0, 0, 0, 1)');
+      featherMask.addColorStop(0.75, 'rgba(0, 0, 0, 0.95)');
+      featherMask.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = featherMask;
+      ctx.fillRect(0, 0, 512, 512);
+      ctx.globalCompositeOperation = 'source-over';
     });
   }
 
@@ -421,7 +437,6 @@ class SharedArtLibrary {
       }
       ctx.fillStyle = '#f59e0b';
       ctx.fillRect(0, 430, 512, 36);
-      // Chest pocket detail on front-left chest
       ctx.strokeStyle = '#fef3c7';
       ctx.lineWidth = 4;
       ctx.strokeRect(274, 96, 46, 52);
@@ -436,7 +451,6 @@ class SharedArtLibrary {
         ctx.fillStyle = idx % 3 === 0 ? '#1e293b' : idx % 3 === 1 ? '#f8fafc' : '#0284c7';
         ctx.fillRect(x, 0, stripW, 512);
       }
-      // Traditional embroidered chest plastron
       ctx.fillStyle = '#f59e0b';
       ctx.fillRect(190, 18, 132, 148);
       ctx.fillStyle = '#1e293b';
@@ -468,11 +482,9 @@ class SharedArtLibrary {
 
   public getBreezeBlockWallTexture(): THREE.CanvasTexture {
     const tex = this.getOrCreateTexture('breeze_block_wall', 512, 256, (ctx) => {
-      // Warm cream plastered masonry with terracotta top coping and breeze-block vents
       ctx.fillStyle = '#fef3c7';
       ctx.fillRect(0, 0, 512, 256);
 
-      // Subtle horizontal plaster block coursing lines
       ctx.strokeStyle = 'rgba(180, 83, 9, 0.12)';
       ctx.lineWidth = 2;
       for (let y = 96; y < 206; y += 36) {
@@ -482,11 +494,9 @@ class SharedArtLibrary {
         ctx.stroke();
       }
 
-      // Top terracotta coping band
       ctx.fillStyle = '#b45309';
       ctx.fillRect(0, 0, 512, 24);
 
-      // Geometric breeze-block ventilation row along upper wall
       ctx.fillStyle = '#d97706';
       ctx.fillRect(0, 28, 512, 48);
       for (let x = 16; x < 512; x += 48) {
@@ -500,7 +510,6 @@ class SharedArtLibrary {
         ctx.fill();
       }
 
-      // Lower anti-splash plinth
       ctx.fillStyle = '#b45309';
       ctx.fillRect(0, 206, 512, 50);
     });
@@ -526,6 +535,31 @@ class SharedArtLibrary {
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(24, 2);
+    return tex;
+  }
+
+  public getLateriteEarthTexture(): THREE.CanvasTexture {
+    const tex = this.getOrCreateTexture('laterite_earth', 256, 256, (ctx) => {
+      ctx.fillStyle = '#d6b087';
+      ctx.fillRect(0, 0, 256, 256);
+
+      // Subtle deterministic warm laterite soil grain variations
+      for (let y = 0; y < 256; y += 16) {
+        for (let x = 0; x < 256; x += 16) {
+          const hash = ((x * 37 + y * 73) % 29) / 29;
+          ctx.fillStyle =
+            hash > 0.65
+              ? 'rgba(180, 118, 68, 0.14)'
+              : hash < 0.35
+                ? 'rgba(242, 208, 168, 0.12)'
+                : 'rgba(154, 88, 42, 0.08)';
+          ctx.fillRect(x, y, 14, 14);
+        }
+      }
+    });
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(18, 18);
     return tex;
   }
 

@@ -3,70 +3,14 @@ import { ColliderBox } from '../Player/PlayerController';
 import { InteractableTarget } from '../Player/InteractionSystem';
 import { PHASE2_ASSET_REGISTRY, sharedArtLibrary } from '../Art/AssetRegistry';
 import { buildStylizedGhanaianCharacter, CharacterRig } from '../Art/CharacterBuilder';
+import { getSurfaceHeightAt } from './WorldSurface';
 
-export { PHASE2_ASSET_REGISTRY };
+export { PHASE2_ASSET_REGISTRY, getSurfaceHeightAt };
 
 export interface BuiltNeighborhoodBlock {
   colliders: ColliderBox[];
   interactables: InteractableTarget[];
   npcRigs: CharacterRig[];
-}
-
-/**
- * Returns the exact top surface elevation (Y in meters) at world (x, z)
- * so the player, NPCs, and vehicles rest cleanly on top of sidewalks,
- * compound courtyards, shop pads, crossover bridges, or asphalt road.
- */
-export function getSurfaceHeightAt(x: number, z: number): number {
-  // 1. Player Compound House Courtyard (X in [-15.3, -5.7], Z in [8.1, 16.3])
-  if (x >= -15.3 && x <= -5.7 && z >= 8.1 && z <= 16.3) {
-    // Veranda deck inside compound (X in [-14.2, -6.8], Z in [9.1, 10.6])
-    if (x >= -14.2 && x <= -6.8 && z >= 9.1 && z <= 10.6) {
-      return 0.18;
-    }
-    return 0.10;
-  }
-
-  // 2. Provision Store Concrete Pad (X in [-12.7, -6.3], Z in [-12.8, -7.6])
-  if (x >= -12.7 && x <= -6.3 && z >= -12.8 && z <= -7.6) {
-    return 0.10;
-  }
-
-  // 3. Waakye & Jollof Dining Patio Slab (X in [4.8, 12.2], Z in [-12.9, -7.1])
-  if (x >= 4.8 && x <= 12.2 && z >= -12.9 && z <= -7.1) {
-    return 0.10;
-  }
-
-  // 4. Trotro Stop Boarding Pad (X in [6.6, 11.4], Z in [5.1, 7.6])
-  if (x >= 6.6 && x <= 11.4 && z >= 5.1 && z <= 7.6) {
-    return 0.10;
-  }
-
-  // 5. North & South Pedestrian Sidewalks (Z in [-7.7, -4.4] or [4.4, 7.7])
-  if ((z >= -7.7 && z <= -4.4) || (z >= 4.4 && z <= 7.7)) {
-    return 0.08;
-  }
-
-  // 6. Concrete Entrance Crossover Bridges across the Storm Gutter (Z in [-4.45, -3.65] or [3.65, 4.45])
-  if ((z >= -4.45 && z <= -3.65) || (z >= 3.65 && z <= 4.45)) {
-    const onCrossover =
-      (x >= -12.3 && x <= -8.7) ||
-      (x >= -11.3 && x <= -7.7) ||
-      (x >= -1.6 && x <= 1.6) ||
-      (x >= 6.5 && x <= 11.2);
-    if (onCrossover) {
-      return 0.08;
-    }
-    return 0.02;
-  }
-
-  // 7. Main Asphalt Road & Shoulders (Z in [-3.8, 3.8])
-  if (z >= -3.8 && z <= 3.8) {
-    return 0.02;
-  }
-
-  // 8. Surrounding Laterite Earth Ground
-  return 0.0;
 }
 
 export function buildFirstNeighborhoodBlock(scene: THREE.Scene): BuiltNeighborhoodBlock {
@@ -76,8 +20,8 @@ export function buildFirstNeighborhoodBlock(scene: THREE.Scene): BuiltNeighborho
 
   // Shared environment materials
   const matLateriteEarth = sharedArtLibrary.getMaterial('env_laterite', {
-    color: 0xd8b48e,
-    roughness: 0.92
+    map: sharedArtLibrary.getLateriteEarthTexture(),
+    roughness: 0.94
   });
   const matAsphalt = sharedArtLibrary.getMaterial('env_asphalt', {
     color: 0x2e3846,
@@ -87,8 +31,8 @@ export function buildFirstNeighborhoodBlock(scene: THREE.Scene): BuiltNeighborho
     color: 0x475569,
     roughness: 0.88
   });
-  const matRoadLine = new THREE.MeshBasicMaterial({ color: 0xf8fafc });
-  const matRoadEdgeLine = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+  const matRoadLine = sharedArtLibrary.getBasicMaterial('env_road_line', { color: 0xf8fafc });
+  const matRoadEdgeLine = sharedArtLibrary.getBasicMaterial('env_road_edge', { color: 0xfacc15 });
   const matSidewalk = sharedArtLibrary.getMaterial('env_sidewalk_paved', {
     map: sharedArtLibrary.getSidewalkPaverTexture(),
     roughness: 0.80
@@ -312,14 +256,19 @@ function buildPlayerCompoundHouse(
     roughness: 0.34
   });
 
-  // Tiled Courtyard Paving inside Compound (top surface at Y = 0.10)
-  const courtyard = new THREE.Mesh(
-    new THREE.BoxGeometry(9.6, 0.10, 8.2),
-    sharedArtLibrary.getMaterial('house_courtyard_tile', { color: 0xe2e8f0, roughness: 0.74 })
-  );
+  // Tiled Courtyard Paving inside Compound + Entrance Gate Apron (top surface at Y = 0.10)
+  const courtyardTileMat = sharedArtLibrary.getMaterial('house_courtyard_tile', {
+    color: 0xe2e8f0,
+    roughness: 0.74
+  });
+  const courtyard = new THREE.Mesh(new THREE.BoxGeometry(9.6, 0.10, 8.2), courtyardTileMat);
   courtyard.position.set(0, 0.05, 0);
   courtyard.receiveShadow = true;
-  group.add(courtyard);
+
+  const gateApron = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.10, 0.55), courtyardTileMat);
+  gateApron.position.set(0, 0.05, -4.32);
+  gateApron.receiveShadow = true;
+  group.add(courtyard, gateApron);
 
   // Main House Body + Roof Fascia Cornice
   const mainBody = new THREE.Mesh(new THREE.BoxGeometry(7.4, 3.5, 5.2), matWallCream);
@@ -442,7 +391,7 @@ function buildPlayerCompoundHouse(
   rightFrontWall.castShadow = true;
 
   // Gate Pillars + Open Ornamental Wrought-Iron Double Gates
-  const globeMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+  const globeMat = sharedArtLibrary.getBasicMaterial('emissive_lantern_globe', { color: 0xfef08a });
   for (const side of [-1, 1]) {
     const gx = side * 1.55;
     const gatePillar = new THREE.Mesh(new THREE.BoxGeometry(0.44, 1.78, 0.44), matTerracottaPlinth);
@@ -547,9 +496,9 @@ function buildPlayerCompoundHouse(
   interactables.push({
     id: 'home_door',
     assetId: 'ACC_HOUSE_001',
-    title: 'Player Compound House (ACC_HOUSE_001)',
+    title: 'Kwame’s Compound House',
     promptLabel: 'Enter Home Veranda',
-    interactionResponse: 'ACC_HOUSE_001: Contemporary Accra Compound House — Verified.',
+    interactionResponse: 'Kwame’s Compound House — Your shaded veranda and courtyard in Accra.',
     position: new THREE.Vector3(-10.5, 0.14, 9.2),
     lookAtPosition: new THREE.Vector3(-10.5, 0.14, 10.6),
     radius: 3.1
@@ -632,7 +581,7 @@ function buildProvisionStore(
   );
   const frontSignPanel = new THREE.Mesh(
     new THREE.PlaneGeometry(5.2, 0.58),
-    new THREE.MeshBasicMaterial({ map: signTex })
+    sharedArtLibrary.getBasicMaterial('sign_panel_shop_001', { map: signTex })
   );
   frontSignPanel.position.set(0, 3.28, 2.22);
   group.add(frontSignPanel);
@@ -725,7 +674,7 @@ function buildProvisionStore(
   );
   const momoFrontSign = new THREE.Mesh(
     new THREE.PlaneGeometry(1.05, 0.42),
-    new THREE.MeshBasicMaterial({ map: momoSignTex })
+    sharedArtLibrary.getBasicMaterial('sign_panel_momo', { map: momoSignTex })
   );
   momoFrontSign.position.set(2.25, 0.54, 2.64);
   group.add(momoFrontSign);
@@ -757,9 +706,9 @@ function buildProvisionStore(
   interactables.push({
     id: 'provision_shop',
     assetId: 'ACC_SHOP_001',
-    title: 'Adabraka Provision Store (ACC_SHOP_001)',
-    promptLabel: 'Inspect Provision Counter',
-    interactionResponse: 'ACC_SHOP_001: Adabraka Provision Store & MoMo Kiosk — Verified.',
+    title: 'Adabraka Provision Store & MoMo',
+    promptLabel: 'Visit Provision Counter',
+    interactionResponse: 'Adabraka Provisions — Stocked with Milo, Peak milk, bottled water, and MoMo service.',
     position: new THREE.Vector3(-9.5, 0.14, -6.7),
     lookAtPosition: new THREE.Vector3(-9.5, 0.14, -8.2),
     radius: 3.1
@@ -804,7 +753,7 @@ function buildFoodVendorJoint(
     roughness: 0.78,
     metalness: 0.35
   });
-  const matGlass = new THREE.MeshStandardMaterial({
+  const matGlass = sharedArtLibrary.getMaterial('food_sieve_glass', {
     color: 0xe0f2fe,
     transparent: true,
     opacity: 0.45,
@@ -850,7 +799,7 @@ function buildFoodVendorJoint(
   );
   const foodSignMesh = new THREE.Mesh(
     new THREE.PlaneGeometry(5.8, 0.56),
-    new THREE.MeshBasicMaterial({ map: foodSignTex })
+    sharedArtLibrary.getBasicMaterial('sign_panel_restaurant_001', { map: foodSignTex })
   );
   foodSignMesh.position.set(0, 3.28, 1.12);
   group.add(foodSignMesh);
@@ -1033,9 +982,9 @@ function buildFoodVendorJoint(
   interactables.push({
     id: 'food_vendor',
     assetId: 'ACC_RESTAURANT_001',
-    title: 'Sister Akosua Waakye & Jollof (ACC_RESTAURANT_001)',
-    promptLabel: 'Inspect Food Showcase',
-    interactionResponse: 'ACC_RESTAURANT_001: Roadside Waakye & Jollof Showcase — Verified.',
+    title: 'Sister Akosua’s Waakye & Jollof Joint',
+    promptLabel: 'Check Food Showcase',
+    interactionResponse: 'Sister Akosua’s Joint — Fresh hot Waakye, smoky party Jollof, plantain, and shito.',
     position: new THREE.Vector3(7.9, 0.14, -6.7),
     lookAtPosition: new THREE.Vector3(7.9, 0.14, -8.5),
     radius: 3.1
@@ -1097,7 +1046,7 @@ function buildTrotroStopAndVehicle(
   );
   const shelterFasciaSign = new THREE.Mesh(
     new THREE.PlaneGeometry(3.8, 0.44),
-    new THREE.MeshBasicMaterial({ map: shelterRouteTex })
+    sharedArtLibrary.getBasicMaterial('sign_panel_trotro_shelter', { map: shelterRouteTex })
   );
   shelterFasciaSign.position.set(0, 2.42, -0.62);
   shelterFasciaSign.rotation.y = Math.PI;
@@ -1147,15 +1096,12 @@ function buildTrotroStopAndVehicle(
     'TROTRO STOP',
     'OSU · CIRCLE · 37'
   );
-  const stopSignFaceF = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.90, 0.52),
-    new THREE.MeshBasicMaterial({ map: stopSignTex })
-  );
+  const stopSignMat = sharedArtLibrary.getBasicMaterial('sign_panel_trotro_pole', {
+    map: stopSignTex
+  });
+  const stopSignFaceF = new THREE.Mesh(new THREE.PlaneGeometry(0.90, 0.52), stopSignMat);
   stopSignFaceF.position.set(-2.55, 2.45, -0.805);
-  const stopSignFaceB = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.90, 0.52),
-    new THREE.MeshBasicMaterial({ map: stopSignTex })
-  );
+  const stopSignFaceB = new THREE.Mesh(new THREE.PlaneGeometry(0.90, 0.52), stopSignMat);
   stopSignFaceB.position.set(-2.55, 2.45, -0.895);
   stopSignFaceB.rotation.y = Math.PI;
 
@@ -1197,9 +1143,9 @@ function buildTrotroStopAndVehicle(
   interactables.push({
     id: 'trotro_stop',
     assetId: 'ACC_PROP_001',
-    title: 'Neighborhood Trotro Stop (ACC_PROP_001)',
-    promptLabel: 'Inspect Trotro Stop & Van',
-    interactionResponse: 'ACC_PROP_001 / ACC_TROTRO_001: Osu-Circle Trotro Stop — Verified.',
+    title: 'Osu – Circle Trotro Station',
+    promptLabel: 'Check Trotro Route',
+    interactionResponse: 'Osu – Circle Trotro Stop — Commercial minibus boarding for Osu, Circle, and 37.',
     position: new THREE.Vector3(9.0, 0.14, 4.7),
     lookAtPosition: new THREE.Vector3(9.0, 0.14, 6.2),
     radius: 3.1
@@ -1331,9 +1277,9 @@ function buildAccraTrotroMinibus(): THREE.Group {
   bumperB.position.set(2.26, 0.42, 0);
   van.add(frontGrille, bumperF, bumperB);
 
-  const headlightMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
-  const amberMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
-  const tailLightMat = new THREE.MeshBasicMaterial({ color: 0xdc2626 });
+  const headlightMat = sharedArtLibrary.getBasicMaterial('emissive_lantern_globe', { color: 0xfef08a });
+  const amberMat = sharedArtLibrary.getBasicMaterial('emissive_blinker_amber', { color: 0xf59e0b });
+  const tailLightMat = sharedArtLibrary.getBasicMaterial('emissive_taillight_red', { color: 0xdc2626 });
   for (const hz of [-0.68, 0.68]) {
     const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.18, 0.26), headlightMat);
     lamp.position.set(-2.32, 0.72, hz);
@@ -1345,7 +1291,7 @@ function buildAccraTrotroMinibus(): THREE.Group {
   }
 
   // Ghanaian Yellow Commercial License Plate
-  const plateMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+  const plateMat = sharedArtLibrary.getBasicMaterial('env_road_edge', { color: 0xfacc15 });
   const plateF = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.12, 0.38), plateMat);
   plateF.position.set(-2.41, 0.42, 0);
   van.add(plateF);
@@ -1396,7 +1342,7 @@ function buildUtilityPole(
     color: 0x334155,
     roughness: 0.6
   });
-  const matBulb = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+  const matBulb = sharedArtLibrary.getBasicMaterial('emissive_lantern_globe', { color: 0xfef08a });
 
   // Tapered concrete ECG utility pole + protective base plinth collar
   const baseCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.45, 12), matConcrete);
@@ -1571,27 +1517,27 @@ function spawnPhase2TestNPCs(
       x: -6.1,
       z: -6.2,
       rotY: 0.35,
-      title: 'Kojo — Young Adult Male (NPC_MALE_001)',
+      title: 'Kojo · Neighborhood Creative',
       promptLabel: 'Greet Kojo',
-      response: 'Kojo (NPC_MALE_001): "Chale, good afternoon! Checking out the provision store."'
+      response: 'Kojo: "Chale, good afternoon! Just grabbing cold water and airtime at the provision store."'
     },
     {
       id: 'NPC_FEMALE_001',
       x: 11.4,
       z: -6.2,
       rotY: -0.45,
-      title: 'Ama — Young Adult Female (NPC_FEMALE_001)',
+      title: 'Ama · Young Professional',
       promptLabel: 'Greet Ama',
-      response: 'Ama (NPC_FEMALE_001): "Sister Akosua’s waakye is the best on this street!"'
+      response: 'Ama: "Sister Akosua’s waakye with plantain and shito is the best on this street!"'
     },
     {
       id: 'NPC_OLDER_001',
       x: 5.4,
       z: 5.4,
       rotY: 2.65,
-      title: 'Uncle Mensah — Older Adult (NPC_OLDER_001)',
+      title: 'Uncle Mensah · Community Elder',
       promptLabel: 'Greet Uncle Mensah',
-      response: 'Uncle Mensah (NPC_OLDER_001): "Peace be with you! The Osu trotro just pulled up."'
+      response: 'Uncle Mensah: "Peace be with you! The Osu–Circle trotro just pulled up at the curb."'
     }
   ];
 
