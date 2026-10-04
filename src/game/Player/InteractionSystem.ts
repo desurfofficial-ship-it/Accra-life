@@ -17,7 +17,12 @@ export interface InteractableTarget {
 export class InteractionSystem {
   private targets: InteractableTarget[] = [];
   private activeTarget: InteractableTarget | null = null;
+  private objectiveTargetId: string | null = null;
   private indicatorRing: THREE.Mesh;
+  private objectiveBeaconGroup: THREE.Group;
+  private objectiveRingMat: THREE.MeshBasicMaterial;
+  private objectiveDiamondMat: THREE.MeshBasicMaterial;
+  private objectiveDiamondMesh: THREE.Mesh;
   private pulseClock = 0;
   private lastInteractMs = 0;
   private readonly cooldownMs = 250;
@@ -48,6 +53,32 @@ export class InteractionSystem {
     this.indicatorRing.position.y = 0.24;
     scene.add(this.indicatorRing);
 
+    // 3D Active Job / Hustle Objective Waypoint Beacon
+    this.objectiveBeaconGroup = new THREE.Group();
+    this.objectiveBeaconGroup.visible = false;
+
+    const objRingGeo = new THREE.RingGeometry(0.92, 1.16, 32);
+    objRingGeo.rotateX(-Math.PI / 2);
+    this.objectiveRingMat = new THREE.MeshBasicMaterial({
+      color: 0x10b981,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.85
+    });
+    const objRingMesh = new THREE.Mesh(objRingGeo, this.objectiveRingMat);
+    objRingMesh.position.y = 0.02;
+
+    const diamondGeo = new THREE.OctahedronGeometry(0.24, 0);
+    this.objectiveDiamondMat = new THREE.MeshBasicMaterial({
+      color: 0x34d399
+    });
+    this.objectiveDiamondMesh = new THREE.Mesh(diamondGeo, this.objectiveDiamondMat);
+    this.objectiveDiamondMesh.position.y = 2.35;
+    this.objectiveDiamondMesh.scale.set(0.85, 1.35, 0.85);
+
+    this.objectiveBeaconGroup.add(objRingMesh, this.objectiveDiamondMesh);
+    scene.add(this.objectiveBeaconGroup);
+
     // Subscribe to single-press E / Enter via InputManager (key auto-repeat is filtered out)
     inputManager.onInteractPressed(() => {
       this.triggerCurrentInteraction();
@@ -58,8 +89,34 @@ export class InteractionSystem {
     this.targets.push(target);
   }
 
+  public getTargets(): ReadonlyArray<InteractableTarget> {
+    return this.targets;
+  }
+
   public getActiveTarget(): InteractableTarget | null {
     return this.activeTarget;
+  }
+
+  public setObjectiveTarget(targetId: string | null, isRisky = false): void {
+    this.objectiveTargetId = targetId;
+    if (!targetId) {
+      this.objectiveBeaconGroup.visible = false;
+      return;
+    }
+    const target = this.targets.find((t) => t.id === targetId);
+    if (!target) {
+      this.objectiveBeaconGroup.visible = false;
+      return;
+    }
+
+    this.objectiveRingMat.color.setHex(isRisky ? 0xef4444 : 0x10b981);
+    this.objectiveDiamondMat.color.setHex(isRisky ? 0xf87171 : 0x34d399);
+    this.objectiveBeaconGroup.position.set(
+      target.position.x,
+      Math.max(0.10, target.position.y),
+      target.position.z
+    );
+    this.objectiveBeaconGroup.visible = true;
   }
 
   public triggerCurrentInteraction(): boolean {
@@ -102,8 +159,6 @@ export class InteractionSystem {
             ? playerForward.x * (fdx / fLen) + playerForward.z * (fdz / fLen)
             : 1;
 
-        // Always allow interaction when standing directly on the ring (dist <= 1.15)
-        // or when generally facing the building/counter
         if (dist <= 1.15 || dot > -0.25) {
           const score = dist - dot * 0.65;
           if (score < bestScore) {
@@ -132,6 +187,13 @@ export class InteractionSystem {
       this.indicatorRing.scale.set(scale, 1, scale);
     } else {
       this.indicatorRing.visible = false;
+    }
+
+    if (this.objectiveBeaconGroup.visible && this.objectiveTargetId) {
+      const pulse = 1 + Math.sin(this.pulseClock * 1.15) * 0.1;
+      this.objectiveBeaconGroup.children[0].scale.set(pulse, 1, pulse);
+      this.objectiveDiamondMesh.position.y = 2.32 + Math.sin(this.pulseClock * 0.9) * 0.16;
+      this.objectiveDiamondMesh.rotation.y += dt * 2.2;
     }
   }
 }
