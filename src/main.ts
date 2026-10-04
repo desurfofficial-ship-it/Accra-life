@@ -8,9 +8,19 @@ import {
   User
 } from 'firebase/auth';
 import {
+  collection,
   doc,
   getDoc,
+  getDocs,
   setDoc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  writeBatch,
+  query,
+  limit,
+  onSnapshot,
+  Unsubscribe,
   Timestamp
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
@@ -56,7 +66,15 @@ Object.assign(window, {
   promptNewGame,
   saveGame,
   acceptInvite,
-  dismissInvite
+  dismissInvite,
+  addRealFriend,
+  visitRealFriend,
+  closeRealVisit,
+  sendMoneyToReal,
+  openFriendChat,
+  closeFriendChat,
+  sendFriendMessage,
+  chatFromVisitModal
 });
 
 // ===================== GAME DATA =====================
@@ -126,6 +144,26 @@ interface FriendNPC {
   routine: Record<number, string>;
 }
 
+interface RealFriend {
+  uid: string;
+  displayName: string;
+  addedAt?: unknown;
+  day?: number;
+  career?: string;
+  money?: number;
+  location?: string;
+}
+
+interface ChatMessageItem {
+  id: string;
+  senderId: string;
+  senderName: string;
+  recipientId: string;
+  text: string;
+  read: boolean;
+  createdAtMs: number;
+}
+
 const DEFAULT_FRIENDS: FriendNPC[] = [
   { id: 'ama', name: 'Ama', house: "Ama's Place (Adenta)", emoji: '🏡', money: 240, affinity: 42, mood: 'content', bio: 'Works in banking. Steady and caring.', status: 'at home', lastInteract: 0, timesVisited: 0, routine: { 0: 'at home', 1: 'at work', 2: 'at home', 3: 'sleeping' } },
   { id: 'kofi', name: 'Kofi', house: "Kofi's Spot (Tema)", emoji: '🏠', money: 160, affinity: 38, mood: 'focused', bio: 'Mechanic and side hustler. Very loyal.', status: 'at work', lastInteract: 0, timesVisited: 0, routine: { 0: 'at work', 1: 'at work', 2: 'at home', 3: 'sleeping' } },
@@ -148,7 +186,9 @@ interface GameState {
   health: number;
   visiting: string | null;
   pendingInvite: string | null;
+  visitingReal?: string | null;
   friends: FriendNPC[];
+  realFriends?: RealFriend[];
   log: string[];
   version: number;
 }
@@ -163,11 +203,26 @@ interface AccountInfo {
 let account: AccountInfo = { playerId: null, displayName: null, isGuest: true, uid: null };
 let state: GameState | null = null;
 let currentUser: User | null = null;
+let realVisitTarget: RealFriend | null = null;
+let activeChatFriend: { uid: string; displayName: string } | null = null;
+let activeChatUnsub: Unsubscribe | null = null;
+let inboxUnsub: Unsubscribe | null = null;
+const unreadByFriend: Record<string, number> = {};
+
 const TIME = ['Morning', 'Afternoon', 'Evening', 'Night'];
 let sendTarget: string | null = null;
 let authMode: 'signup' | 'login' = 'signup';
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 let authSyncLock = false;
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 function setCloudStatus(msg: string, cls: 'on' | 'off' | 'err'): void {
   const el = document.getElementById('cloudStatus');
@@ -196,7 +251,9 @@ function createDefaultState(name?: string | null): GameState {
     health: 90,
     visiting: null,
     pendingInvite: null,
+    visitingReal: null,
     friends: JSON.parse(JSON.stringify(DEFAULT_FRIENDS)),
+    realFriends: [],
     log: [`Welcome ${safeName}. This is your life in Accra.`],
     version: 4
   };
@@ -362,6 +419,7 @@ async function loadCloudSave(uid: string): Promise<boolean> {
       const data = snap.data();
       if (data && data.state && typeof data.state === 'object') {
         state = data.state as GameState;
+        if (!state.realFriends) state.realFriends = [];
         localStorage.setItem('lifeInAccra_state', JSON.stringify(state));
         return true;
       } else if (data && typeof data.money === 'number' && typeof data.day === 'number') {
@@ -420,6 +478,9 @@ async function cloudSave(): Promise<boolean> {
       displayName: safeDisplayName,
       day: safeDay,
       career: safeCareer,
+      money: Math.max(0, Math.round(Number(state.money) || 0)),
+      location: state.location || 'home',
+      lastActive: nowTs,
       updatedAt: nowTs
     });
   } catch (error) {
@@ -460,7 +521,16 @@ function importSave(): void {
 function enterGame(): void {
   document.getElementById('authScreen')?.classList.add('hidden');
   document.getElementById('gameApp')?.classList.remove('hidden');
+  const canAdd = Boolean(currentUser);
+  const addRow = document.getElementById('addFriendRow');
+  const realLabel = document.getElementById('realFriendsLabel');
+  if (addRow) addRow.style.display = canAdd ? 'flex' : 'none';
+  if (realLabel) realLabel.style.display = canAdd ? 'block' : 'none';
   updateFriendStatuses();
+  if (canAdd) {
+    loadRealFriends();
+    startInboxListener();
+  }
   render();
 }
 
@@ -497,6 +567,11 @@ function exportSave(): void {
 }
 
 async function signOutUser(): Promise<void> {
+  closeFriendChat();
+  if (inboxUnsub) {
+    inboxUnsub();
+    inboxUnsub = null;
+  }
   try {
     await fbSignOut(auth);
   } catch (e) {
@@ -510,6 +585,464 @@ async function signOutUser(): Promise<void> {
   document.getElementById('gameApp')?.classList.add('hidden');
   document.getElementById('authScreen')?.classList.remove('hidden');
   toast('Signed out');
+}
+
+// ===================== REAL PLAYERS & REAL-TIME CHAT =====================
+function getChatId(uid1: string, uid2: string): string {
+  return [uid1, uid2].sort().join('_');
+}
+
+async function loadRealFriends(): Promise<void> {
+  if (!currentUser || !state) return;
+  try {
+    const friendsRef = collection(db, 'players', currentUser.uid, 'friends');
+    const snap = await getDocs(friendsRef);
+    const list: RealFriend[] = [];
+    snap.forEach(docSnap => {
+      const data = docSnap.data();
+      list.push({
+        uid: docSnap.id,
+        displayName: typeof data.displayName === 'string' ? data.displayName : 'Player',
+        addedAt: data.addedAt
+      });
+    });
+
+    for (const f of list) {
+      try {
+        const pSnap = await getDoc(doc(db, 'profiles', f.uid));
+        if (pSnap.exists()) {
+          const d = pSnap.data();
+          if (typeof d.displayName === 'string') f.displayName = d.displayName;
+          if (typeof d.day === 'number') f.day = d.day;
+          if (typeof d.career === 'string') f.career = d.career;
+          if (typeof d.money === 'number') f.money = d.money;
+          if (typeof d.location === 'string') f.location = d.location;
+        }
+      } catch {
+        // Ignore single profile read error
+      }
+    }
+
+    state.realFriends = list;
+    renderRealFriends();
+  } catch (e) {
+    console.error('loadRealFriends', e);
+  }
+}
+
+function renderRealFriends(): void {
+  const el = document.getElementById('realFriendsList');
+  if (!el || !state) return;
+  const list = state.realFriends || [];
+  if (!list.length) {
+    el.innerHTML = currentUser
+      ? '<div style="font-size:.8rem;color:var(--muted);padding:4px 0">Add players by ID or name</div>'
+      : '';
+    return;
+  }
+  el.innerHTML = list.map(f => {
+    const isChatting = activeChatFriend?.uid === f.uid;
+    const unread = unreadByFriend[f.uid] || 0;
+    const safeName = escapeHtml(f.displayName);
+    const badgeHtml = unread > 0 ? `<span class="unread-badge">${unread}</span>` : '';
+    return `
+      <div class="real-friend-card ${isChatting ? 'active-chat' : ''}">
+        <div class="real-friend-top">
+          <span>👤</span>
+          <strong>${safeName}</strong>${badgeHtml}
+          <span class="meta">Day ${f.day || '?'} · ${escapeHtml(f.career || 'resident')}</span>
+        </div>
+        <div class="real-friend-actions">
+          <button onclick="openFriendChat('${escapeHtml(f.uid)}')">💬 Chat${unread > 0 ? ` (${unread})` : ''}</button>
+          <button onclick="visitRealFriend('${escapeHtml(f.uid)}')">🏠 Visit</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function openFriendChat(friendUid: string): void {
+  if (!currentUser || !state) {
+    toast('Sign in to message friends');
+    return;
+  }
+  const friendObj = (state.realFriends || []).find(f => f.uid === friendUid);
+  const friendName = friendObj?.displayName || realVisitTarget?.displayName || 'Friend';
+
+  activeChatFriend = { uid: friendUid, displayName: friendName };
+  unreadByFriend[friendUid] = 0;
+  renderRealFriends();
+
+  const chatBox = document.getElementById('friendChatBox');
+  const chatTitle = document.getElementById('friendChatTitle');
+  const chatMessages = document.getElementById('friendChatMessages');
+  const chatInput = document.getElementById('friendChatInput') as HTMLInputElement | null;
+
+  if (chatTitle) chatTitle.textContent = `Chat with ${friendName}`;
+  if (chatBox) chatBox.classList.add('show');
+  if (chatMessages) {
+    chatMessages.innerHTML = '<div style="color:var(--muted);font-size:.78rem;text-align:center;padding:12px 0">Loading messages...</div>';
+  }
+  if (chatInput) chatInput.focus();
+
+  if (activeChatUnsub) {
+    activeChatUnsub();
+    activeChatUnsub = null;
+  }
+
+  const chatId = getChatId(currentUser.uid, friendUid);
+  const messagesPath = `chats/${chatId}/messages`;
+  const messagesRef = collection(db, 'chats', chatId, 'messages');
+
+  activeChatUnsub = onSnapshot(
+    messagesRef,
+    (snapshot) => {
+      const items: ChatMessageItem[] = [];
+      snapshot.forEach(docSnap => {
+        const d = docSnap.data();
+        const isRead = Boolean(d.read);
+        const recipientId = String(d.recipientId || '');
+        if (currentUser && recipientId === currentUser.uid && !isRead) {
+          updateDoc(docSnap.ref, {
+            read: true,
+            readAt: Timestamp.now()
+          }).catch(err => console.error('Failed to mark message read', err));
+        }
+        items.push({
+          id: docSnap.id,
+          senderId: String(d.senderId || ''),
+          senderName: String(d.senderName || 'Player'),
+          recipientId,
+          text: String(d.text || ''),
+          read: isRead,
+          createdAtMs: typeof d.createdAtMs === 'number' ? d.createdAtMs : 0
+        });
+      });
+
+      items.sort((a, b) => a.createdAtMs - b.createdAtMs);
+      renderChatMessages(items);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.LIST, messagesPath);
+    }
+  );
+}
+
+function renderChatMessages(items: ChatMessageItem[]): void {
+  const container = document.getElementById('friendChatMessages');
+  if (!container || !currentUser) return;
+
+  if (!items.length) {
+    container.innerHTML = '<div style="color:var(--muted);font-size:.78rem;text-align:center;padding:18px 6px">No messages yet. Say hello! 👋</div>';
+    return;
+  }
+
+  container.innerHTML = items.map(msg => {
+    const isMine = msg.senderId === currentUser!.uid;
+    const timeStr = msg.createdAtMs
+      ? new Date(msg.createdAtMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : '';
+    const seenClass = isMine && msg.read ? ' seen' : '';
+    const receiptHtml = isMine
+      ? `<span class="read-status ${msg.read ? 'seen' : 'unseen'}" title="${msg.read ? 'Seen by recipient' : 'Sent'}">${msg.read ? '✓✓ Seen' : '✓ Sent'}</span>`
+      : '';
+    return `
+      <div class="chat-msg ${isMine ? 'mine' : 'theirs'}${seenClass}">
+        <div>${escapeHtml(msg.text)}</div>
+        <div class="chat-msg-meta">
+          <span>${isMine ? 'You' : escapeHtml(msg.senderName)}${timeStr ? ` · ${timeStr}` : ''}</span>
+          ${receiptHtml}
+        </div>
+      </div>`;
+  }).join('');
+
+  container.scrollTop = container.scrollHeight;
+}
+
+function closeFriendChat(): void {
+  if (activeChatUnsub) {
+    activeChatUnsub();
+    activeChatUnsub = null;
+  }
+  activeChatFriend = null;
+  document.getElementById('friendChatBox')?.classList.remove('show');
+  renderRealFriends();
+}
+
+function chatFromVisitModal(): void {
+  if (!realVisitTarget) return;
+  const uid = realVisitTarget.uid;
+  closeRealVisit();
+  openFriendChat(uid);
+}
+
+async function sendFriendMessage(): Promise<void> {
+  if (!currentUser || !activeChatFriend || !state) {
+    toast('Select a friend to message');
+    return;
+  }
+  const input = document.getElementById('friendChatInput') as HTMLInputElement | null;
+  const text = (input?.value || '').trim();
+  if (!text) return;
+  if (text.length > 500) {
+    toast('Message too long (max 500 chars)');
+    return;
+  }
+
+  if (input) input.value = '';
+
+  const chatId = getChatId(currentUser.uid, activeChatFriend.uid);
+  const messagesPath = `chats/${chatId}/messages`;
+  const senderName = (account.displayName || state.name || 'Player').slice(0, 64);
+  const nowMs = Date.now();
+
+  try {
+    await addDoc(collection(db, 'chats', chatId, 'messages'), {
+      chatId,
+      senderId: currentUser.uid,
+      senderName,
+      recipientId: activeChatFriend.uid,
+      text,
+      read: false,
+      createdAtMs: nowMs,
+      createdAt: Timestamp.now()
+    });
+
+    // Also drop a real-time notification in recipient's inbox so they get a live toast/unread badge
+    try {
+      await addDoc(collection(db, 'players', activeChatFriend.uid, 'inbox'), {
+        from: currentUser.uid,
+        fromName: senderName,
+        text: text.slice(0, 120),
+        type: 'chat',
+        createdAt: Timestamp.now()
+      });
+    } catch {
+      // Non-fatal if inbox notification fails
+    }
+
+    change('social', 2);
+    render();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, messagesPath);
+  }
+}
+
+function startInboxListener(): void {
+  if (!currentUser) return;
+  if (inboxUnsub) {
+    inboxUnsub();
+    inboxUnsub = null;
+  }
+
+  const inboxRef = collection(db, 'players', currentUser.uid, 'inbox');
+  inboxUnsub = onSnapshot(
+    inboxRef,
+    async (snapshot) => {
+      if (!currentUser || !state || snapshot.empty) return;
+      let totalMoney = 0;
+      const docsToDelete: typeof snapshot.docs = [];
+
+      snapshot.docs.forEach(docSnap => {
+        const d = docSnap.data();
+        if (d.type === 'money' && typeof d.amount === 'number' && d.amount > 0) {
+          totalMoney += d.amount;
+          docsToDelete.push(docSnap);
+        } else if (d.type === 'chat' && typeof d.from === 'string') {
+          const senderUid = d.from;
+          const senderName = typeof d.fromName === 'string' ? d.fromName : 'Friend';
+          const preview = typeof d.text === 'string' ? d.text : 'Sent a message';
+          if (activeChatFriend?.uid !== senderUid) {
+            unreadByFriend[senderUid] = (unreadByFriend[senderUid] || 0) + 1;
+            toast(`💬 ${senderName}: ${preview}`);
+            log(`Message from ${senderName}: "${preview}"`);
+            renderRealFriends();
+          }
+          docsToDelete.push(docSnap);
+        }
+      });
+
+      for (const docSnap of docsToDelete) {
+        try {
+          await deleteDoc(docSnap.ref);
+        } catch (e) {
+          console.error('Failed to clear inbox item', e);
+        }
+      }
+
+      if (totalMoney > 0) {
+        change('money', totalMoney);
+        log(`Received ₵${totalMoney} from other players`);
+        toast(`You received ₵${totalMoney}`);
+        await cloudSave();
+        render();
+      }
+    },
+    (error) => {
+      console.error('Inbox listener error', error);
+    }
+  );
+}
+
+async function addRealFriend(): Promise<void> {
+  if (!currentUser) {
+    toast('Sign in to add real players');
+    return;
+  }
+  const input = document.getElementById('addFriendInput') as HTMLInputElement | null;
+  const q = (input?.value || '').trim();
+  if (!q || q.length < 2) {
+    toast('Enter a name or player ID');
+    return;
+  }
+  if (q === currentUser.uid || q.toLowerCase() === (account.displayName || '').toLowerCase()) {
+    toast("That's you");
+    return;
+  }
+
+  try {
+    let targetUid: string | null = null;
+    let targetName: string | null = null;
+
+    const directProf = await getDoc(doc(db, 'profiles', q));
+    if (directProf.exists()) {
+      targetUid = q;
+      targetName = (directProf.data().displayName as string) || q;
+    } else {
+      const allSnap = await getDocs(query(collection(db, 'profiles'), limit(50)));
+      const matchDoc = allSnap.docs.find(d => String(d.data().displayName || '').toLowerCase() === q.toLowerCase());
+      if (matchDoc) {
+        targetUid = matchDoc.id;
+        targetName = String(matchDoc.data().displayName || matchDoc.id);
+      }
+    }
+
+    if (!targetUid || !targetName) {
+      toast('Player not found. They must have created an account and saved once.');
+      return;
+    }
+
+    await setDoc(doc(db, 'players', currentUser.uid, 'friends', targetUid), {
+      displayName: targetName,
+      addedAt: Timestamp.now()
+    });
+
+    if (input) input.value = '';
+    toast(`Added ${targetName}`);
+    await loadRealFriends();
+  } catch (e: unknown) {
+    console.error(e);
+    const err = e as { code?: string };
+    toast(err.code === 'permission-denied' ? 'Permission denied — check rules' : 'Could not add friend');
+  }
+}
+
+async function visitRealFriend(uid: string): Promise<void> {
+  if (!state) return;
+  try {
+    const profSnap = await getDoc(doc(db, 'profiles', uid));
+    if (!profSnap.exists()) {
+      toast('Player profile not found');
+      return;
+    }
+    const d = profSnap.data();
+    realVisitTarget = {
+      uid,
+      displayName: String(d.displayName || 'Player'),
+      day: typeof d.day === 'number' ? d.day : undefined,
+      career: typeof d.career === 'string' ? d.career : undefined,
+      money: typeof d.money === 'number' ? d.money : undefined,
+      location: typeof d.location === 'string' ? d.location : undefined
+    };
+    const titleEl = document.getElementById('realVisitTitle');
+    const bodyEl = document.getElementById('realVisitBody');
+    const amtInput = document.getElementById('realSendAmountInput') as HTMLInputElement | null;
+    if (titleEl) titleEl.textContent = `${realVisitTarget.displayName}'s Place`;
+    if (bodyEl) {
+      bodyEl.innerHTML = `
+        <strong>${escapeHtml(realVisitTarget.displayName)}</strong><br>
+        Day ${realVisitTarget.day ?? '—'} · ${escapeHtml(realVisitTarget.career || 'Unknown career')}<br>
+        Wallet (public): ₵${realVisitTarget.money ?? '—'}<br>
+        Last area: ${escapeHtml(realVisitTarget.location || '—')}<br><br>
+        You're visiting their house.`;
+    }
+    if (amtInput) amtInput.value = '';
+    document.getElementById('realVisitModal')?.classList.add('show');
+    change('social', 6);
+    log(`Visited ${realVisitTarget.displayName}'s place`);
+    render();
+  } catch (e) {
+    console.error(e);
+    toast('Could not load player');
+  }
+}
+
+function closeRealVisit(): void {
+  document.getElementById('realVisitModal')?.classList.remove('show');
+  realVisitTarget = null;
+}
+
+async function sendMoneyToReal(): Promise<void> {
+  if (!realVisitTarget || !currentUser || !state) {
+    toast('Not available');
+    return;
+  }
+  const amtInput = document.getElementById('realSendAmountInput') as HTMLInputElement | null;
+  const amt = Math.floor(Number(amtInput?.value || 0));
+  if (!amt || amt < 1) {
+    toast('Enter an amount in ₵');
+    return;
+  }
+  if (amt > state.money) {
+    toast('Not enough ₵');
+    return;
+  }
+
+  try {
+    state.money -= amt;
+    await addDoc(collection(db, 'players', realVisitTarget.uid, 'inbox'), {
+      from: currentUser.uid,
+      fromName: account.displayName || state.name || 'Player',
+      amount: amt,
+      type: 'money',
+      createdAt: Timestamp.now()
+    });
+    await cloudSave();
+    if (amtInput) amtInput.value = '';
+    log(`Sent ₵${amt} to ${realVisitTarget.displayName}`);
+    toast(`Sent ₵${amt} to ${realVisitTarget.displayName}`);
+    render();
+  } catch (e) {
+    state.money += amt;
+    console.error(e);
+    toast('Transfer failed');
+  }
+}
+
+async function claimInbox(): Promise<void> {
+  if (!currentUser || !state) return;
+  try {
+    const inboxRef = collection(db, 'players', currentUser.uid, 'inbox');
+    const snap = await getDocs(inboxRef);
+    let total = 0;
+    const batch = writeBatch(db);
+    snap.docs.forEach(docSnap => {
+      const d = docSnap.data();
+      if (d.type === 'money' && typeof d.amount === 'number' && d.amount > 0) {
+        total += d.amount;
+        batch.delete(docSnap.ref);
+      }
+    });
+    if (total > 0) {
+      await batch.commit();
+      change('money', total);
+      log(`Received ₵${total} from other players`);
+      toast(`You received ₵${total}`);
+      await cloudSave();
+      render();
+    }
+  } catch (e) {
+    console.error('inbox', e);
+  }
 }
 
 // ===================== HELPERS =====================
@@ -750,8 +1283,10 @@ function render(): void {
 
   const logEl = document.getElementById('log');
   if (logEl) {
-    logEl.innerHTML = state.log.slice(0, 9).map(e => `<div class="log-entry">${e}</div>`).join('') || "<div class='log-entry'>Your life begins...</div>";
+    logEl.innerHTML = state.log.slice(0, 9).map(e => `<div class="log-entry">${escapeHtml(e)}</div>`).join('') || "<div class='log-entry'>Your life begins...</div>";
   }
+
+  renderRealFriends();
 }
 
 function doAction(key: string): void {
@@ -962,7 +1497,7 @@ function showSummary(): void {
   const top = state.friends.slice().sort((a, b) => b.affinity - a.affinity).map(f => `${f.name} (${f.affinity} — ${milestoneText(f.affinity)})`).join('<br>');
   const summaryBody = document.getElementById('summaryBody');
   if (summaryBody) {
-    summaryBody.innerHTML = `<strong>${state.name}</strong><br>Day ${state.day} • ${c.name}<br><br>Wallet: ₵${state.money}<br>Hunger ${state.hunger} • Energy ${state.energy}<br>Happy ${state.happy} • Social ${state.social} • Health ${state.health}<br><br><strong>Friendships</strong><br>${top}`;
+    summaryBody.innerHTML = `<strong>${escapeHtml(state.name)}</strong><br>Day ${state.day} • ${c.name}<br><br>Wallet: ₵${state.money}<br>Hunger ${state.hunger} • Energy ${state.energy}<br>Happy ${state.happy} • Social ${state.social} • Health ${state.health}<br><br><strong>Friendships</strong><br>${top}`;
   }
   document.getElementById('summaryModal')?.classList.add('show');
 }
@@ -982,49 +1517,13 @@ async function saveGame(): Promise<void> {
   localStorage.setItem('lifeInAccra_account', JSON.stringify(account));
   localStorage.setItem('lifeInAccra_state', JSON.stringify(state));
   if (currentUser) {
+    await claimInbox();
     const ok = await cloudSave();
     toast(ok ? 'Saved (local + cloud)' : 'Saved locally (cloud failed)');
   } else {
     toast('Saved locally');
   }
 }
-
-Object.assign(window, {
-  continueAsGuest,
-  showEmailAuth,
-  closeEmailModal,
-  submitEmailAuth,
-  signInWithGoogle,
-  showImport,
-  closeImport,
-  importSave,
-  showAccount,
-  closeAccount,
-  exportSave,
-  signOutUser,
-  doAction,
-  travel,
-  visitFriend,
-  leaveFriend,
-  chatFriend,
-  hangOut,
-  eatTogether,
-  deepTalk,
-  askFavor,
-  openSend,
-  closeSendModal,
-  confirmSend,
-  workShift,
-  showCareerModal,
-  closeCareerModal,
-  setCareer,
-  showSummary,
-  closeSummary,
-  promptNewGame,
-  saveGame,
-  acceptInvite,
-  dismissInvite
-});
 
 // ===================== INIT =====================
 setCloudStatus(`Cloud: connected (${firebaseConfig.firestoreDatabaseId})`, 'on');

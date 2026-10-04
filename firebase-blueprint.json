@@ -7,33 +7,119 @@
       "properties": {
         "ownerId": {
           "type": "string",
-          "description": "Firebase Auth UID of the player.",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_-]+$"
+          "description": "Firebase Auth UID of the player."
         },
         "displayName": {
           "type": "string",
-          "description": "Player display name.",
-          "minLength": 1,
-          "maxLength": 64
+          "description": "Player display name."
         },
         "state": {
           "type": "object",
-          "description": "Structured game state map containing stats, career, location, friends, and log."
+          "description": "Structured game state map."
         },
         "updatedAt": {
           "type": "string",
           "format": "date-time",
-          "description": "Server timestamp when save was last updated."
+          "description": "Timestamp when save was last updated."
         }
       },
-      "required": [
-        "ownerId",
-        "displayName",
-        "state",
-        "updatedAt"
-      ]
+      "required": ["displayName", "state", "updatedAt"]
+    },
+    "FriendEntry": {
+      "title": "FriendEntry",
+      "description": "A real player added to a player's friends subcollection.",
+      "type": "object",
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "description": "Friend display name."
+        },
+        "addedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when friend was added."
+        }
+      },
+      "required": ["displayName"]
+    },
+    "InboxMessage": {
+      "title": "InboxMessage",
+      "description": "Incoming money transfer or chat notification in a player's inbox subcollection.",
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "description": "Sender UID."
+        },
+        "fromName": {
+          "type": "string",
+          "description": "Sender display name."
+        },
+        "amount": {
+          "type": "integer",
+          "description": "Amount of ₵ transferred (for money type)."
+        },
+        "text": {
+          "type": "string",
+          "description": "Message preview (for chat type)."
+        },
+        "type": {
+          "type": "string",
+          "description": "Message type (money or chat)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when item was created."
+        }
+      },
+      "required": ["from", "type"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Real-time text message between two added friends.",
+      "type": "object",
+      "properties": {
+        "chatId": {
+          "type": "string",
+          "description": "Deterministic sorted UID pair (uidA_uidB)."
+        },
+        "senderId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the message sender."
+        },
+        "senderName": {
+          "type": "string",
+          "description": "Display name of the message sender."
+        },
+        "recipientId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the message recipient."
+        },
+        "text": {
+          "type": "string",
+          "description": "Message text content (1-500 characters)."
+        },
+        "read": {
+          "type": "boolean",
+          "description": "Whether the message has been seen by the recipient."
+        },
+        "readAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the message was marked as read."
+        },
+        "createdAtMs": {
+          "type": "integer",
+          "description": "Epoch milliseconds for ordering."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when message was sent."
+        }
+      },
+      "required": ["senderId", "senderName", "recipientId", "text", "read", "createdAtMs"]
     },
     "Profile": {
       "title": "Profile",
@@ -42,16 +128,11 @@
       "properties": {
         "ownerId": {
           "type": "string",
-          "description": "Firebase Auth UID of the resident.",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_-]+$"
+          "description": "Firebase Auth UID of the resident."
         },
         "displayName": {
           "type": "string",
-          "description": "Resident display name.",
-          "minLength": 1,
-          "maxLength": 64
+          "description": "Resident display name."
         },
         "day": {
           "type": "integer",
@@ -59,29 +140,46 @@
         },
         "career": {
           "type": "string",
-          "description": "Resident current career.",
-          "enum": ["unemployed", "trader", "developer", "teacher", "musician", "driver", "student"],
-          "maxLength": 32
+          "description": "Resident current career."
+        },
+        "money": {
+          "type": "integer",
+          "description": "Public wallet balance."
+        },
+        "location": {
+          "type": "string",
+          "description": "Last known area in Accra."
+        },
+        "lastActive": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last active timestamp."
         },
         "updatedAt": {
           "type": "string",
           "format": "date-time",
-          "description": "Server timestamp when profile was last updated."
+          "description": "Last updated timestamp."
         }
       },
-      "required": [
-        "ownerId",
-        "displayName",
-        "day",
-        "career",
-        "updatedAt"
-      ]
+      "required": ["displayName", "day", "career"]
     }
   },
   "firestore": {
     "/players/{userId}": {
       "schema": "Player",
       "description": "Private cloud game saves keyed by Firebase Auth UID."
+    },
+    "/players/{userId}/friends/{friendId}": {
+      "schema": "FriendEntry",
+      "description": "Real player friends list for a player."
+    },
+    "/players/{userId}/inbox/{msgId}": {
+      "schema": "InboxMessage",
+      "description": "Incoming player-to-player transfers and notifications."
+    },
+    "/chats/{chatId}/messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Real-time direct messages between two friends."
     },
     "/profiles/{userId}": {
       "schema": "Profile",

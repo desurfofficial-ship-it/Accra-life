@@ -22,7 +22,9 @@
         'openSend', 'closeSendModal', 'confirmSend', 'workShift',
         'showCareerModal', 'closeCareerModal', 'setCareer',
         'showSummary', 'closeSummary', 'promptNewGame', 'saveGame',
-        'acceptInvite', 'dismissInvite'
+        'acceptInvite', 'dismissInvite',
+        'addRealFriend', 'visitRealFriend', 'closeRealVisit', 'sendMoneyToReal',
+        'openFriendChat', 'closeFriendChat', 'sendFriendMessage', 'chatFromVisitModal'
       ];
       fns.forEach(function(name) {
         if (typeof window[name] !== 'function') {
@@ -59,7 +61,7 @@
     .stat-bar-fill{height:100%;border-radius:3px;transition:width .35s}.money .stat-value{color:var(--accent)}
     .hunger .stat-bar-fill{background:#f97316}.energy .stat-bar-fill{background:#3b82f6}.happy .stat-bar-fill{background:#ec4899}
     .social .stat-bar-fill{background:#8b5cf6}.health .stat-bar-fill{background:var(--green)}
-    .main{display:grid;grid-template-columns:1fr;gap:14px}@media(min-width:900px){.main{grid-template-columns:1fr 300px}}
+    .main{display:grid;grid-template-columns:1fr;gap:14px}@media(min-width:900px){.main{grid-template-columns:1fr 320px}}
     .location-card{background:var(--surface);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);margin-bottom:12px}
     .location-emoji{font-size:2.2rem}.location-name{font-size:1.3rem;font-weight:600}.location-desc{color:var(--muted);font-size:.9rem;margin-top:4px}
     .panel{background:var(--surface);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);margin-bottom:12px}
@@ -72,6 +74,29 @@
     .loc-btn,.friend-btn{background:var(--surface2);text-align:left;padding:10px 12px;border-radius:10px;display:flex;align-items:center;gap:8px;font-size:.9rem}
     .loc-btn.active,.friend-btn.active{background:var(--accent);color:#111;font-weight:600}
     .friend-btn .meta{margin-left:auto;font-size:.75rem;color:var(--muted);text-align:right;line-height:1.3}
+    .real-friend-card{background:var(--surface2);border-radius:10px;padding:9px 11px;display:flex;flex-direction:column;gap:7px;border:1px solid transparent;transition:.18s}
+    .real-friend-card.active-chat{border-color:var(--accent)}
+    .real-friend-top{display:flex;align-items:center;gap:8px;font-size:.9rem}
+    .real-friend-top .meta{margin-left:auto;font-size:.72rem;color:var(--muted);text-align:right;line-height:1.25}
+    .real-friend-actions{display:flex;gap:6px}
+    .real-friend-actions button{flex:1;padding:6px 8px;font-size:.78rem;border-radius:8px;background:var(--bg)}
+    .real-friend-actions button:hover{background:var(--accent);color:#111}
+    .unread-badge{background:var(--accent);color:#111;font-size:.68rem;font-weight:700;padding:1px 6px;border-radius:999px;margin-left:4px}
+    .friend-chat-box{margin-top:10px;background:var(--bg);border:1px solid var(--surface2);border-radius:12px;padding:10px;display:none;flex-direction:column;gap:8px}
+    .friend-chat-box.show{display:flex}
+    .friend-chat-header{display:flex;justify-content:space-between;align-items:center;font-size:.82rem;font-weight:600;padding-bottom:6px;border-bottom:1px solid var(--surface2)}
+    .friend-chat-header .live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:6px}
+    .friend-chat-messages{display:flex;flex-direction:column;gap:6px;max-height:190px;min-height:110px;overflow-y:auto;padding:4px 2px;font-size:.82rem}
+    .chat-msg{max-width:85%;padding:7px 10px;border-radius:10px;line-height:1.35;word-break:break-word;transition:background .25s,box-shadow .25s}
+    .chat-msg.mine{align-self:flex-end;background:#d97706;color:#111;border-bottom-right-radius:3px}
+    .chat-msg.mine.seen{background:var(--accent);box-shadow:0 0 0 1px rgba(16,185,129,.55)}
+    .chat-msg.theirs{align-self:flex-start;background:var(--surface2);color:var(--text);border-bottom-left-radius:3px}
+    .chat-msg-meta{font-size:.66rem;opacity:.85;margin-top:3px;display:flex;align-items:center;justify-content:space-between;gap:6px}
+    .read-status{display:inline-flex;align-items:center;gap:2px;font-weight:600;font-size:.64rem;padding:1px 5px;border-radius:999px;transition:.25s}
+    .read-status.unseen{color:rgba(17,17,17,.65)}
+    .read-status.seen{background:rgba(6,95,70,.16);color:#064e3b}
+    .friend-chat-input-row{display:flex;gap:6px}
+    .friend-chat-input-row input{flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--surface2);background:var(--surface);color:var(--text);font-family:inherit;font-size:.84rem}
     .log{max-height:160px;overflow-y:auto;font-size:.82rem}.log-entry{padding:5px 0;border-bottom:1px solid var(--surface2);color:var(--muted)}
     .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface2);padding:11px 20px;border-radius:12px;box-shadow:var(--shadow);opacity:0;transition:.3s;z-index:200;font-weight:500;font-size:.9rem;max-width:90%;text-align:center}.toast.show{opacity:1}
     .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:150;padding:16px}.modal-overlay.show{display:flex}
@@ -94,6 +119,9 @@
     .hidden{display:none!important}
     .cloud-status{font-size:.8rem;margin-top:12px;padding:8px 12px;border-radius:8px;background:var(--surface2)}
     .cloud-status.on{color:var(--green)}.cloud-status.off{color:var(--muted)}.cloud-status.err{color:var(--danger)}
+    .add-friend-row{display:flex;gap:6px;margin-bottom:8px}
+    .add-friend-row input{flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--surface2);background:var(--bg);color:var(--text);font-family:inherit;font-size:.85rem}
+    .section-label{font-size:.7rem;color:var(--muted);text-transform:uppercase;margin:8px 0 4px;letter-spacing:.4px}
   </style>
 </head>
 <body>
@@ -159,7 +187,30 @@
       </div>
       <div class="sidebar">
         <div class="panel"><h3>Travel</h3><div class="locations-list" id="locationsList"></div></div>
-        <div class="panel"><h3>Friends</h3><div class="friends-list" id="friendsList"></div></div>
+        <div class="panel">
+          <h3>Friends</h3>
+          <div class="add-friend-row" id="addFriendRow" style="display:none">
+            <input type="text" id="addFriendInput" placeholder="Player ID or name" />
+            <button class="small primary" onclick="addRealFriend()">Add</button>
+          </div>
+          <div class="section-label" id="realFriendsLabel" style="display:none">Players</div>
+          <div class="friends-list" id="realFriendsList"></div>
+
+          <div class="friend-chat-box" id="friendChatBox">
+            <div class="friend-chat-header">
+              <div><span class="live-dot"></span><span id="friendChatTitle">Chat</span></div>
+              <button class="small" style="padding:3px 8px;font-size:.75rem" onclick="closeFriendChat()">✕</button>
+            </div>
+            <div class="friend-chat-messages" id="friendChatMessages"></div>
+            <div class="friend-chat-input-row">
+              <input type="text" id="friendChatInput" placeholder="Write a message..." maxlength="500" onkeydown="if(event.key==='Enter')sendFriendMessage()" />
+              <button class="small primary" onclick="sendFriendMessage()">Send</button>
+            </div>
+          </div>
+
+          <div class="section-label">NPCs</div>
+          <div class="friends-list" id="friendsList"></div>
+        </div>
         <div class="panel"><h3>Life Log</h3><div class="log" id="log"></div></div>
       </div>
     </div>
@@ -235,6 +286,19 @@
       <h2>Life Summary</h2>
       <div id="summaryBody" style="color:var(--muted);font-size:.95rem;line-height:1.6;margin-bottom:16px"></div>
       <div class="modal-actions"><button onclick="closeSummary()">Close</button></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="realVisitModal">
+    <div class="modal">
+      <h2 id="realVisitTitle">Player House</h2>
+      <div id="realVisitBody" style="color:var(--muted);font-size:.95rem;line-height:1.6;margin-bottom:16px"></div>
+      <input type="number" id="realSendAmountInput" placeholder="Amount in ₵ to send" min="1" />
+      <div class="modal-actions" style="flex-wrap:wrap;gap:8px">
+        <button class="primary" onclick="sendMoneyToReal()">Send Money</button>
+        <button onclick="chatFromVisitModal()">💬 Message</button>
+        <button onclick="closeRealVisit()">Leave</button>
+      </div>
     </div>
   </div>
 
