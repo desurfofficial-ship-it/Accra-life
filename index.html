@@ -2,311 +2,291 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Life in Accra</title>
   <meta name="description" content="Live your story in Accra. Visit friends, build relationships, send money." />
   <meta property="og:title" content="Life in Accra" />
   <meta property="og:description" content="Live your story in Accra. Visit friends, build relationships, send money." />
-  <meta name="theme-color" content="#0c1017" />
-  <link rel="modulepreload" href="/src/main.ts" />
-  <link rel="modulepreload" href="/src/firebase.ts" />
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script>
-    (function() {
-      var fns = [
-        'continueAsGuest', 'showEmailAuth', 'closeEmailModal', 'submitEmailAuth',
-        'signInWithGoogle', 'showImport', 'closeImport', 'importSave',
-        'showAccount', 'closeAccount', 'exportSave', 'signOutUser',
-        'doAction', 'travel', 'visitFriend', 'leaveFriend',
-        'chatFriend', 'hangOut', 'eatTogether', 'deepTalk', 'askFavor',
-        'openSend', 'closeSendModal', 'confirmSend', 'workShift',
-        'showCareerModal', 'closeCareerModal', 'setCareer',
-        'showSummary', 'closeSummary', 'promptNewGame', 'saveGame',
-        'acceptInvite', 'dismissInvite',
-        'addRealFriend', 'visitRealFriend', 'closeRealVisit', 'sendMoneyToReal',
-        'openFriendChat', 'closeFriendChat', 'sendFriendMessage', 'chatFromVisitModal'
-      ];
-      fns.forEach(function(name) {
-        if (typeof window[name] !== 'function') {
-          window[name] = function() {
-            var t = document.getElementById('toast');
-            if (t) {
-              t.textContent = 'Loading app, please try again in a moment...';
-              t.classList.add('show');
-              setTimeout(function() { t.classList.remove('show'); }, 2000);
-            }
-          };
-        }
-      });
-    })();
-  </script>
+  <meta property="og:type" content="website" />
   <style>
-    :root{--bg:#0c1017;--surface:#161d2a;--surface2:#1f2a3d;--accent:#f59e0b;--green:#10b981;--text:#f1f5f9;--muted:#94a3b8;--danger:#ef4444;--radius:14px;--shadow:0 6px 24px rgba(0,0,0,.45)}
-    *{box-sizing:border-box;margin:0;padding:0}body{font-family:'Outfit',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.45;-webkit-tap-highlight-color:transparent}
-    .app{max-width:1100px;margin:0 auto;padding:12px 14px 40px}
-    header{display:flex;justify-content:space-between;align-items:center;padding:10px 0 16px;flex-wrap:wrap;gap:10px}
-    .logo{font-size:1.4rem;font-weight:700}.logo span{color:var(--accent)}
-    .header-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.day-info{font-size:.9rem;color:var(--muted)}
-    button{background:var(--surface2);border:none;color:var(--text);padding:9px 14px;border-radius:11px;font-family:inherit;font-weight:500;cursor:pointer;transition:.18s;font-size:.88rem}
-    button:hover{background:var(--accent);color:#111}button.primary{background:var(--accent);color:#111;font-weight:600}
-    button:disabled{opacity:.45;cursor:not-allowed}button.small{padding:7px 11px;font-size:.82rem}
-    .char-bar{background:var(--surface);border-radius:var(--radius);padding:12px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;box-shadow:var(--shadow)}
-    .char-name{font-weight:600;font-size:1.05rem}.char-job{font-size:.85rem;color:var(--muted)}
-    .player-id{font-size:.75rem;color:var(--muted);margin-top:2px}
-    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
-    @media(min-width:640px){.stats{grid-template-columns:repeat(6,1fr)}}
-    .stat{background:var(--surface);border-radius:12px;padding:10px 12px;box-shadow:var(--shadow)}
-    .stat-label{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
-    .stat-value{font-size:1.15rem;font-weight:600}.stat-bar{height:5px;background:var(--surface2);border-radius:3px;margin-top:6px;overflow:hidden}
-    .stat-bar-fill{height:100%;border-radius:3px;transition:width .35s}.money .stat-value{color:var(--accent)}
-    .hunger .stat-bar-fill{background:#f97316}.energy .stat-bar-fill{background:#3b82f6}.happy .stat-bar-fill{background:#ec4899}
-    .social .stat-bar-fill{background:#8b5cf6}.health .stat-bar-fill{background:var(--green)}
-    .main{display:grid;grid-template-columns:1fr;gap:14px}@media(min-width:900px){.main{grid-template-columns:1fr 320px}}
-    .location-card{background:var(--surface);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);margin-bottom:12px}
-    .location-emoji{font-size:2.2rem}.location-name{font-size:1.3rem;font-weight:600}.location-desc{color:var(--muted);font-size:.9rem;margin-top:4px}
-    .panel{background:var(--surface);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);margin-bottom:12px}
-    .panel h3{font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
-    .actions{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
-    .action-btn{background:var(--surface2);border:1px solid transparent;padding:12px 10px;border-radius:11px;text-align:left;display:flex;flex-direction:column;gap:3px}
-    .action-btn:hover{border-color:var(--accent);background:#2a3a52}.action-btn .title{font-weight:600;font-size:.9rem}.action-btn .cost{font-size:.75rem;color:var(--muted)}
-    .sidebar{display:flex;flex-direction:column;gap:12px}
-    .locations-list,.friends-list{display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto}
-    .loc-btn,.friend-btn{background:var(--surface2);text-align:left;padding:10px 12px;border-radius:10px;display:flex;align-items:center;gap:8px;font-size:.9rem}
-    .loc-btn.active,.friend-btn.active{background:var(--accent);color:#111;font-weight:600}
-    .friend-btn .meta{margin-left:auto;font-size:.75rem;color:var(--muted);text-align:right;line-height:1.3}
-    .real-friend-card{background:var(--surface2);border-radius:10px;padding:9px 11px;display:flex;flex-direction:column;gap:7px;border:1px solid transparent;transition:.18s}
-    .real-friend-card.active-chat{border-color:var(--accent)}
-    .real-friend-top{display:flex;align-items:center;gap:8px;font-size:.9rem}
-    .real-friend-top .meta{margin-left:auto;font-size:.72rem;color:var(--muted);text-align:right;line-height:1.25}
-    .real-friend-actions{display:flex;gap:6px}
-    .real-friend-actions button{flex:1;padding:6px 8px;font-size:.78rem;border-radius:8px;background:var(--bg)}
-    .real-friend-actions button:hover{background:var(--accent);color:#111}
-    .unread-badge{background:var(--accent);color:#111;font-size:.68rem;font-weight:700;padding:1px 6px;border-radius:999px;margin-left:4px}
-    .online-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,.16);color:var(--green);border:1px solid rgba(16,185,129,.35);font-size:.66rem;font-weight:600;padding:1px 6px;border-radius:999px}
-    .online-badge::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
-    .offline-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(148,163,184,.12);color:var(--muted);font-size:.66rem;font-weight:500;padding:1px 6px;border-radius:999px}
-    .offline-badge::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--muted);opacity:.6}
-    .friend-chat-box{margin-top:10px;background:var(--bg);border:1px solid var(--surface2);border-radius:12px;padding:10px;display:none;flex-direction:column;gap:8px}
-    .friend-chat-box.show{display:flex}
-    .friend-chat-header{display:flex;justify-content:space-between;align-items:center;font-size:.82rem;font-weight:600;padding-bottom:6px;border-bottom:1px solid var(--surface2)}
-    .friend-chat-header .live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:6px}
-    .friend-chat-messages{display:flex;flex-direction:column;gap:6px;max-height:190px;min-height:110px;overflow-y:auto;padding:4px 2px;font-size:.82rem}
-    .chat-msg{max-width:85%;padding:7px 10px;border-radius:10px;line-height:1.35;word-break:break-word;transition:background .25s,box-shadow .25s}
-    .chat-msg.mine{align-self:flex-end;background:#d97706;color:#111;border-bottom-right-radius:3px}
-    .chat-msg.mine.seen{background:var(--accent);box-shadow:0 0 0 1px rgba(16,185,129,.55)}
-    .chat-msg.theirs{align-self:flex-start;background:var(--surface2);color:var(--text);border-bottom-left-radius:3px}
-    .chat-msg-meta{font-size:.66rem;opacity:.85;margin-top:3px;display:flex;align-items:center;justify-content:space-between;gap:6px}
-    .read-status{display:inline-flex;align-items:center;gap:2px;font-weight:600;font-size:.64rem;padding:1px 5px;border-radius:999px;transition:.25s}
-    .read-status.unseen{color:rgba(17,17,17,.65)}
-    .read-status.seen{background:rgba(6,95,70,.16);color:#064e3b}
-    .friend-chat-input-row{display:flex;gap:6px}
-    .friend-chat-input-row input{flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--surface2);background:var(--surface);color:var(--text);font-family:inherit;font-size:.84rem}
-    .log{max-height:160px;overflow-y:auto;font-size:.82rem}.log-entry{padding:5px 0;border-bottom:1px solid var(--surface2);color:var(--muted)}
-    .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface2);padding:11px 20px;border-radius:12px;box-shadow:var(--shadow);opacity:0;transition:.3s;z-index:200;font-weight:500;font-size:.9rem;max-width:90%;text-align:center}.toast.show{opacity:1}
-    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:150;padding:16px}.modal-overlay.show{display:flex}
-    .modal{background:var(--surface);border-radius:18px;padding:24px;max-width:400px;width:100%;box-shadow:var(--shadow)}
-    .modal h2{margin-bottom:10px;font-size:1.25rem}.modal p{color:var(--muted);margin-bottom:14px;font-size:.95rem}
-    .modal input{width:100%;padding:11px 14px;border-radius:10px;border:1px solid var(--surface2);background:var(--bg);color:var(--text);font-family:inherit;font-size:1rem;margin-bottom:12px}
-    .modal-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
-    footer{text-align:center;padding:28px 0 10px;color:var(--muted);font-size:.82rem}footer a{color:var(--accent);text-decoration:none}
-    .stat.low .stat-value{color:var(--danger)}
-    .npc-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-    .mood{font-size:.85rem;margin-top:6px;color:var(--accent)}
-    .invite-banner{background:linear-gradient(90deg,#1f2a3d,#2a3a52);border:1px solid var(--accent);border-radius:12px;padding:12px 14px;margin-bottom:12px;display:none}
-    .invite-banner.show{display:block}
-    .milestone{font-size:.8rem;color:var(--green);margin-top:4px}
-    .auth-screen{max-width:420px;margin:40px auto;padding:24px}
-    .auth-screen h1{font-size:1.8rem;margin-bottom:8px}.auth-screen h1 span{color:var(--accent)}
-    .auth-screen p{color:var(--muted);margin-bottom:20px}
-    .auth-options{display:flex;flex-direction:column;gap:10px}
-    .auth-options button{padding:14px;font-size:1rem}
-    .hidden{display:none!important}
-    .cloud-status{font-size:.8rem;margin-top:12px;padding:8px 12px;border-radius:8px;background:var(--surface2)}
-    .cloud-status.on{color:var(--green)}.cloud-status.off{color:var(--muted)}.cloud-status.err{color:var(--danger)}
-    .add-friend-row{display:flex;gap:6px;margin-bottom:8px}
-    .add-friend-row input{flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--surface2);background:var(--bg);color:var(--text);font-family:inherit;font-size:.85rem}
-    .section-label{font-size:.7rem;color:var(--muted);text-transform:uppercase;margin:8px 0 4px;letter-spacing:.4px}
+    :root {
+      --bg-dark: rgba(15, 23, 42, 0.84);
+      --border-light: rgba(255, 255, 255, 0.16);
+      --accent-gold: #f59e0b;
+      --accent-green: #10b981;
+      --text-main: #f8fafc;
+      --text-muted: #cbd5e1;
+    }
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #dfeffc;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-main);
+    }
+    #viewportContainer {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+    /* Top-left Phase 1 Header & Controls Guide */
+    .phase1-hud-top {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      pointer-events: none;
+      z-index: 20;
+      gap: 12px;
+    }
+    .brand-card {
+      background: var(--bg-dark);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-light);
+      border-radius: 16px;
+      padding: 12px 16px;
+      max-width: 350px;
+      pointer-events: auto;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.25);
+    }
+    .brand-badge {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #111827;
+      background: var(--accent-gold);
+      padding: 2px 8px;
+      border-radius: 6px;
+      margin-bottom: 6px;
+    }
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      margin: 0 0 4px 0;
+    }
+    .brand-sub {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+      margin: 0;
+    }
+    .controls-list {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: grid;
+      gap: 4px;
+    }
+    .controls-list strong {
+      color: #fff;
+    }
+    .camera-reset-btn {
+      pointer-events: auto;
+      background: var(--bg-dark);
+      backdrop-filter: blur(12px);
+      color: #fff;
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.2);
+    }
+    .camera-reset-btn:active {
+      transform: scale(0.97);
+    }
+
+    /* Contextual Interaction Prompt */
+    .interaction-prompt {
+      position: fixed;
+      left: 50%;
+      bottom: 112px;
+      transform: translateX(-50%) translateY(14px);
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(12px);
+      border: 2px solid var(--accent-gold);
+      border-radius: 16px;
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 14px 32px rgba(0, 0, 0, 0.35);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+      z-index: 30;
+    }
+    .interaction-prompt.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+      pointer-events: auto;
+      cursor: pointer;
+    }
+    .key-cap {
+      background: var(--accent-gold);
+      color: #111827;
+      font-weight: 900;
+      font-size: 0.82rem;
+      padding: 4px 9px;
+      border-radius: 8px;
+    }
+    .prompt-text-wrap {
+      display: flex;
+      flex-direction: column;
+    }
+    .prompt-title {
+      font-size: 0.86rem;
+      font-weight: 800;
+      color: #fff;
+    }
+    .prompt-sub {
+      font-size: 0.72rem;
+      color: #fde68a;
+    }
+
+    /* Interaction Response Banner */
+    .interaction-toast {
+      position: fixed;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      background: rgba(6, 78, 59, 0.95);
+      border: 1px solid #34d399;
+      color: #ecfdf5;
+      padding: 10px 18px;
+      border-radius: 12px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      z-index: 40;
+      max-width: 90vw;
+      text-align: center;
+    }
+    .interaction-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* On-screen Touch / Mouse Virtual Thumbstick & Action Buttons */
+    .touch-controls {
+      position: fixed;
+      bottom: 22px;
+      left: 22px;
+      right: 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      pointer-events: none;
+      z-index: 25;
+    }
+    .joystick-zone {
+      width: 112px;
+      height: 112px;
+      border-radius: 50%;
+      background: rgba(15, 23, 42, 0.48);
+      border: 2px solid rgba(255, 255, 255, 0.24);
+      position: relative;
+      pointer-events: auto;
+      touch-action: none;
+    }
+    .joystick-knob {
+      width: 46px;
+      height: 46px;
+      border-radius: 50%;
+      background: rgba(245, 158, 11, 0.92);
+      border: 2px solid #fff;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    }
+    .action-buttons-right {
+      display: flex;
+      gap: 10px;
+      pointer-events: auto;
+    }
+    .ctrl-btn {
+      background: var(--bg-dark);
+      backdrop-filter: blur(10px);
+      color: #fff;
+      border: 1.5px solid rgba(255, 255, 255, 0.24);
+      border-radius: 14px;
+      padding: 12px 16px;
+      font-size: 0.82rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .ctrl-btn.active {
+      background: var(--accent-gold);
+      color: #111827;
+      border-color: #fff;
+    }
   </style>
 </head>
 <body>
-  <div class="auth-screen" id="authScreen">
-    <h1>Life in <span>Accra</span></h1>
-    <p>Live your story. Visit friends. Build relationships.</p>
-    <div class="auth-options">
-      <button class="primary" onclick="continueAsGuest()">Continue as Guest</button>
-      <button onclick="showEmailAuth('signup')">Create Account (Email)</button>
-      <button onclick="showEmailAuth('login')">Sign In (Email)</button>
-      <button onclick="signInWithGoogle()">Sign In with Google</button>
-      <button onclick="showImport()">Load Save Code</button>
+  <div id="viewportContainer"></div>
+
+  <div class="phase1-hud-top">
+    <div class="brand-card">
+      <span class="brand-badge">Phase 1 · Vertical Slice</span>
+      <h1 class="brand-title">CHALÉ LIFE</h1>
+      <p class="brand-sub">Third-Person Controller, Camera &amp; Interaction Testbed</p>
+      <div class="controls-list">
+        <div><strong>Move:</strong> W A S D / Arrow Keys / Thumbstick</div>
+        <div><strong>Jog:</strong> Hold Shift / Toggle Jog Button</div>
+        <div><strong>Camera:</strong> Drag Mouse/Screen, Q &amp; E, Scroll Zoom</div>
+        <div><strong>Interact:</strong> Press E / Enter or Tap Gold Prompt</div>
+      </div>
     </div>
-    <div class="cloud-status off" id="cloudStatus">Cloud: connecting...</div>
+
+    <button id="resetCameraBtn" class="camera-reset-btn" type="button">
+      Reset Camera
+    </button>
   </div>
 
-  <div class="app hidden" id="gameApp">
-    <header>
-      <div class="logo">Life in <span>Accra</span></div>
-      <div class="header-right">
-        <span class="day-info" id="dayInfo">Day 1 • Morning</span>
-        <button class="small" onclick="saveGame()">Save</button>
-        <button class="small" onclick="showSummary()">Summary</button>
-        <button class="small" onclick="showAccount()">Account</button>
-      </div>
-    </header>
+  <div id="interactionToast" class="interaction-toast"></div>
 
-    <div class="invite-banner" id="inviteBanner">
-      <div id="inviteText"></div>
-      <div style="margin-top:8px;display:flex;gap:8px">
-        <button class="small primary" id="acceptInviteBtn">Accept</button>
-        <button class="small" onclick="dismissInvite()">Later</button>
-      </div>
-    </div>
-
-    <div class="char-bar">
-      <div>
-        <div class="char-name" id="charName">New Resident</div>
-        <div class="char-job" id="charJob">Unemployed</div>
-        <div class="player-id" id="playerIdDisplay"></div>
-      </div>
-      <button class="small" onclick="showCareerModal()">Career</button>
-    </div>
-
-    <div class="stats" id="stats"></div>
-
-    <div class="main">
-      <div class="left">
-        <div class="location-card" id="locationCard"></div>
-        <div class="panel"><h3>Actions</h3><div class="actions" id="actions"></div></div>
-        <div class="panel" id="npcPanel" style="display:none">
-          <h3 id="npcTitle">With friend</h3>
-          <div id="npcInfo" style="color:var(--muted);font-size:.9rem"></div>
-          <div class="mood" id="npcMood"></div>
-          <div class="milestone" id="npcMilestone"></div>
-          <div class="npc-actions" id="npcActions"></div>
-        </div>
-        <div class="panel">
-          <h3>Career</h3>
-          <div id="careerInfo" style="font-size:.9rem;margin-bottom:8px"></div>
-          <div id="careerActions"></div>
-        </div>
-      </div>
-      <div class="sidebar">
-        <div class="panel"><h3>Travel</h3><div class="locations-list" id="locationsList"></div></div>
-        <div class="panel">
-          <h3>Friends</h3>
-          <div class="add-friend-row" id="addFriendRow" style="display:none">
-            <input type="text" id="addFriendInput" placeholder="Player ID or name" />
-            <button class="small primary" onclick="addRealFriend()">Add</button>
-          </div>
-          <div class="section-label" id="realFriendsLabel" style="display:none">Players</div>
-          <div class="friends-list" id="realFriendsList"></div>
-
-          <div class="friend-chat-box" id="friendChatBox">
-            <div class="friend-chat-header">
-              <div><span class="live-dot"></span><span id="friendChatTitle">Chat</span></div>
-              <button class="small" style="padding:3px 8px;font-size:.75rem" onclick="closeFriendChat()">✕</button>
-            </div>
-            <div class="friend-chat-messages" id="friendChatMessages"></div>
-            <div class="friend-chat-input-row">
-              <input type="text" id="friendChatInput" placeholder="Write a message..." maxlength="500" onkeydown="if(event.key==='Enter')sendFriendMessage()" />
-              <button class="small primary" onclick="sendFriendMessage()">Send</button>
-            </div>
-          </div>
-
-          <div class="section-label">NPCs</div>
-          <div class="friends-list" id="friendsList"></div>
-        </div>
-        <div class="panel"><h3>Life Log</h3><div class="log" id="log"></div></div>
-      </div>
-    </div>
-
-    <footer>
-      Life in Accra • Cloud: perse-504514 (ai-studio-lagoslifeghana-6e4cf7ba-acfc-432e-bffe-16110c9e9d77)<br>
-      <a href="https://desurfofficial-ship-it.github.io/lagos-life-ghana/">Play</a> • <a href="https://github.com/desurfofficial-ship-it/lagos-life-ghana">GitHub</a>
-    </footer>
-  </div>
-
-  <div class="modal-overlay" id="emailModal">
-    <div class="modal">
-      <h2 id="emailModalTitle">Create Account</h2>
-      <p id="emailModalDesc">Use email to sync your save across devices.</p>
-      <input type="email" id="authEmail" placeholder="Email" autocomplete="email" />
-      <input type="password" id="authPassword" placeholder="Password (min 6)" autocomplete="new-password" />
-      <input type="text" id="authDisplayName" placeholder="Display name" style="display:none" />
-      <div class="modal-actions">
-        <button onclick="closeEmailModal()">Cancel</button>
-        <button class="primary" id="emailSubmitBtn" onclick="submitEmailAuth()">Create</button>
-      </div>
+  <div id="interactionPrompt" class="interaction-prompt" role="button" tabindex="0">
+    <span class="key-cap">E</span>
+    <div class="prompt-text-wrap">
+      <span id="promptTitle" class="prompt-title">Inspect Target</span>
+      <span id="promptSub" class="prompt-sub">ACC_HOUSE_001</span>
     </div>
   </div>
 
-  <div class="modal-overlay" id="importModal">
-    <div class="modal">
-      <h2>Load Save Code</h2>
-      <p>Paste a previously exported save code.</p>
-      <textarea id="importCode" rows="4" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--surface2);background:var(--bg);color:var(--text);font-family:inherit;margin-bottom:12px"></textarea>
-      <div class="modal-actions">
-        <button onclick="closeImport()">Cancel</button>
-        <button class="primary" onclick="importSave()">Load</button>
-      </div>
+  <div class="touch-controls">
+    <div id="joystickZone" class="joystick-zone">
+      <div id="joystickKnob" class="joystick-knob"></div>
+    </div>
+
+    <div class="action-buttons-right">
+      <button id="sprintToggleBtn" class="ctrl-btn" type="button">Jog: OFF</button>
+      <button id="interactTriggerBtn" class="ctrl-btn" type="button">Interact (E)</button>
     </div>
   </div>
-
-  <div class="modal-overlay" id="accountModal">
-    <div class="modal">
-      <h2>Account</h2>
-      <p id="accountInfo"></p>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
-        <button onclick="saveGame()">Save Now (Local + Cloud)</button>
-        <button onclick="exportSave()">Export Save Code</button>
-        <button onclick="promptNewGame()">New Life</button>
-        <button onclick="signOutUser()">Sign Out</button>
-      </div>
-      <div class="modal-actions"><button onclick="closeAccount()">Close</button></div>
-    </div>
-  </div>
-
-  <div class="modal-overlay" id="careerModal">
-    <div class="modal">
-      <h2>Choose Career</h2>
-      <div id="careerOptions" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px"></div>
-      <div class="modal-actions"><button onclick="closeCareerModal()">Cancel</button></div>
-    </div>
-  </div>
-
-  <div class="modal-overlay" id="sendModal">
-    <div class="modal">
-      <h2>Send Money</h2>
-      <p id="sendToText">Send to friend</p>
-      <input type="number" id="sendAmount" placeholder="Amount in ₵" min="1" />
-      <div class="modal-actions">
-        <button onclick="closeSendModal()">Cancel</button>
-        <button class="primary" onclick="confirmSend()">Send</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal-overlay" id="summaryModal">
-    <div class="modal">
-      <h2>Life Summary</h2>
-      <div id="summaryBody" style="color:var(--muted);font-size:.95rem;line-height:1.6;margin-bottom:16px"></div>
-      <div class="modal-actions"><button onclick="closeSummary()">Close</button></div>
-    </div>
-  </div>
-
-  <div class="modal-overlay" id="realVisitModal">
-    <div class="modal">
-      <h2 id="realVisitTitle">Player House</h2>
-      <div id="realVisitBody" style="color:var(--muted);font-size:.95rem;line-height:1.6;margin-bottom:16px"></div>
-      <input type="number" id="realSendAmountInput" placeholder="Amount in ₵ to send" min="1" />
-      <div class="modal-actions" style="flex-wrap:wrap;gap:8px">
-        <button class="primary" onclick="sendMoneyToReal()">Send Money</button>
-        <button onclick="chatFromVisitModal()">💬 Message</button>
-        <button onclick="closeRealVisit()">Leave</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="toast" id="toast"></div>
 
   <script type="module" src="/src/main.ts"></script>
 </body>

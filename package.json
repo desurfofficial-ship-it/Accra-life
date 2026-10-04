@@ -10,8 +10,10 @@
     "lint": "eslint firestore.rules"
   },
   "dependencies": {
+    "@types/three": "^0.186.0",
     "express": "^4.21.2",
-    "firebase": "^12.19.0"
+    "firebase": "^12.19.0",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@firebase/eslint-plugin-security-rules": "^0.0.2",

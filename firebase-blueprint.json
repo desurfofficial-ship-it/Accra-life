@@ -104,6 +104,14 @@
           "type": "boolean",
           "description": "Whether the message has been seen by the recipient."
         },
+        "type": {
+          "type": "string",
+          "description": "Message type: text or money transfer."
+        },
+        "amount": {
+          "type": "integer",
+          "description": "Optional Cedis (₵) amount transferred in chat."
+        },
         "readAt": {
           "type": "string",
           "format": "date-time",
@@ -149,6 +157,10 @@
         "location": {
           "type": "string",
           "description": "Last known area in Accra."
+        },
+        "homeDesign": {
+          "type": "object",
+          "description": "Player custom isometric room design (wallColor, floorStyle, activeFurniture, outfitColor, visits)."
         },
         "online": {
           "type": "boolean",
