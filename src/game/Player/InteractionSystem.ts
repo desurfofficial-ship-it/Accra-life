@@ -125,7 +125,7 @@ export class InteractionSystem {
       this.indicatorRing.visible = true;
       this.indicatorRing.position.set(
         this.activeTarget.position.x,
-        Math.max(0.22, this.activeTarget.position.y),
+        Math.max(0.11, this.activeTarget.position.y),
         this.activeTarget.position.z
       );
       const scale = 1 + Math.sin(this.pulseClock) * 0.08;

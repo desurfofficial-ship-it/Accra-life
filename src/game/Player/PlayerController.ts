@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { InputManager } from './InputManager';
 import { buildStylizedGhanaianCharacter, CharacterRig } from '../Art/CharacterBuilder';
+import { getSurfaceHeightAt } from '../World/NeighborhoodBlock';
 
 export interface ColliderBox {
   id: string;
@@ -21,12 +22,15 @@ export class PlayerController {
   public isSprinting = false;
 
   private readonly inputManager: InputManager;
-  private readonly walkSpeed = 4.6;
-  private readonly sprintSpeed = 7.4;
-  private readonly turnSmoothness = 12.0;
+  private readonly walkSpeed = 4.5;
+  private readonly sprintSpeed = 7.3;
   private readonly playerRadius = 0.42;
   private readonly worldBoundsX = 25.0;
   private readonly worldBoundsZ = 17.2;
+
+  private currentSpeed = 0;
+  private smoothedTurnRate = 0;
+  private lastPivotSign = 1;
 
   // Pre-allocated vector to avoid per-frame allocations in the animation loop
   private readonly forwardVec = new THREE.Vector3(0, 0, -1);
@@ -37,7 +41,7 @@ export class PlayerController {
     this.group = this.characterRig.root;
     this.group.position.copy(spawnPosition);
     this.position = this.group.position;
-    this.position.y = 0;
+    this.position.y = getSurfaceHeightAt(this.position.x, this.position.z);
     this.rotationY = Math.PI;
     this.group.rotation.y = this.rotationY;
   }
@@ -56,23 +60,85 @@ export class PlayerController {
     this.isMoving = input.magnitude > 0.05;
     this.isSprinting = this.isMoving && input.sprint;
 
+    const baseSpeed = this.isSprinting ? this.sprintSpeed : this.walkSpeed;
+
     if (this.isMoving) {
-      // Camera-relative movement on the XZ plane
+      // Camera-relative desired movement direction on the XZ plane
       const sinYaw = Math.sin(cameraYaw);
       const cosYaw = Math.cos(cameraYaw);
 
       const worldDirX = input.moveX * cosYaw + input.moveZ * sinYaw;
       const worldDirZ = -input.moveX * sinYaw + input.moveZ * cosYaw;
 
-      const baseSpeed = this.isSprinting ? this.sprintSpeed : this.walkSpeed;
-      const speed = baseSpeed * input.magnitude;
-      this.velocity.set(worldDirX * speed, 0, worldDirZ * speed);
-
-      // Smoothly rotate character to face movement vector
       const targetAngle = Math.atan2(worldDirX, worldDirZ);
-      this.rotationY = this.lerpAngle(this.rotationY, targetAngle, Math.min(1, dt * this.turnSmoothness));
+      let angleDiff = this.shortestAngleDiff(this.rotationY, targetAngle);
+
+      // Commit to a consistent pivot direction during near-180° reversals to prevent flip-flop jitter
+      if (Math.abs(angleDiff) > 2.75) {
+        angleDiff = Math.abs(angleDiff) * this.lastPivotSign;
+      } else if (Math.abs(angleDiff) > 0.15) {
+        this.lastPivotSign = Math.sign(angleDiff) || 1;
+      }
+
+      // Dynamic turn responsiveness: faster pivot on sharp direction changes, smooth settle on small angles
+      const absDiff = Math.abs(angleDiff);
+      const turnResponsiveness = absDiff > 1.1 ? 16.5 : 12.5;
+      const turnStep = angleDiff * (1 - Math.exp(-dt * turnResponsiveness));
+
+      this.rotationY = this.wrapAngle(this.rotationY + turnStep);
       this.group.rotation.y = this.rotationY;
 
+      // Normalized angular velocity for procedural body banking and head-turn lead
+      const rawTurnRate = dt > 0.0001 ? THREE.MathUtils.clamp((turnStep / dt) / 9.0, -1, 1) : 0;
+      this.smoothedTurnRate = THREE.MathUtils.lerp(
+        this.smoothedTurnRate,
+        rawTurnRate,
+        1 - Math.exp(-dt * 14)
+      );
+
+      // Modulate forward speed during sharp pivots so the character pivots onto the new heading
+      // instead of moonwalking/skating backward while still facing the old direction
+      const alignmentFactor = THREE.MathUtils.clamp(Math.cos(absDiff) * 0.45 + 0.58, 0.26, 1.0);
+      const desiredSpeed = baseSpeed * input.magnitude * alignmentFactor;
+      this.currentSpeed = THREE.MathUtils.lerp(
+        this.currentSpeed,
+        desiredSpeed,
+        1 - Math.exp(-dt * 15)
+      );
+
+      // Blend character facing direction with target input direction for natural curved turn arcs
+      const facingX = Math.sin(this.rotationY);
+      const facingZ = Math.cos(this.rotationY);
+      const moveDirX = facingX * 0.68 + worldDirX * 0.32;
+      const moveDirZ = facingZ * 0.68 + worldDirZ * 0.32;
+      const moveLen = Math.hypot(moveDirX, moveDirZ) || 1;
+
+      this.velocity.set(
+        (moveDirX / moveLen) * this.currentSpeed,
+        0,
+        (moveDirZ / moveLen) * this.currentSpeed
+      );
+    } else {
+      // Smooth deceleration to rest
+      this.currentSpeed = THREE.MathUtils.lerp(this.currentSpeed, 0, 1 - Math.exp(-dt * 18));
+      this.smoothedTurnRate = THREE.MathUtils.lerp(
+        this.smoothedTurnRate,
+        0,
+        1 - Math.exp(-dt * 14)
+      );
+      if (this.currentSpeed < 0.08) {
+        this.currentSpeed = 0;
+        this.velocity.set(0, 0, 0);
+      } else {
+        this.velocity.set(
+          Math.sin(this.rotationY) * this.currentSpeed,
+          0,
+          Math.cos(this.rotationY) * this.currentSpeed
+        );
+      }
+    }
+
+    if (this.currentSpeed > 0.01) {
       // Substep movement to prevent tunneling through thin walls or poles at high dt
       const steps = 2;
       const stepDt = dt / steps;
@@ -90,16 +156,24 @@ export class PlayerController {
         this.resolvePenetration(colliders);
       }
     } else {
-      this.velocity.set(0, 0, 0);
       this.resolvePenetration(colliders);
     }
 
-    // Clamp to neighborhood play area and keep player strictly grounded
+    // Clamp to neighborhood play area and smoothly ground feet on road/sidewalk/courtyard elevation
     this.position.x = THREE.MathUtils.clamp(this.position.x, -this.worldBoundsX, this.worldBoundsX);
     this.position.z = THREE.MathUtils.clamp(this.position.z, -this.worldBoundsZ, this.worldBoundsZ);
-    this.position.y = 0;
+    const targetSurfaceY = getSurfaceHeightAt(this.position.x, this.position.z);
+    this.position.y = THREE.MathUtils.lerp(this.position.y, targetSurfaceY, Math.min(1, dt * 20));
 
-    this.characterRig.updateAnimation(dt, this.isMoving, this.isSprinting);
+    const moveSpeedRatio = this.currentSpeed / baseSpeed;
+    this.characterRig.updateAnimation(
+      dt,
+      this.isMoving || this.currentSpeed > 0.25,
+      this.isSprinting,
+      0,
+      this.smoothedTurnRate,
+      moveSpeedRatio
+    );
   }
 
   private checkCollision(x: number, z: number, colliders: ColliderBox[]): boolean {
@@ -154,9 +228,11 @@ export class PlayerController {
     return this.forwardVec;
   }
 
-  private lerpAngle(current: number, target: number, t: number): number {
-    let diff = ((target - current + Math.PI) % (Math.PI * 2)) - Math.PI;
-    if (diff < -Math.PI) diff += Math.PI * 2;
-    return current + diff * t;
+  private shortestAngleDiff(current: number, target: number): number {
+    return Math.atan2(Math.sin(target - current), Math.cos(target - current));
+  }
+
+  private wrapAngle(angle: number): number {
+    return Math.atan2(Math.sin(angle), Math.cos(angle));
   }
 }

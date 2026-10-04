@@ -19,28 +19,6 @@ interface ActiveRenderer {
   render(scene: THREE.Scene, camera: THREE.PerspectiveCamera): void;
 }
 
-function canCompileWebGLShaders(): boolean {
-  try {
-    const testCanvas = document.createElement('canvas');
-    const gl = (testCanvas.getContext('webgl2') ||
-      testCanvas.getContext('webgl')) as WebGLRenderingContext | null;
-    if (!gl || gl.isContextLost()) {
-      return false;
-    }
-    const shader = gl.createShader(gl.VERTEX_SHADER);
-    if (!shader || !(shader instanceof WebGLShader)) {
-      return false;
-    }
-    gl.shaderSource(shader, 'void main() { gl_Position = vec4(0.0); }');
-    gl.compileShader(shader);
-    const ok = Boolean(gl.getShaderParameter(shader, gl.COMPILE_STATUS));
-    gl.deleteShader(shader);
-    return ok;
-  } catch {
-    return false;
-  }
-}
-
 export class Phase1Scene {
   public readonly scene: THREE.Scene;
   public renderer: ActiveRenderer;
@@ -124,13 +102,44 @@ export class Phase1Scene {
   }
 
   private createSafeRenderer(width: number, height: number): ActiveRenderer {
-    if (canCompileWebGLShaders()) {
-      try {
-        const webgl = new THREE.WebGLRenderer({ antialias: true });
-        const gl = webgl.getContext();
-        if (gl && !gl.isContextLost() && gl.createShader(gl.VERTEX_SHADER) instanceof WebGLShader) {
+    try {
+      const webgl = new THREE.WebGLRenderer({ antialias: true });
+      const gl = webgl.getContext();
+      if (gl && !gl.isContextLost()) {
+        // Guard WebGL shader methods so a null shader handle can never throw an uncaught TypeError
+        const origShaderSource = gl.shaderSource.bind(gl);
+        const origCompileShader = gl.compileShader.bind(gl);
+        const origGetShaderParam = gl.getShaderParameter.bind(gl);
+        const origGetShaderInfoLog = gl.getShaderInfoLog.bind(gl);
+        const origAttachShader = gl.attachShader.bind(gl);
+        const origDeleteShader = gl.deleteShader.bind(gl);
+
+        gl.shaderSource = (shader: WebGLShader | null, source: string) => {
+          if (shader instanceof WebGLShader) origShaderSource(shader, source);
+        };
+        gl.compileShader = (shader: WebGLShader | null) => {
+          if (shader instanceof WebGLShader) origCompileShader(shader);
+        };
+        gl.getShaderParameter = (shader: WebGLShader | null, pname: GLenum) => {
+          if (shader instanceof WebGLShader) return origGetShaderParam(shader, pname);
+          return true;
+        };
+        gl.getShaderInfoLog = (shader: WebGLShader | null) => {
+          if (shader instanceof WebGLShader) return origGetShaderInfoLog(shader);
+          return '';
+        };
+        gl.attachShader = (program: WebGLProgram | null, shader: WebGLShader | null) => {
+          if (program && shader instanceof WebGLShader) origAttachShader(program, shader);
+        };
+        gl.deleteShader = (shader: WebGLShader | null) => {
+          if (shader instanceof WebGLShader) origDeleteShader(shader);
+        };
+
+        const testShader = gl.createShader(gl.VERTEX_SHADER);
+        if (testShader instanceof WebGLShader) {
+          origDeleteShader(testShader);
           webgl.setSize(width, height);
-          webgl.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+          webgl.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
           webgl.shadowMap.enabled = true;
           webgl.shadowMap.type = THREE.PCFSoftShadowMap;
           webgl.toneMapping = THREE.ACESFilmicToneMapping;
@@ -143,15 +152,15 @@ export class Phase1Scene {
 
           return webgl;
         }
-        webgl.dispose();
-      } catch {
-        // Fall through to Canvas3DFallbackRenderer
       }
+      webgl.dispose();
+    } catch {
+      // Fall through to Canvas3DFallbackRenderer
     }
 
     this.usingFallback = true;
     const fallback = new Canvas3DFallbackRenderer(width, height);
-    fallback.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    fallback.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     return fallback;
   }
 
@@ -180,13 +189,14 @@ export class Phase1Scene {
     sunLight.shadow.mapSize.width = 2048;
     sunLight.shadow.mapSize.height = 2048;
     sunLight.shadow.camera.near = 1;
-    sunLight.shadow.camera.far = 85;
-    const d = 30;
+    sunLight.shadow.camera.far = 80;
+    const d = 24;
     sunLight.shadow.camera.left = -d;
     sunLight.shadow.camera.right = d;
     sunLight.shadow.camera.top = d;
     sunLight.shadow.camera.bottom = -d;
-    sunLight.shadow.bias = -0.0005;
+    sunLight.shadow.bias = -0.0004;
+    sunLight.shadow.normalBias = 0.02;
     this.scene.add(sunLight);
 
     // 3. Soft Opposite Rim / Facial Readability Fill Light (no shadow map cost)

@@ -22,11 +22,11 @@ export const CHARACTER_STYLE_STANDARD: CharacterStyleStandard = {
   eyeSpacingMeters: 0.104,
   handDimensionsMeters: [0.09, 0.11, 0.05],
   footDimensionsMeters: [0.11, 0.08, 0.24],
-  skinRoughness: 0.54,
+  skinRoughness: 0.52,
   skinMetalness: 0.04,
-  hairRoughness: 0.82,
-  clothRoughness: 0.68,
-  textureResolutionPx: 256,
+  hairRoughness: 0.80,
+  clothRoughness: 0.65,
+  textureResolutionPx: 512,
   rigJointNames: [
     'Root',
     'Pelvis',
@@ -65,7 +65,7 @@ export const PHASE2_ASSET_REGISTRY: Record<string, RegisteredAssetMetadata> = {
     category: 'character',
     name: 'Protagonist — Kwame (Contemporary Accra Young Adult)',
     purpose: 'Primary playable third-person character establishing the CHALÉ LIFE character standard',
-    locationDescription: 'Dynamic player spawn (0, 0, 5.8)',
+    locationDescription: 'Dynamic player spawn (0, 0.08, 5.8)',
     dimensionsMeters: [0.56, 1.74, 0.36],
     originConvention: 'bottom-center',
     hasCollision: true
@@ -75,7 +75,7 @@ export const PHASE2_ASSET_REGISTRY: Record<string, RegisteredAssetMetadata> = {
     category: 'character',
     name: 'Kojo — Contemporary Ghanaian Young Adult Male',
     purpose: 'Phase 2 NPC visual archetype testing young adult male proportions, fabric print, and idle rig',
-    locationDescription: 'Outside ACC_SHOP_001 Provision Store (-7.4, 0, -6.4)',
+    locationDescription: 'Outside ACC_SHOP_001 Provision Store (-6.1, 0.08, -6.2)',
     dimensionsMeters: [0.56, 1.75, 0.36],
     originConvention: 'bottom-center',
     hasCollision: true
@@ -85,7 +85,7 @@ export const PHASE2_ASSET_REGISTRY: Record<string, RegisteredAssetMetadata> = {
     category: 'character',
     name: 'Ama — Contemporary Ghanaian Young Adult Female',
     purpose: 'Phase 2 NPC visual archetype testing young adult female silhouette, Ankara peplum, and braided hair',
-    locationDescription: 'Near ACC_RESTAURANT_001 Waakye & Jollof patio (10.3, 0, -6.5)',
+    locationDescription: 'Near ACC_RESTAURANT_001 Waakye & Jollof patio (11.4, 0.08, -6.2)',
     dimensionsMeters: [0.52, 1.68, 0.34],
     originConvention: 'bottom-center',
     hasCollision: true
@@ -95,7 +95,7 @@ export const PHASE2_ASSET_REGISTRY: Record<string, RegisteredAssetMetadata> = {
     category: 'character',
     name: 'Uncle Mensah — Older Ghanaian Adult',
     purpose: 'Phase 2 NPC visual archetype testing older adult proportions, woven smock tunic, kufi cap, and beard',
-    locationDescription: 'Near ACC_PROP_001 Trotro Stop & Compound walkway (6.8, 0, 4.9)',
+    locationDescription: 'Near ACC_PROP_001 Trotro Stop & Compound walkway (5.4, 0.08, 5.4)',
     dimensionsMeters: [0.58, 1.71, 0.38],
     originConvention: 'bottom-center',
     hasCollision: true
@@ -104,9 +104,9 @@ export const PHASE2_ASSET_REGISTRY: Record<string, RegisteredAssetMetadata> = {
     assetId: 'ACC_HOUSE_001',
     category: 'building',
     name: 'Contemporary Accra Gated Compound House',
-    purpose: 'Player residence featuring breeze-block walls, security gate, arched veranda, louver windows, and Polytank',
+    purpose: 'Player residence featuring breeze-block walls, double iron gates, pillared veranda, hipped roof, louver windows, and steel-truss Polytank tower',
     locationDescription: 'South-West residential plot (-10.5, 0, 12.2)',
-    dimensionsMeters: [9.6, 4.5, 8.4],
+    dimensionsMeters: [9.6, 4.6, 8.4],
     originConvention: 'bottom-center',
     hasCollision: true
   },
@@ -114,7 +114,7 @@ export const PHASE2_ASSET_REGISTRY: Record<string, RegisteredAssetMetadata> = {
     assetId: 'ACC_SHOP_001',
     category: 'building',
     name: 'Adabraka Blue Provision Store & MoMo Kiosk',
-    purpose: 'Neighborhood retail kiosk with corrugated overhang, painted signboard, security grille, and stocked shelves',
+    purpose: 'Neighborhood retail kiosk with corrugated overhang, open shutters, stocked interior shelves, and MoMo agent counter',
     locationDescription: 'North-West commercial plot (-9.5, 0, -10.4)',
     dimensionsMeters: [6.2, 3.8, 5.0],
     originConvention: 'bottom-center',
@@ -124,7 +124,7 @@ export const PHASE2_ASSET_REGISTRY: Record<string, RegisteredAssetMetadata> = {
     assetId: 'ACC_RESTAURANT_001',
     category: 'building',
     name: 'Sister Akosua Waakye & Jollof Joint',
-    purpose: 'Roadside Ghanaian food vendor with wooden sieve showcase, aluminum cauldrons, coal pot, and shaded patio',
+    purpose: 'Roadside Ghanaian food vendor with framed wooden sieve showcase, aluminum cauldrons on coal pot, and shaded patio table with stools',
     locationDescription: 'North-East commercial plot (8.5, 0, -10.4)',
     dimensionsMeters: [7.2, 3.6, 5.8],
     originConvention: 'bottom-center',
@@ -144,9 +144,9 @@ export const PHASE2_ASSET_REGISTRY: Record<string, RegisteredAssetMetadata> = {
     assetId: 'ACC_TROTRO_001',
     category: 'vehicle',
     name: 'Stationary Accra Trotro Minibus',
-    purpose: 'Iconic white-and-blue commercial commuter van parked at the South-East trotro layby',
-    locationDescription: 'South-East road layby (13.4, 0, 2.3)',
-    dimensionsMeters: [4.6, 2.25, 1.95],
+    purpose: 'Contoured white-and-cobalt commercial commuter van with sloped windshield, route placard, roof rack, and sliding door parked at the layby',
+    locationDescription: 'South-East road layby (14.6, 0.02, 2.25)',
+    dimensionsMeters: [4.6, 2.28, 1.95],
     originConvention: 'bottom-center',
     hasCollision: true
   },
@@ -154,7 +154,7 @@ export const PHASE2_ASSET_REGISTRY: Record<string, RegisteredAssetMetadata> = {
     assetId: 'ENV_TREE_001',
     category: 'environment',
     name: 'Accra Neem & Tropical Mango Street Tree',
-    purpose: 'Multi-cluster organic shade foliage along pedestrian walkways',
+    purpose: 'Branching trunk and multi-cluster organic shade foliage along pedestrian walkways',
     locationDescription: 'Avenue sidewalks',
     dimensionsMeters: [3.2, 4.4, 3.2],
     originConvention: 'bottom-center',
@@ -164,7 +164,7 @@ export const PHASE2_ASSET_REGISTRY: Record<string, RegisteredAssetMetadata> = {
     assetId: 'ENV_POLE_001',
     category: 'environment',
     name: 'ECG Precast Concrete Utility & Streetlight Pole (ACC_PROP_002)',
-    purpose: 'Roadside electrical distribution pole with cross-arm insulators, overhead lines, and cobra-head lamp',
+    purpose: 'Roadside electrical distribution pole with cross-arm insulators, overhead catenary lines, and cobra-head lamp',
     locationDescription: 'North and South street curbs',
     dimensionsMeters: [0.4, 5.6, 1.3],
     originConvention: 'bottom-center',
@@ -182,10 +182,6 @@ export const PHASE2_ASSET_REGISTRY: Record<string, RegisteredAssetMetadata> = {
   }
 };
 
-/**
- * Shared Procedural Texture & Material Cache
- * Generates crisp 256px canvas textures once at startup and caches them.
- */
 class SharedArtLibrary {
   private textures: Map<string, THREE.CanvasTexture> = new Map();
   private materials: Map<string, THREE.MeshStandardMaterial> = new Map();
@@ -202,59 +198,209 @@ class SharedArtLibrary {
     return mat;
   }
 
-  public getKenteTrimTexture(): THREE.CanvasTexture {
-    return this.getOrCreateTexture('kente_trim', 256, 256, (ctx) => {
-      // Rich amber-gold woven base with emerald, crimson, and black geometric Kente bands
-      ctx.fillStyle = '#f59e0b';
-      ctx.fillRect(0, 0, 256, 256);
+  /**
+   * High-resolution stylized facial feature texture mapped onto the front (+Z) curved face shell.
+   * Uses soft radial edge feathering so the facial map blends seamlessly into the 3D cranium.
+   */
+  public getCharacterFaceTexture(
+    key: string,
+    skinCss: string,
+    lipCss: string,
+    isFemale: boolean
+  ): THREE.CanvasTexture {
+    return this.getOrCreateTexture(`face_${key}`, 512, 512, (ctx) => {
+      ctx.clearRect(0, 0, 512, 512);
 
-      // Subtle vertical weave lines
-      ctx.fillStyle = 'rgba(180, 83, 9, 0.18)';
-      for (let x = 0; x < 256; x += 4) {
-        ctx.fillRect(x, 0, 2, 256);
+      // Soft elliptical alpha mask so the curved face shell blends invisibly into the head
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(256, 256, 232, 236, 0, 0, Math.PI * 2);
+      ctx.clip();
+
+      ctx.fillStyle = skinCss;
+      ctx.fillRect(0, 0, 512, 512);
+
+      // Warm facial contour & cheek highlight
+      const cheekGrad = ctx.createRadialGradient(256, 240, 24, 256, 256, 235);
+      cheekGrad.addColorStop(0, 'rgba(255, 215, 175, 0.14)');
+      cheekGrad.addColorStop(0.7, 'rgba(255, 200, 155, 0.04)');
+      cheekGrad.addColorStop(1, 'rgba(25, 12, 6, 0.10)');
+      ctx.fillStyle = cheekGrad;
+      ctx.fillRect(0, 0, 512, 512);
+
+      // Subtle nose bridge highlight & nostril shadow cues
+      ctx.fillStyle = 'rgba(255, 235, 205, 0.14)';
+      ctx.beginPath();
+      ctx.roundRect(244, 205, 24, 86, 12);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(20, 8, 4, 0.25)';
+      ctx.beginPath();
+      ctx.ellipse(240, 298, 9, 5, 0.25, 0, Math.PI * 2);
+      ctx.ellipse(272, 298, 9, 5, -0.25, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Expressive eyes centered at (176, 218) and (336, 218)
+      const eyePositions = [176, 336];
+      for (let i = 0; i < 2; i++) {
+        const ex = eyePositions[i];
+        const ey = 218;
+        const side = i === 0 ? -1 : 1;
+
+        // Upper orbital crease
+        ctx.strokeStyle = 'rgba(18, 9, 5, 0.35)';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.arc(ex, ey + 4, 36, Math.PI * 1.12, Math.PI * 1.88);
+        ctx.stroke();
+
+        // Sculpted eyebrow with tapered arch
+        ctx.fillStyle = '#141416';
+        ctx.beginPath();
+        ctx.moveTo(ex - 42, ey - 34 + side * 4);
+        ctx.quadraticCurveTo(ex - 4 * side, ey - 54, ex + 42, ey - 32 - side * 4);
+        ctx.quadraticCurveTo(ex - 4 * side, ey - 40, ex - 42, ey - 26 + side * 4);
+        ctx.closePath();
+        ctx.fill();
+
+        // Eye sclera (warm ivory almond shape)
+        ctx.fillStyle = '#f8fafc';
+        ctx.beginPath();
+        ctx.ellipse(ex, ey, 33, 20, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Rich warm dark-brown iris with subtle lower rim warmth
+        const irisGrad = ctx.createRadialGradient(ex, ey + 3, 2, ex, ey, 16);
+        irisGrad.addColorStop(0, '#1c0d06');
+        irisGrad.addColorStop(0.55, '#452210');
+        irisGrad.addColorStop(1, '#1e0e06');
+        ctx.fillStyle = irisGrad;
+        ctx.beginPath();
+        ctx.arc(ex, ey, 15.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Deep pupil
+        ctx.fillStyle = '#09090b';
+        ctx.beginPath();
+        ctx.arc(ex, ey, 8.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Dual specular catchlights for lively expression
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(ex - 5, ey - 5.5, 4.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(ex + 5.5, ey + 4.5, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Crisp upper lash line
+        ctx.strokeStyle = '#09090b';
+        ctx.lineWidth = isFemale ? 7.5 : 5.5;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(ex, ey + 3, 33, Math.PI * 1.06, Math.PI * 1.94);
+        ctx.stroke();
+
+        // Subtle lower lid definition
+        ctx.strokeStyle = 'rgba(20, 10, 6, 0.32)';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(ex, ey - 3, 32, Math.PI * 0.12, Math.PI * 0.88);
+        ctx.stroke();
       }
 
-      // Woven Kente geometric border strip near hem and chest
+      // Sculpted upper & lower lips with warm confident expression
+      ctx.fillStyle = lipCss;
+      ctx.beginPath();
+      ctx.moveTo(212, 344);
+      ctx.quadraticCurveTo(238, 330, 256, 336);
+      ctx.quadraticCurveTo(274, 330, 300, 344);
+      ctx.quadraticCurveTo(256, 366, 212, 344);
+      ctx.closePath();
+      ctx.fill();
+
+      // Lip corner & center smile line
+      ctx.strokeStyle = 'rgba(15, 8, 5, 0.62)';
+      ctx.lineWidth = 3.5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(210, 343);
+      ctx.quadraticCurveTo(256, 352, 302, 343);
+      ctx.stroke();
+
+      // Lower lip soft sheen
+      ctx.fillStyle = 'rgba(255, 225, 200, 0.16)';
+      ctx.beginPath();
+      ctx.ellipse(256, 353, 20, 4.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    });
+  }
+
+  public getKenteTrimTexture(): THREE.CanvasTexture {
+    return this.getOrCreateTexture('kente_trim', 512, 512, (ctx) => {
+      // Rich amber-gold tailored cotton base with crisp Kente woven chest & hem bands
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(0, 0, 512, 512);
+
+      // Fine vertical fabric weave
+      ctx.fillStyle = 'rgba(180, 83, 9, 0.13)';
+      for (let x = 0; x < 512; x += 6) {
+        ctx.fillRect(x, 0, 2, 512);
+      }
+
       const drawKenteBand = (y: number, h: number) => {
         ctx.fillStyle = '#111827';
-        ctx.fillRect(0, y, 256, h);
-        const step = 32;
-        for (let x = 0; x < 256; x += step) {
-          ctx.fillStyle = (x / step) % 2 === 0 ? '#059669' : '#dc2626';
-          ctx.fillRect(x + 3, y + 3, step - 6, h - 6);
+        ctx.fillRect(0, y, 512, h);
+        const step = 48;
+        for (let x = 0; x < 512; x += step) {
+          ctx.fillStyle = Math.floor(x / step) % 2 === 0 ? '#059669' : '#dc2626';
+          ctx.fillRect(x + 4, y + 4, step - 8, h - 8);
           ctx.fillStyle = '#facc15';
-          ctx.fillRect(x + 10, y + 6, step - 20, h - 12);
+          ctx.fillRect(x + 14, y + 10, step - 28, h - 20);
         }
       };
 
-      drawKenteBand(18, 26);
-      drawKenteBand(210, 28);
+      drawKenteBand(46, 44);
+      drawKenteBand(422, 52);
+
+      // Center front button placket (aligned to u = 0.5 on rotated LatheGeometry)
+      ctx.fillStyle = '#111827';
+      ctx.fillRect(246, 0, 20, 235);
+      ctx.fillStyle = '#facc15';
+      for (let by = 45; by <= 205; by += 48) {
+        ctx.beginPath();
+        ctx.arc(256, by, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
     });
   }
 
   public getAnkaraPatternTexture(): THREE.CanvasTexture {
-    return this.getOrCreateTexture('ankara_peplum', 256, 256, (ctx) => {
+    return this.getOrCreateTexture('ankara_peplum', 512, 512, (ctx) => {
       ctx.fillStyle = '#047857';
-      ctx.fillRect(0, 0, 256, 256);
+      ctx.fillRect(0, 0, 512, 512);
 
-      const cell = 64;
-      for (let y = 0; y < 256; y += cell) {
-        for (let x = 0; x < 256; x += cell) {
+      const cell = 96;
+      for (let y = 0; y < 512; y += cell) {
+        for (let x = 0; x < 512; x += cell) {
           const cx = x + cell / 2;
           const cy = y + cell / 2;
           ctx.fillStyle = '#f59e0b';
           ctx.beginPath();
-          ctx.arc(cx, cy, 24, 0, Math.PI * 2);
+          ctx.arc(cx, cy, 38, 0, Math.PI * 2);
           ctx.fill();
 
           ctx.fillStyle = '#dc2626';
           ctx.beginPath();
-          ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+          ctx.arc(cx, cy, 24, 0, Math.PI * 2);
           ctx.fill();
 
           ctx.fillStyle = '#fef08a';
           ctx.beginPath();
-          ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+          ctx.arc(cx, cy, 10, 0, Math.PI * 2);
           ctx.fill();
         }
       }
@@ -262,37 +408,125 @@ class SharedArtLibrary {
   }
 
   public getTerracottaShirtTexture(): THREE.CanvasTexture {
-    return this.getOrCreateTexture('terracotta_shirt', 256, 256, (ctx) => {
+    return this.getOrCreateTexture('terracotta_shirt', 512, 512, (ctx) => {
       ctx.fillStyle = '#c2410c';
-      ctx.fillRect(0, 0, 256, 256);
+      ctx.fillRect(0, 0, 512, 512);
       ctx.strokeStyle = '#fed7aa';
-      ctx.lineWidth = 3;
-      for (let x = 16; x < 256; x += 32) {
+      ctx.lineWidth = 5;
+      for (let x = 24; x < 512; x += 48) {
         ctx.beginPath();
         ctx.moveTo(x, 0);
-        ctx.lineTo(x, 256);
+        ctx.lineTo(x, 512);
         ctx.stroke();
       }
       ctx.fillStyle = '#f59e0b';
-      ctx.fillRect(0, 216, 256, 18);
+      ctx.fillRect(0, 430, 512, 36);
+      // Chest pocket detail on front-left chest
+      ctx.strokeStyle = '#fef3c7';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(274, 96, 46, 52);
     });
   }
 
   public getNorthernSmockTexture(): THREE.CanvasTexture {
-    return this.getOrCreateTexture('northern_smock', 256, 256, (ctx) => {
-      // Hand-loomed indigo/slate cotton strip-weave (Fugu / Batakari texture)
-      const stripW = 16;
-      for (let x = 0; x < 256; x += stripW) {
-        const idx = x / stripW;
+    return this.getOrCreateTexture('northern_smock', 512, 512, (ctx) => {
+      const stripW = 24;
+      for (let x = 0; x < 512; x += stripW) {
+        const idx = Math.floor(x / stripW);
         ctx.fillStyle = idx % 3 === 0 ? '#1e293b' : idx % 3 === 1 ? '#f8fafc' : '#0284c7';
-        ctx.fillRect(x, 0, stripW, 256);
+        ctx.fillRect(x, 0, stripW, 512);
       }
-      // Embroidered neckline plaque
+      // Traditional embroidered chest plastron
       ctx.fillStyle = '#f59e0b';
-      ctx.fillRect(88, 12, 80, 76);
+      ctx.fillRect(190, 18, 132, 148);
       ctx.fillStyle = '#1e293b';
-      ctx.fillRect(98, 22, 60, 56);
+      ctx.fillRect(206, 34, 100, 116);
+      ctx.strokeStyle = '#fef08a';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(216, 44, 80, 96);
     });
+  }
+
+  public getCorrugatedRoofTexture(baseHex: string, shadowHex: string): THREE.CanvasTexture {
+    const tex = this.getOrCreateTexture(`roof_${baseHex}`, 256, 256, (ctx) => {
+      ctx.fillStyle = baseHex;
+      ctx.fillRect(0, 0, 256, 256);
+      ctx.fillStyle = shadowHex;
+      for (let x = 0; x < 256; x += 16) {
+        ctx.fillRect(x, 0, 6, 256);
+      }
+      ctx.fillStyle = 'rgba(255,255,255,0.10)';
+      for (let x = 6; x < 256; x += 16) {
+        ctx.fillRect(x, 0, 4, 256);
+      }
+    });
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(4, 2);
+    return tex;
+  }
+
+  public getBreezeBlockWallTexture(): THREE.CanvasTexture {
+    const tex = this.getOrCreateTexture('breeze_block_wall', 512, 256, (ctx) => {
+      // Warm cream plastered masonry with terracotta top coping and breeze-block vents
+      ctx.fillStyle = '#fef3c7';
+      ctx.fillRect(0, 0, 512, 256);
+
+      // Subtle horizontal plaster block coursing lines
+      ctx.strokeStyle = 'rgba(180, 83, 9, 0.12)';
+      ctx.lineWidth = 2;
+      for (let y = 96; y < 206; y += 36) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(512, y);
+        ctx.stroke();
+      }
+
+      // Top terracotta coping band
+      ctx.fillStyle = '#b45309';
+      ctx.fillRect(0, 0, 512, 24);
+
+      // Geometric breeze-block ventilation row along upper wall
+      ctx.fillStyle = '#d97706';
+      ctx.fillRect(0, 28, 512, 48);
+      for (let x = 16; x < 512; x += 48) {
+        ctx.fillStyle = '#334155';
+        ctx.beginPath();
+        ctx.moveTo(x + 16, 34);
+        ctx.lineTo(x + 30, 52);
+        ctx.lineTo(x + 16, 70);
+        ctx.lineTo(x + 2, 52);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Lower anti-splash plinth
+      ctx.fillStyle = '#b45309';
+      ctx.fillRect(0, 206, 512, 50);
+    });
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    return tex;
+  }
+
+  public getSidewalkPaverTexture(): THREE.CanvasTexture {
+    const tex = this.getOrCreateTexture('sidewalk_pavers', 256, 256, (ctx) => {
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillRect(0, 0, 256, 256);
+      ctx.strokeStyle = '#94a3b8';
+      ctx.lineWidth = 3;
+      const step = 64;
+      for (let y = 0; y < 256; y += step) {
+        const offset = (y / step) % 2 === 0 ? 0 : 32;
+        for (let x = -32; x < 256; x += step) {
+          ctx.strokeRect(x + offset, y, step, step);
+        }
+      }
+    });
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(24, 2);
+    return tex;
   }
 
   public getSignboardTexture(
@@ -312,13 +546,13 @@ class SharedArtLibrary {
       ctx.strokeRect(8, 8, 496, 144);
 
       ctx.fillStyle = textColor;
-      ctx.font = '900 40px system-ui, -apple-system, sans-serif';
+      ctx.font = '900 38px system-ui, -apple-system, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(title, 256, 62);
+      ctx.fillText(title, 256, 60);
 
       ctx.fillStyle = borderColor;
-      ctx.font = '800 24px system-ui, -apple-system, sans-serif';
+      ctx.font = '800 23px system-ui, -apple-system, sans-serif';
       ctx.fillText(subtitle, 256, 114);
     });
   }

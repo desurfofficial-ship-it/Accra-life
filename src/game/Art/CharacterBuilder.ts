@@ -22,11 +22,20 @@ export interface CharacterRig {
   readonly leftKnee: THREE.Group;
   readonly rightHip: THREE.Group;
   readonly rightKnee: THREE.Group;
-  updateAnimation(dt: number, isMoving: boolean, isSprinting: boolean, phaseOffset?: number): void;
+  updateAnimation(
+    dt: number,
+    isMoving: boolean,
+    isSprinting: boolean,
+    phaseOffset?: number,
+    turnRate?: number,
+    moveSpeedRatio?: number
+  ): void;
 }
 
 interface ArchetypeVisualSpec {
   skinHex: number;
+  skinCss: string;
+  lipCss: string;
   hairHex: number;
   trouserHex: number;
   shoeUpperHex: number;
@@ -36,9 +45,28 @@ interface ArchetypeVisualSpec {
   collarHex: number;
   hairStyle: 'taper_fade' | 'sponge_twists' | 'braided_bun' | 'kufi_elder';
   garmentCut: 'fitted_shirt' | 'peplum_skirt' | 'northern_smock';
-  hasGlasses?: boolean;
   hasEarrings?: boolean;
   hasBeard?: boolean;
+  hasWristwatch?: boolean;
+}
+
+// Cached organic lathe torso geometry with phiStart = Math.PI so u = 0.5 faces +Z (front chest)
+let cachedFittedTorsoLathe: THREE.LatheGeometry | null = null;
+function getFittedTorsoLatheGeometry(): THREE.LatheGeometry {
+  if (!cachedFittedTorsoLathe) {
+    const pts = [
+      new THREE.Vector2(0.01, 0.0),
+      new THREE.Vector2(0.166, 0.015),
+      new THREE.Vector2(0.160, 0.13),
+      new THREE.Vector2(0.178, 0.27),
+      new THREE.Vector2(0.205, 0.41),
+      new THREE.Vector2(0.184, 0.48),
+      new THREE.Vector2(0.086, 0.51)
+    ];
+    cachedFittedTorsoLathe = new THREE.LatheGeometry(pts, 28, Math.PI, Math.PI * 2);
+    cachedFittedTorsoLathe.computeVertexNormals();
+  }
+  return cachedFittedTorsoLathe;
 }
 
 export function buildStylizedGhanaianCharacter(archetypeId: CharacterArchetypeId): CharacterRig {
@@ -48,7 +76,6 @@ export function buildStylizedGhanaianCharacter(archetypeId: CharacterArchetypeId
   root.name = archetypeId;
   root.scale.setScalar(spec.heightScale);
 
-  // Shared materials from library
   const skinMat = sharedArtLibrary.getMaterial(`skin_${spec.skinHex}`, {
     color: spec.skinHex,
     roughness: CHARACTER_STYLE_STANDARD.skinRoughness,
@@ -69,17 +96,17 @@ export function buildStylizedGhanaianCharacter(archetypeId: CharacterArchetypeId
 
   const collarMat = sharedArtLibrary.getMaterial(`collar_${spec.collarHex}`, {
     color: spec.collarHex,
-    roughness: 0.58
+    roughness: 0.55
   });
 
   const trouserMat = sharedArtLibrary.getMaterial(`trouser_${spec.trouserHex}`, {
     color: spec.trouserHex,
-    roughness: 0.72
+    roughness: 0.70
   });
 
   const shoeUpperMat = sharedArtLibrary.getMaterial(`shoe_upper_${spec.shoeUpperHex}`, {
     color: spec.shoeUpperHex,
-    roughness: 0.46
+    roughness: 0.42
   });
 
   const shoeSoleMat = sharedArtLibrary.getMaterial(`shoe_sole_${spec.shoeSoleHex}`, {
@@ -87,57 +114,64 @@ export function buildStylizedGhanaianCharacter(archetypeId: CharacterArchetypeId
     roughness: 0.55
   });
 
-  // Ground contact shadow disc
-  const shadowGeo = new THREE.CircleGeometry(0.38, 24);
+  // Ground contact ambient shadow disc positioned cleanly on the surface datum
+  const shadowGeo = new THREE.CircleGeometry(0.36, 24);
   shadowGeo.rotateX(-Math.PI / 2);
   const shadowMat = new THREE.MeshBasicMaterial({
     color: 0x0f172a,
     transparent: true,
-    opacity: 0.24,
-    depthWrite: false
+    opacity: 0.28,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -1
   });
   const shadowDisc = new THREE.Mesh(shadowGeo, shadowMat);
-  shadowDisc.position.y = 0.015;
+  shadowDisc.position.y = 0.006;
   root.add(shadowDisc);
 
   // ---------------------------------------------------------------------------
-  // 1. PELVIS & LOWER BODY HIERARCHY
+  // 1. PELVIS & LOWER HIP BOWL (Seamless rounded transition to legs & torso)
   // ---------------------------------------------------------------------------
   const pelvis = new THREE.Group();
   pelvis.name = 'Pelvis';
   pelvis.position.set(0, 0.86, 0);
   root.add(pelvis);
 
-  const hipPelvisMesh = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.165, 0.155, 0.18, 16),
+  const hipBowl = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.144, 0.08, 12, 20),
     trouserMat
   );
-  hipPelvisMesh.castShadow = true;
-  hipPelvisMesh.receiveShadow = true;
-  pelvis.add(hipPelvisMesh);
+  hipBowl.scale.set(1.08, 0.9, 0.78);
+  hipBowl.castShadow = true;
+  hipBowl.receiveShadow = true;
+  pelvis.add(hipBowl);
+
+  // Tailored belt band at the waist transition
+  const beltBand = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.168, 0.168, 0.042, 24),
+    sharedArtLibrary.getMaterial('belt_leather', { color: 0x1c1917, roughness: 0.45 })
+  );
+  beltBand.position.set(0, 0.035, 0);
+  beltBand.scale.set(1.05, 1.0, 0.77);
+  pelvis.add(beltBand);
 
   // ---------------------------------------------------------------------------
-  // 2. TORSO, GARMENT SILHOUETTE & NECK
+  // 2. LATHE-SCULPTED TORSO & GARMENT SILHOUETTE
   // ---------------------------------------------------------------------------
   const torso = new THREE.Group();
   torso.name = 'Torso';
-  torso.position.set(0, 0.06, 0);
+  torso.position.set(0, 0.04, 0);
   pelvis.add(torso);
 
-  // Sculpted upper torso (wider shoulders tapering cleanly to waist)
-  const chestMesh = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.205, 0.165, 0.48, 18),
-    shirtMat
-  );
-  chestMesh.position.y = 0.24;
-  chestMesh.scale.set(1.08, 1.0, 0.74);
+  const chestMesh = new THREE.Mesh(getFittedTorsoLatheGeometry(), shirtMat);
+  chestMesh.scale.set(1.06, 1.0, 0.76);
   chestMesh.castShadow = true;
   chestMesh.receiveShadow = true;
   torso.add(chestMesh);
 
-  // Rounded shoulder cap Bridge
+  // Organic rounded clavicle / shoulder bridge
   const shoulderBridge = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.115, 0.26, 8, 14),
+    new THREE.CapsuleGeometry(0.106, 0.27, 12, 18),
     shirtMat
   );
   shoulderBridge.rotation.z = Math.PI / 2;
@@ -146,49 +180,56 @@ export function buildStylizedGhanaianCharacter(archetypeId: CharacterArchetypeId
   shoulderBridge.castShadow = true;
   torso.add(shoulderBridge);
 
-  // Tailored neckline / collar ring
-  const collarRing = new THREE.Mesh(
-    new THREE.TorusGeometry(0.088, 0.022, 10, 20),
+  // Tailored Shirt Collar Stand + Folded Left/Right Lapel Points
+  const collarStand = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.084, 0.094, 0.048, 20, 1, true),
     collarMat
   );
-  collarRing.rotation.x = Math.PI / 2;
-  collarRing.position.set(0, 0.48, 0.01);
-  torso.add(collarRing);
+  collarStand.position.set(0, 0.495, 0.005);
+  collarStand.scale.set(0.96, 1, 0.92);
+  torso.add(collarStand);
 
-  // Garment-specific silhouette additions
+  for (const side of [-1, 1]) {
+    const lapel = new THREE.Mesh(
+      new THREE.BoxGeometry(0.056, 0.036, 0.068),
+      collarMat
+    );
+    lapel.position.set(side * 0.048, 0.478, 0.068);
+    lapel.rotation.set(0.32, side * 0.42, -side * 0.28);
+    torso.add(lapel);
+  }
+
   if (spec.garmentCut === 'peplum_skirt') {
-    // Flared Ankara peplum waist frill + midi skirt
     const peplumFlare = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.165, 0.235, 0.18, 18),
+      new THREE.CylinderGeometry(0.160, 0.238, 0.19, 24),
       shirtMat
     );
-    peplumFlare.position.y = 0.03;
+    peplumFlare.position.y = 0.02;
     peplumFlare.scale.set(1.05, 1, 0.82);
     peplumFlare.castShadow = true;
     torso.add(peplumFlare);
 
     const midiSkirt = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.175, 0.21, 0.42, 18),
+      new THREE.CylinderGeometry(0.170, 0.202, 0.44, 24),
       trouserMat
     );
-    midiSkirt.position.y = -0.18;
+    midiSkirt.position.y = -0.19;
     midiSkirt.scale.set(1.04, 1, 0.84);
     midiSkirt.castShadow = true;
     pelvis.add(midiSkirt);
   } else if (spec.garmentCut === 'northern_smock') {
-    // Flowing woven Batakari / Northern smock tunic skirt
     const smockTunic = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.18, 0.245, 0.34, 18),
+      new THREE.CylinderGeometry(0.176, 0.246, 0.36, 24),
       shirtMat
     );
-    smockTunic.position.y = -0.04;
+    smockTunic.position.y = -0.05;
     smockTunic.scale.set(1.06, 1, 0.82);
     smockTunic.castShadow = true;
     torso.add(smockTunic);
   }
 
   // ---------------------------------------------------------------------------
-  // 3. NECK & EXPRESSIVE SCULPTED HEAD
+  // 3. NECK & EXPRESSIVE SCULPTED HEAD WITH FRONT (+Z) FACIAL MAP
   // ---------------------------------------------------------------------------
   const neck = new THREE.Group();
   neck.name = 'Neck';
@@ -196,7 +237,7 @@ export function buildStylizedGhanaianCharacter(archetypeId: CharacterArchetypeId
   torso.add(neck);
 
   const neckCylinder = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.058, 0.066, 0.11, 14),
+    new THREE.CylinderGeometry(0.057, 0.067, 0.12, 16),
     skinMat
   );
   neckCylinder.position.y = 0.04;
@@ -208,106 +249,115 @@ export function buildStylizedGhanaianCharacter(archetypeId: CharacterArchetypeId
   head.position.set(0, 0.10, 0);
   neck.add(head);
 
-  // Sculpted cranium + jawline composite (no boxes!)
-  const cranium = new THREE.Mesh(
-    new THREE.SphereGeometry(0.138, 22, 20),
-    skinMat
-  );
-  cranium.position.set(0, 0.11, 0);
+  // Sculpted cranium + contoured cheek/jawline composite
+  const cranium = new THREE.Mesh(new THREE.SphereGeometry(0.138, 26, 24), skinMat);
+  cranium.position.set(0, 0.112, 0);
   cranium.scale.set(0.94, 1.08, 0.98);
   cranium.castShadow = true;
   head.add(cranium);
 
-  const jawChin = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.088, 0.055, 10, 16),
-    skinMat
-  );
-  jawChin.position.set(0, 0.065, 0.018);
-  jawChin.scale.set(0.95, 1.0, 0.88);
+  const jawChin = new THREE.Mesh(new THREE.CapsuleGeometry(0.086, 0.054, 12, 18), skinMat);
+  jawChin.position.set(0, 0.066, 0.018);
+  jawChin.scale.set(0.94, 1.0, 0.88);
   jawChin.castShadow = true;
   head.add(jawChin);
 
-  // Ears
-  const earGeo = new THREE.SphereGeometry(0.032, 10, 10);
+  const faceTex = sharedArtLibrary.getCharacterFaceTexture(
+    archetypeId,
+    spec.skinCss,
+    spec.lipCss,
+    spec.garmentCut === 'peplum_skirt'
+  );
+  const faceMat = sharedArtLibrary.getMaterial(`face_mat_${archetypeId}`, {
+    map: faceTex,
+    transparent: true,
+    alphaTest: 0.02,
+    roughness: CHARACTER_STYLE_STANDARD.skinRoughness,
+    metalness: CHARACTER_STYLE_STANDARD.skinMetalness,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1
+  });
+
+  const facePatchGeo = new THREE.SphereGeometry(
+    0.1392,
+    24,
+    20,
+    Math.PI * 0.22,
+    Math.PI * 0.56,
+    Math.PI * 0.24,
+    Math.PI * 0.54
+  );
+  const facePatch = new THREE.Mesh(facePatchGeo, faceMat);
+  facePatch.position.set(0, 0.112, 0.003);
+  facePatch.scale.set(0.94, 1.08, 0.98);
+  head.add(facePatch);
+
+  // 3D Sculpted Nose Bridge, Tip & Nostril Wings
+  const noseBridge = new THREE.Mesh(new THREE.CapsuleGeometry(0.014, 0.028, 8, 12), skinMat);
+  noseBridge.position.set(0, 0.102, 0.134);
+  noseBridge.rotation.x = -0.24;
+  head.add(noseBridge);
+
+  const noseTip = new THREE.Mesh(new THREE.SphereGeometry(0.018, 12, 10), skinMat);
+  noseTip.position.set(0, 0.088, 0.142);
+  noseTip.scale.set(1.18, 0.85, 0.95);
+  head.add(noseTip);
+
+  for (const side of [-1, 1]) {
+    const nostrilWing = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 8), skinMat);
+    nostrilWing.position.set(side * 0.014, 0.085, 0.134);
+    head.add(nostrilWing);
+  }
+
+  // 3D Sculpted Ears
+  const earGeo = new THREE.SphereGeometry(0.031, 12, 12);
   for (const side of [-1, 1]) {
     const ear = new THREE.Mesh(earGeo, skinMat);
-    ear.position.set(side * 0.128, 0.10, -0.005);
-    ear.scale.set(0.45, 0.85, 0.65);
+    ear.position.set(side * 0.128, 0.104, -0.004);
+    ear.rotation.y = -side * 0.18;
+    ear.scale.set(0.42, 0.88, 0.65);
     head.add(ear);
   }
 
-  // Sculpted Nose Bridge & Tip
-  const nose = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.018, 0.028, 8, 10),
-    skinMat
-  );
-  nose.position.set(0, 0.095, 0.132);
-  nose.rotation.x = -0.18;
-  head.add(nose);
-
-  // Expressive Eyes (Sclera + Dark Iris + Brow)
-  const scleraMat = sharedArtLibrary.getMaterial('eye_sclera', {
-    color: 0xf8fafc,
-    roughness: 0.25
-  });
-  const irisMat = sharedArtLibrary.getMaterial('eye_iris', {
-    color: 0x1c1917,
-    roughness: 0.15
-  });
-  const lipMat = sharedArtLibrary.getMaterial(`lips_${spec.skinHex}`, {
-    color: 0x432314,
-    roughness: 0.5
-  });
-
-  for (const side of [-1, 1]) {
-    const eyeSclera = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 12), scleraMat);
-    eyeSclera.position.set(side * 0.048, 0.118, 0.118);
-    eyeSclera.scale.set(1.15, 0.88, 0.55);
-    head.add(eyeSclera);
-
-    const eyeIris = new THREE.Mesh(new THREE.SphereGeometry(0.013, 10, 10), irisMat);
-    eyeIris.position.set(side * 0.048, 0.118, 0.130);
-    eyeIris.scale.set(1.0, 1.0, 0.45);
-    head.add(eyeIris);
-
-    // Sculpted arched eyebrow
-    const brow = new THREE.Mesh(new THREE.CapsuleGeometry(0.007, 0.032, 6, 8), hairMat);
-    brow.rotation.z = Math.PI / 2 - side * 0.12;
-    brow.position.set(side * 0.048, 0.146, 0.124);
-    head.add(brow);
-  }
-
-  // Warm expressive mouth / smile line
-  const mouth = new THREE.Mesh(new THREE.CapsuleGeometry(0.011, 0.034, 6, 10), lipMat);
-  mouth.rotation.z = Math.PI / 2;
-  mouth.position.set(0, 0.052, 0.122);
-  mouth.scale.set(0.75, 1.0, 0.65);
-  head.add(mouth);
-
-  // Archetype Hair & Headwear
+  // Hair & Cultural Accessories
   buildHairAndAccessories(head, spec, hairMat);
 
   // ---------------------------------------------------------------------------
-  // 4. ARTICULATED ARMS (Shoulder -> Elbow -> Hand)
+  // 4. SEAMLESS ARTICULATED ARMS (Shoulder -> Elbow -> Hand)
   // ---------------------------------------------------------------------------
-  const { shoulder: leftShoulder, elbow: leftElbow } = buildArticulatedArm(
+  const {
+    shoulder: leftShoulder,
+    elbow: leftElbow,
+    hand: leftHand
+  } = buildArticulatedArm(
     -1,
     skinMat,
     shirtMat,
-    collarMat
+    collarMat,
+    Boolean(spec.hasWristwatch)
   );
-  const { shoulder: rightShoulder, elbow: rightElbow } = buildArticulatedArm(
+  const {
+    shoulder: rightShoulder,
+    elbow: rightElbow,
+    hand: rightHand
+  } = buildArticulatedArm(
     1,
     skinMat,
     shirtMat,
-    collarMat
+    collarMat,
+    false
   );
   torso.add(leftShoulder, rightShoulder);
 
   // ---------------------------------------------------------------------------
-  // 5. ARTICULATED LEGS (Hip -> Knee -> Foot)
+  // 5. SEAMLESS ARTICULATED LEGS (Hip -> Knee -> Foot)
   // ---------------------------------------------------------------------------
-  const { hip: leftHip, knee: leftKnee } = buildArticulatedLeg(
+  const {
+    hip: leftHip,
+    knee: leftKnee,
+    foot: leftFoot
+  } = buildArticulatedLeg(
     -1,
     skinMat,
     trouserMat,
@@ -316,7 +366,11 @@ export function buildStylizedGhanaianCharacter(archetypeId: CharacterArchetypeId
     collarMat,
     spec.garmentCut === 'peplum_skirt'
   );
-  const { hip: rightHip, knee: rightKnee } = buildArticulatedLeg(
+  const {
+    hip: rightHip,
+    knee: rightKnee,
+    foot: rightFoot
+  } = buildArticulatedLeg(
     1,
     skinMat,
     trouserMat,
@@ -328,70 +382,164 @@ export function buildStylizedGhanaianCharacter(archetypeId: CharacterArchetypeId
   pelvis.add(leftHip, rightHip);
 
   // ---------------------------------------------------------------------------
-  // 6. FULL-BODY PROCEDURAL ANIMATION CONTROLLER (Zero Per-Frame Allocations)
+  // 6. FULL-BODY BIOMECHANICAL ANIMATION CONTROLLER
   // ---------------------------------------------------------------------------
+  // Coordinate system convention for downward-hanging limbs (arms, forearms, thighs, calves):
+  // - Local limb extends along -Y.
+  // - Character faces +Z.
+  // - Therefore:
+  //   * NEGATIVE rotation.x (rx < 0) swings/bends the limb FORWARD (+Z).
+  //   * POSITIVE rotation.x (rx > 0) swings/bends the limb BACKWARD (-Z).
+  //   * Elbows ALWAYS bend forward (elbow.rotation.x <= 0, NEVER positive!).
+  //   * Knees ALWAYS bend backward (knee.rotation.x >= 0, NEVER negative!).
   let animClock = 0;
+  let idleClock = 0;
+  let walkBlend = 0; // 0 = idle, 1 = moving
+  let sprintBlend = 0; // 0 = walk, 1 = sprint/jog
 
   const updateAnimation = (
     dt: number,
     isMoving: boolean,
     isSprinting: boolean,
-    phaseOffset = 0
+    phaseOffset = 0,
+    turnRate = 0,
+    moveSpeedRatio = 1
   ): void => {
-    if (isMoving) {
-      const freq = isSprinting ? 12.8 : 8.6;
-      const strideAmp = isSprinting ? 0.68 : 0.44;
-      animClock += dt * freq;
-      const phase = animClock + phaseOffset;
+    const smoothRate = 1 - Math.exp(-dt * 12);
+    const targetWalk = isMoving ? THREE.MathUtils.clamp(moveSpeedRatio, 0.25, 1.0) : 0;
+    const targetSprint = isMoving && isSprinting ? 1 : 0;
 
-      const sinP = Math.sin(phase);
-      const cosP = Math.cos(phase);
+    walkBlend = THREE.MathUtils.lerp(walkBlend, targetWalk, smoothRate);
+    sprintBlend = THREE.MathUtils.lerp(sprintBlend, targetSprint, smoothRate);
 
-      // Hip swing
-      leftHip.rotation.x = sinP * strideAmp;
-      rightHip.rotation.x = -sinP * strideAmp;
-
-      // Natural knee bend (knees only flex backward during the recovery/lift phase)
-      leftKnee.rotation.x = -Math.max(0, -cosP) * (isSprinting ? 0.85 : 0.52);
-      rightKnee.rotation.x = -Math.max(0, cosP) * (isSprinting ? 0.85 : 0.52);
-
-      // Opposite arm swing + natural elbow flexion
-      leftShoulder.rotation.x = -sinP * strideAmp * 0.82;
-      rightShoulder.rotation.x = sinP * strideAmp * 0.82;
-      leftElbow.rotation.x = Math.max(0.15, sinP * 0.35 + (isSprinting ? 0.55 : 0.28));
-      rightElbow.rotation.x = Math.max(0.15, -sinP * 0.35 + (isSprinting ? 0.55 : 0.28));
-
-      // Subtle torso counter-twist and forward lean when jogging
-      torso.rotation.y = -sinP * 0.08;
-      torso.rotation.x = THREE.MathUtils.lerp(torso.rotation.x, isSprinting ? 0.11 : 0.04, dt * 10);
-      head.rotation.y = sinP * 0.05;
-
-      // Vertical stride bounce on pelvis
-      const bounce = Math.abs(cosP) * (isSprinting ? 0.048 : 0.026);
-      pelvis.position.y = 0.86 + bounce;
-    } else {
-      animClock += dt * 2.1;
-      const idlePhase = animClock + phaseOffset;
-      const breath = Math.sin(idlePhase) * 0.012;
-      const gentleLook = Math.sin(idlePhase * 0.55) * 0.09;
-
-      const damp = Math.min(1, dt * 10);
-      leftHip.rotation.x = THREE.MathUtils.lerp(leftHip.rotation.x, 0, damp);
-      rightHip.rotation.x = THREE.MathUtils.lerp(rightHip.rotation.x, 0, damp);
-      leftKnee.rotation.x = THREE.MathUtils.lerp(leftKnee.rotation.x, 0, damp);
-      rightKnee.rotation.x = THREE.MathUtils.lerp(rightKnee.rotation.x, 0, damp);
-
-      leftShoulder.rotation.x = THREE.MathUtils.lerp(leftShoulder.rotation.x, 0.03, damp);
-      rightShoulder.rotation.x = THREE.MathUtils.lerp(rightShoulder.rotation.x, -0.03, damp);
-      leftElbow.rotation.x = THREE.MathUtils.lerp(leftElbow.rotation.x, 0.14, damp);
-      rightElbow.rotation.x = THREE.MathUtils.lerp(rightElbow.rotation.x, 0.14, damp);
-
-      torso.rotation.x = THREE.MathUtils.lerp(torso.rotation.x, 0, damp);
-      torso.rotation.y = THREE.MathUtils.lerp(torso.rotation.y, breath * 1.5, damp);
-      head.rotation.y = THREE.MathUtils.lerp(head.rotation.y, gentleLook, damp);
-
-      pelvis.position.y = 0.86 + breath;
+    // Advance stride phase proportional to blended cadence
+    const cadence = THREE.MathUtils.lerp(7.8, 11.4, sprintBlend);
+    if (walkBlend > 0.01) {
+      animClock += dt * cadence * Math.max(0.55, walkBlend);
     }
+    idleClock += dt * 1.9;
+
+    const phase = animClock + phaseOffset;
+    const sinP = Math.sin(phase);
+    const cosP = Math.cos(phase);
+
+    const idlePhase = idleClock + phaseOffset;
+    const breath = Math.sin(idlePhase) * 0.006;
+    const gentleLook = Math.sin(idlePhase * 0.5) * 0.06 * (1 - walkBlend);
+
+    // -------------------------------------------------------------------------
+    // A. LEGS, KNEES & ANKLE PITCH
+    // -------------------------------------------------------------------------
+    const legAmp = THREE.MathUtils.lerp(0.42, 0.68, sprintBlend) * walkBlend;
+    // When sinP > 0: Left leg swings FORWARD (rx < 0), Right leg swings BACKWARD (rx > 0)
+    leftHip.rotation.x = -sinP * legAmp;
+    rightHip.rotation.x = sinP * legAmp;
+
+    // Knee flexion is strictly POSITIVE (rx >= 0 bends shin backward toward hamstring)
+    const maxKneeBend = THREE.MathUtils.lerp(0.56, 1.05, sprintBlend) * walkBlend;
+    const leftSwingLift = Math.max(0, cosP);
+    const rightSwingLift = Math.max(0, -cosP);
+    const stanceCushion = 0.08 * walkBlend;
+
+    leftKnee.rotation.x = leftSwingLift * maxKneeBend + stanceCushion;
+    rightKnee.rotation.x = rightSwingLift * maxKneeBend + stanceCushion;
+
+    // Subtle ankle push-off & heel-strike articulation
+    leftFoot.rotation.x = (-leftSwingLift * 0.18 + Math.max(0, sinP) * 0.12) * walkBlend;
+    rightFoot.rotation.x = (-rightSwingLift * 0.18 + Math.max(0, -sinP) * 0.12) * walkBlend;
+
+    // -------------------------------------------------------------------------
+    // B. SHOULDERS, ELBOWS & HANDS (Contralateral Swing & Forward Elbow Flexion)
+    // -------------------------------------------------------------------------
+    // When Left leg is forward (sinP > 0):
+    // - Left arm swings BACKWARD (rx > 0)
+    // - Right arm swings FORWARD (rx < 0)
+    const armSwingAmp = THREE.MathUtils.lerp(0.32, 0.56, sprintBlend) * walkBlend;
+    // Slight backward shoulder bias during jogging because elbows are bent forward
+    const shoulderPitchBias = THREE.MathUtils.lerp(0.03, 0.14, sprintBlend) * walkBlend;
+
+    leftShoulder.rotation.x = sinP * armSwingAmp + shoulderPitchBias;
+    rightShoulder.rotation.x = -sinP * armSwingAmp + shoulderPitchBias;
+
+    // Natural outward shoulder hang so arms/hands never scrape the hips or skirt
+    const baseOutwardAbduction = THREE.MathUtils.lerp(0.08, 0.13, sprintBlend);
+    leftShoulder.rotation.z = -baseOutwardAbduction - Math.max(0, -sinP) * 0.03 * walkBlend;
+    rightShoulder.rotation.z = baseOutwardAbduction + Math.max(0, sinP) * 0.03 * walkBlend;
+
+    // Subtle inward cross-body shoulder yaw during forward arm swing
+    const crossBodyYaw = THREE.MathUtils.lerp(0.04, 0.16, sprintBlend) * walkBlend;
+    leftShoulder.rotation.y = Math.max(0, -sinP) * crossBodyYaw;
+    rightShoulder.rotation.y = -Math.max(0, sinP) * crossBodyYaw;
+
+    // ELBOW FLEXION: MUST BE NEGATIVE (rx < 0 bends forearm FORWARD along +Z!)
+    // - Idle: relaxed -0.16 rad (~9 deg forward bend)
+    // - Walk: -0.34 rad base, flexing up to -0.52 rad on forward swing, relaxing to -0.18 rad on backswing
+    // - Jog/Sprint: athletic -1.12 rad (~64 deg forward bend), flexing to -1.32 rad on forward pump
+    const idleElbowBend = -0.16;
+    const walkBaseElbow = -0.34;
+    const sprintBaseElbow = -1.12;
+    const baseElbow = THREE.MathUtils.lerp(
+      idleElbowBend,
+      THREE.MathUtils.lerp(walkBaseElbow, sprintBaseElbow, sprintBlend),
+      walkBlend
+    );
+
+    const dynamicElbowPump = THREE.MathUtils.lerp(0.18, 0.24, sprintBlend) * walkBlend;
+    // Left arm is forward when -sinP > 0; Right arm is forward when +sinP > 0
+    leftElbow.rotation.x = THREE.MathUtils.clamp(
+      baseElbow - (-sinP) * dynamicElbowPump,
+      -1.42,
+      -0.10
+    );
+    rightElbow.rotation.x = THREE.MathUtils.clamp(
+      baseElbow - sinP * dynamicElbowPump,
+      -1.42,
+      -0.10
+    );
+
+    // Subtle inward forearm angle so hands track naturally in front of ribcage when jogging
+    const inwardForearmZ = THREE.MathUtils.lerp(0.05, 0.16, sprintBlend);
+    leftElbow.rotation.z = inwardForearmZ;
+    rightElbow.rotation.z = -inwardForearmZ;
+
+    // Hand wrist posture: relaxed neutral when walking, athletic compact alignment when jogging
+    const wristCurlZ = THREE.MathUtils.lerp(0.08, 0.18, sprintBlend);
+    leftHand.rotation.z = wristCurlZ;
+    rightHand.rotation.z = -wristCurlZ;
+    leftHand.rotation.x = THREE.MathUtils.lerp(-0.04, -0.12, sprintBlend);
+    rightHand.rotation.x = THREE.MathUtils.lerp(-0.04, -0.12, sprintBlend);
+
+    // -------------------------------------------------------------------------
+    // C. SPINE, PELVIS & HEAD (Stride Bounce + Turn Banking + Look-Into-Turn)
+    // -------------------------------------------------------------------------
+    const clampedTurn = THREE.MathUtils.clamp(turnRate, -1, 1);
+
+    // Vertical double-frequency stride bounce (always >= 0 so feet never sink below ground)
+    const strideBounce =
+      Math.abs(sinP) * THREE.MathUtils.lerp(0.022, 0.045, sprintBlend) * walkBlend;
+    pelvis.position.y = 0.86 + strideBounce;
+
+    // Subtle hip sway and natural banking into turns
+    pelvis.rotation.z =
+      sinP * 0.025 * walkBlend - clampedTurn * THREE.MathUtils.lerp(0.06, 0.13, sprintBlend);
+    pelvis.rotation.y = sinP * 0.04 * walkBlend;
+
+    // Torso forward lean when walking/jogging + counter-rotation + turn banking
+    const targetTorsoLeanX = THREE.MathUtils.lerp(0.04, 0.14, sprintBlend) * walkBlend;
+    torso.rotation.x = THREE.MathUtils.lerp(torso.rotation.x, targetTorsoLeanX, smoothRate);
+    torso.rotation.y =
+      -sinP * THREE.MathUtils.lerp(0.07, 0.12, sprintBlend) * walkBlend +
+      clampedTurn * 0.10 +
+      breath * (1 - walkBlend);
+    torso.rotation.z = -clampedTurn * THREE.MathUtils.lerp(0.05, 0.10, sprintBlend);
+    torso.position.y = 0.04 + breath * (1 - walkBlend);
+
+    // Head stabilizes counter-rotation and leads smoothly into the turn direction
+    const targetHeadYaw =
+      sinP * 0.04 * walkBlend + clampedTurn * 0.24 + gentleLook;
+    const targetHeadRoll = -clampedTurn * 0.05;
+    head.rotation.y = THREE.MathUtils.lerp(head.rotation.y, targetHeadYaw, smoothRate);
+    head.rotation.z = THREE.MathUtils.lerp(head.rotation.z, targetHeadRoll, smoothRate);
   };
 
   return {
@@ -419,98 +567,125 @@ function buildHairAndAccessories(
   hairMat: THREE.Material
 ): void {
   if (spec.hairStyle === 'taper_fade') {
-    // Sculpted Accra high-top fade with rounded crown and crisp temple lineup
     const crownBase = new THREE.Mesh(
-      new THREE.SphereGeometry(0.142, 20, 16, 0, Math.PI * 2, 0, Math.PI * 0.58),
+      new THREE.SphereGeometry(0.142, 24, 18, 0, Math.PI * 2, 0, Math.PI * 0.52),
       hairMat
     );
-    crownBase.position.set(0, 0.115, -0.008);
-    crownBase.scale.set(0.95, 1.06, 1.0);
+    crownBase.position.set(0, 0.122, -0.010);
+    crownBase.rotation.x = -0.14;
+    crownBase.scale.set(0.95, 1.05, 1.0);
     crownBase.castShadow = true;
     head.add(crownBase);
 
-    const flatTop = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.112, 0.124, 0.068, 18),
+    const crownTop = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.112, 0.124, 0.058, 22),
       hairMat
     );
-    flatTop.position.set(0, 0.235, -0.005);
-    flatTop.scale.set(0.96, 1.0, 0.98);
-    flatTop.castShadow = true;
-    head.add(flatTop);
+    crownTop.position.set(0, 0.228, 0.002);
+    crownTop.rotation.x = 0.04;
+    crownTop.scale.set(0.96, 1.0, 1.04);
+    crownTop.castShadow = true;
+    head.add(crownTop);
+
+    const crownDome = new THREE.Mesh(
+      new THREE.SphereGeometry(0.112, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.5),
+      hairMat
+    );
+    crownDome.position.set(0, 0.252, 0.002);
+    crownDome.scale.set(0.96, 0.32, 1.04);
+    head.add(crownDome);
   } else if (spec.hairStyle === 'sponge_twists') {
     const crownBase = new THREE.Mesh(
-      new THREE.SphereGeometry(0.144, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.6),
+      new THREE.SphereGeometry(0.143, 22, 16, 0, Math.PI * 2, 0, Math.PI * 0.54),
       hairMat
     );
-    crownBase.position.set(0, 0.118, -0.008);
+    crownBase.position.set(0, 0.122, -0.010);
+    crownBase.rotation.x = -0.12;
     head.add(crownBase);
 
-    // Textured sponge-twist curls cluster on top
-    const curlGeo = new THREE.SphereGeometry(0.034, 8, 8);
+    const curlGeo = new THREE.SphereGeometry(0.035, 10, 10);
     const curlOffsets: Array<[number, number, number]> = [
-      [0, 0.245, 0.02],
-      [-0.048, 0.238, 0.01],
-      [0.048, 0.238, 0.01],
-      [-0.035, 0.242, -0.04],
-      [0.035, 0.242, -0.04],
-      [0, 0.25, -0.03]
+      [0, 0.246, 0.032],
+      [-0.046, 0.240, 0.022],
+      [0.046, 0.240, 0.022],
+      [-0.062, 0.228, -0.015],
+      [0.062, 0.228, -0.015],
+      [-0.034, 0.244, -0.035],
+      [0.034, 0.244, -0.035],
+      [0, 0.252, -0.012]
     ];
     for (const [cx, cy, cz] of curlOffsets) {
       const curl = new THREE.Mesh(curlGeo, hairMat);
       curl.position.set(cx, cy, cz);
+      curl.castShadow = true;
       head.add(curl);
     }
   } else if (spec.hairStyle === 'braided_bun') {
-    // Sleek braided base + high sculptural Accra box-braids crown bun
     const hairCap = new THREE.Mesh(
-      new THREE.SphereGeometry(0.143, 20, 16, 0, Math.PI * 2, 0, Math.PI * 0.62),
+      new THREE.SphereGeometry(0.143, 24, 18, 0, Math.PI * 2, 0, Math.PI * 0.56),
       hairMat
     );
-    hairCap.position.set(0, 0.118, -0.01);
+    hairCap.position.set(0, 0.122, -0.012);
+    hairCap.rotation.x = -0.16;
     head.add(hairCap);
 
-    const highBun = new THREE.Mesh(new THREE.SphereGeometry(0.082, 16, 14), hairMat);
-    highBun.position.set(0, 0.265, -0.035);
-    highBun.scale.set(1.05, 0.92, 1.05);
+    const highBun = new THREE.Mesh(new THREE.SphereGeometry(0.084, 18, 16), hairMat);
+    highBun.position.set(0, 0.265, -0.038);
+    highBun.scale.set(1.06, 0.92, 1.06);
     highBun.castShadow = true;
     head.add(highBun);
 
     const bunWrap = new THREE.Mesh(
-      new THREE.TorusGeometry(0.068, 0.016, 8, 18),
+      new THREE.TorusGeometry(0.068, 0.015, 10, 22),
       sharedArtLibrary.getMaterial('gold_accessory', {
         color: 0xfacc15,
         roughness: 0.3,
         metalness: 0.75
       })
     );
-    bunWrap.rotation.x = Math.PI / 2 - 0.2;
-    bunWrap.position.set(0, 0.23, -0.03);
+    bunWrap.rotation.x = Math.PI / 2 - 0.22;
+    bunWrap.position.set(0, 0.232, -0.032);
     head.add(bunWrap);
   } else if (spec.hairStyle === 'kufi_elder') {
-    // Embroidered Kufi cap + salt-and-pepper side hair & beard
     const kufiMat = sharedArtLibrary.getMaterial('kufi_gold_cap', {
       color: 0xd97706,
-      roughness: 0.62
+      roughness: 0.58
     });
     const kufiBandMat = sharedArtLibrary.getMaterial('kufi_band', {
       color: 0x0f172a,
-      roughness: 0.7
+      roughness: 0.68
     });
 
+    const templeHair = new THREE.Mesh(
+      new THREE.SphereGeometry(0.140, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.52),
+      hairMat
+    );
+    templeHair.position.set(0, 0.118, -0.010);
+    templeHair.rotation.x = -0.15;
+    head.add(templeHair);
+
     const kufiCap = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.122, 0.134, 0.095, 20),
+      new THREE.CylinderGeometry(0.122, 0.135, 0.092, 24),
       kufiMat
     );
-    kufiCap.position.set(0, 0.215, -0.005);
+    kufiCap.position.set(0, 0.216, -0.004);
     kufiCap.scale.set(0.95, 1, 0.98);
     kufiCap.castShadow = true;
     head.add(kufiCap);
 
+    const kufiCrown = new THREE.Mesh(
+      new THREE.SphereGeometry(0.122, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.5),
+      kufiMat
+    );
+    kufiCrown.position.set(0, 0.260, -0.004);
+    kufiCrown.scale.set(0.95, 0.24, 0.98);
+    head.add(kufiCrown);
+
     const kufiTrim = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.135, 0.136, 0.025, 20),
+      new THREE.CylinderGeometry(0.136, 0.137, 0.026, 24),
       kufiBandMat
     );
-    kufiTrim.position.set(0, 0.175, -0.005);
+    kufiTrim.position.set(0, 0.178, -0.004);
     kufiTrim.scale.set(0.95, 1, 0.98);
     head.add(kufiTrim);
   }
@@ -518,25 +693,22 @@ function buildHairAndAccessories(
   if (spec.hasEarrings) {
     const goldMat = sharedArtLibrary.getMaterial('gold_accessory', {
       color: 0xfacc15,
-      roughness: 0.3,
-      metalness: 0.75
+      roughness: 0.28,
+      metalness: 0.78
     });
-    const hoopGeo = new THREE.TorusGeometry(0.022, 0.004, 8, 16);
+    const hoopGeo = new THREE.TorusGeometry(0.022, 0.0045, 8, 18);
     for (const side of [-1, 1]) {
       const hoop = new THREE.Mesh(hoopGeo, goldMat);
       hoop.rotation.y = Math.PI / 2;
-      hoop.position.set(side * 0.135, 0.072, 0.0);
+      hoop.position.set(side * 0.134, 0.072, 0.0);
       head.add(hoop);
     }
   }
 
   if (spec.hasBeard) {
-    const beard = new THREE.Mesh(
-      new THREE.SphereGeometry(0.094, 14, 12),
-      hairMat
-    );
-    beard.position.set(0, 0.042, 0.042);
-    beard.scale.set(0.92, 0.65, 0.88);
+    const beard = new THREE.Mesh(new THREE.SphereGeometry(0.092, 18, 14), hairMat);
+    beard.position.set(0, 0.044, 0.036);
+    beard.scale.set(0.92, 0.64, 0.88);
     head.add(beard);
   }
 }
@@ -545,69 +717,118 @@ function buildArticulatedArm(
   side: -1 | 1,
   skinMat: THREE.Material,
   shirtMat: THREE.Material,
-  cuffMat: THREE.Material
-): { shoulder: THREE.Group; elbow: THREE.Group } {
+  cuffMat: THREE.Material,
+  hasWristwatch: boolean
+): { shoulder: THREE.Group; elbow: THREE.Group; hand: THREE.Group } {
   const shoulder = new THREE.Group();
   shoulder.name = side === -1 ? 'LeftShoulder' : 'RightShoulder';
-  shoulder.position.set(side * 0.235, 0.42, 0);
+  shoulder.position.set(side * 0.236, 0.42, 0);
 
-  // Tailored short sleeve with Kente/accent cuff band
+  // Spherical shoulder joint cap for seamless arm rotation
+  const shoulderCap = new THREE.Mesh(new THREE.SphereGeometry(0.068, 16, 14), shirtMat);
+  shoulder.add(shoulderCap);
+
   const sleeve = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.068, 0.062, 0.20, 14),
+    new THREE.CylinderGeometry(0.068, 0.059, 0.19, 18),
     shirtMat
   );
-  sleeve.position.y = -0.09;
+  sleeve.position.y = -0.092;
   sleeve.castShadow = true;
   shoulder.add(sleeve);
 
   const cuffBand = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.064, 0.064, 0.028, 14),
+    new THREE.CylinderGeometry(0.061, 0.061, 0.026, 18),
     cuffMat
   );
-  cuffBand.position.y = -0.185;
+  cuffBand.position.y = -0.182;
   shoulder.add(cuffBand);
 
-  // Upper arm skin segment to elbow
   const upperArm = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.048, 0.09, 8, 12),
+    new THREE.CapsuleGeometry(0.045, 0.088, 10, 14),
     skinMat
   );
-  upperArm.position.y = -0.21;
+  upperArm.position.y = -0.208;
   upperArm.castShadow = true;
   shoulder.add(upperArm);
 
-  // Elbow Joint
+  // Elbow Joint with spherical elbow cap
   const elbow = new THREE.Group();
   elbow.name = side === -1 ? 'LeftElbow' : 'RightElbow';
-  elbow.position.set(0, -0.27, 0);
+  elbow.position.set(0, -0.265, 0);
   shoulder.add(elbow);
 
-  // Tapered Forearm
+  const elbowCap = new THREE.Mesh(new THREE.SphereGeometry(0.044, 12, 10), skinMat);
+  elbow.add(elbowCap);
+
   const forearm = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.046, 0.038, 0.22, 12),
+    new THREE.CylinderGeometry(0.044, 0.032, 0.205, 16),
     skinMat
   );
-  forearm.position.y = -0.11;
+  forearm.position.y = -0.102;
   forearm.castShadow = true;
   elbow.add(forearm);
 
-  // Sculpted Hand (rounded palm + thumb silhouette)
+  if (hasWristwatch) {
+    const goldMat = sharedArtLibrary.getMaterial('gold_accessory', {
+      color: 0xfacc15,
+      roughness: 0.28,
+      metalness: 0.82
+    });
+    const watchBand = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.036, 0.036, 0.018, 16),
+      goldMat
+    );
+    watchBand.position.y = -0.184;
+    const watchDial = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.016, 0.016, 0.010, 12),
+      goldMat
+    );
+    watchDial.rotation.z = Math.PI / 2;
+    watchDial.position.set(side * 0.035, -0.184, 0.006);
+    elbow.add(watchBand, watchDial);
+  }
+
+  // Sculpted Anatomical Stylized Hand (Palm facing inward toward body, thumb on front +Z edge, curved fingers)
   const handGroup = new THREE.Group();
   handGroup.name = side === -1 ? 'LeftHand' : 'RightHand';
-  handGroup.position.set(0, -0.24, 0);
+  handGroup.position.set(0, -0.212, 0);
   elbow.add(handGroup);
 
-  const palm = new THREE.Mesh(new THREE.SphereGeometry(0.044, 12, 10), skinMat);
-  palm.scale.set(0.82, 1.18, 0.58);
+  // Smooth wrist transition sphere
+  const wristJoint = new THREE.Mesh(new THREE.SphereGeometry(0.031, 10, 10), skinMat);
+  handGroup.add(wristJoint);
+
+  // Contoured metacarpal palm (slender in X, natural width in Z)
+  const palm = new THREE.Mesh(new THREE.CapsuleGeometry(0.022, 0.036, 8, 12), skinMat);
+  palm.position.set(0, -0.030, 0.004);
+  palm.scale.set(0.76, 1.0, 1.48);
   palm.castShadow = true;
   handGroup.add(palm);
 
-  const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.014, 0.024, 6, 8), skinMat);
-  thumb.position.set(side * -0.028, 0.01, 0.022);
-  thumb.rotation.x = 0.4;
+  // 4 Individual sculpted curved fingers (index, middle, ring, pinky) curled slightly inward toward the body
+  const fingerOffsetsZ = [0.022, 0.008, -0.006, -0.019];
+  const fingerLengths = [0.032, 0.036, 0.033, 0.026];
+  for (let f = 0; f < 4; f++) {
+    const finger = new THREE.Mesh(
+      new THREE.CapsuleGeometry(0.0075, fingerLengths[f], 6, 8),
+      skinMat
+    );
+    finger.position.set(side * -0.004, -0.068, fingerOffsetsZ[f]);
+    // Slight inward curl toward the palm (-side * Z rotation) and slight forward hook
+    finger.rotation.z = -side * 0.28;
+    finger.rotation.x = -0.16;
+    finger.castShadow = true;
+    handGroup.add(finger);
+  }
+
+  // Opposable thumb resting naturally on the front (+Z) side of the hand
+  const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.010, 0.025, 6, 8), skinMat);
+  thumb.position.set(side * -0.010, -0.034, 0.034);
+  thumb.rotation.x = -0.52;
+  thumb.rotation.z = -side * 0.22;
   handGroup.add(thumb);
 
-  return { shoulder, elbow };
+  return { shoulder, elbow, hand: handGroup };
 }
 
 function buildArticulatedLeg(
@@ -618,67 +839,96 @@ function buildArticulatedLeg(
   shoeSoleMat: THREE.Material,
   accentMat: THREE.Material,
   isSkirtArchetype: boolean
-): { hip: THREE.Group; knee: THREE.Group } {
+): { hip: THREE.Group; knee: THREE.Group; foot: THREE.Group } {
   const hip = new THREE.Group();
   hip.name = side === -1 ? 'LeftHip' : 'RightHip';
   hip.position.set(side * 0.095, -0.04, 0);
 
-  // Upper thigh
+  const hipCap = new THREE.Mesh(new THREE.SphereGeometry(0.078, 14, 12), trouserMat);
+  hip.add(hipCap);
+
   const thigh = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.078, 0.064, 0.38, 14),
+    new THREE.CylinderGeometry(0.078, 0.064, 0.38, 18),
     trouserMat
   );
   thigh.position.y = -0.19;
   thigh.castShadow = true;
   hip.add(thigh);
 
-  // Knee Joint
   const knee = new THREE.Group();
   knee.name = side === -1 ? 'LeftKnee' : 'RightKnee';
   knee.position.set(0, -0.39, 0);
   hip.add(knee);
 
-  // Calf (skin for midi-skirt archetype, tailored trouser leg for trousers)
-  const calf = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.062, 0.048, 0.36, 14),
+  const kneeCap = new THREE.Mesh(
+    new THREE.SphereGeometry(0.062, 14, 12),
     isSkirtArchetype ? skinMat : trouserMat
   );
-  calf.position.y = -0.18;
+  knee.add(kneeCap);
+
+  const calf = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.062, 0.048, 0.35, 18),
+    isSkirtArchetype ? skinMat : trouserMat
+  );
+  calf.position.y = -0.175;
   calf.castShadow = true;
   knee.add(calf);
 
-  // Sculpted Footwear (Sneaker / Loafer with distinct midsole welt, rounded toebox, and heel tab)
+  if (!isSkirtArchetype) {
+    const ankleCuff = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.052, 0.051, 0.034, 16),
+      trouserMat
+    );
+    ankleCuff.position.y = -0.335;
+    knee.add(ankleCuff);
+  }
+
   const footGroup = new THREE.Group();
   footGroup.name = side === -1 ? 'LeftFoot' : 'RightFoot';
-  footGroup.position.set(0, -0.38, 0.035);
+  footGroup.position.set(0, -0.38, 0.034);
   knee.add(footGroup);
 
   const sole = new THREE.Mesh(
-    new THREE.BoxGeometry(0.106, 0.032, 0.235),
+    new THREE.BoxGeometry(0.104, 0.026, 0.236),
     shoeSoleMat
   );
-  sole.position.set(0, -0.03, 0.01);
+  sole.position.set(0, -0.037, 0.012);
   sole.castShadow = true;
   footGroup.add(sole);
 
+  const toeCap = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.052, 0.052, 0.026, 16),
+    shoeSoleMat
+  );
+  toeCap.position.set(0, -0.037, 0.125);
+  footGroup.add(toeCap);
+
   const shoeUpper = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.048, 0.11, 8, 14),
+    new THREE.CapsuleGeometry(0.047, 0.118, 10, 16),
     shoeUpperMat
   );
   shoeUpper.rotation.x = Math.PI / 2;
-  shoeUpper.position.set(0, 0.005, 0.008);
+  shoeUpper.position.set(0, -0.002, 0.010);
   shoeUpper.scale.set(1.04, 1.0, 0.76);
   shoeUpper.castShadow = true;
   footGroup.add(shoeUpper);
 
+  const tongue = new THREE.Mesh(
+    new THREE.BoxGeometry(0.056, 0.034, 0.052),
+    shoeUpperMat
+  );
+  tongue.position.set(0, 0.028, 0.015);
+  tongue.rotation.x = -0.35;
+  footGroup.add(tongue);
+
   const heelAccent = new THREE.Mesh(
-    new THREE.BoxGeometry(0.088, 0.036, 0.025),
+    new THREE.CylinderGeometry(0.046, 0.049, 0.038, 14),
     accentMat
   );
-  heelAccent.position.set(0, 0.015, -0.09);
+  heelAccent.position.set(0, 0.012, -0.068);
   footGroup.add(heelAccent);
 
-  return { hip, knee };
+  return { hip, knee, foot: footGroup };
 }
 
 function getArchetypeSpec(id: CharacterArchetypeId): ArchetypeVisualSpec {
@@ -686,6 +936,8 @@ function getArchetypeSpec(id: CharacterArchetypeId): ArchetypeVisualSpec {
     case 'PLAYER_GHA_001':
       return {
         skinHex: 0x6b3e26,
+        skinCss: '#6b3e26',
+        lipCss: '#462415',
         hairHex: 0x141416,
         trouserHex: 0x1e293b,
         shoeUpperHex: 0xf8fafc,
@@ -694,11 +946,14 @@ function getArchetypeSpec(id: CharacterArchetypeId): ArchetypeVisualSpec {
         shirtTexture: sharedArtLibrary.getKenteTrimTexture(),
         collarHex: 0x059669,
         hairStyle: 'taper_fade',
-        garmentCut: 'fitted_shirt'
+        garmentCut: 'fitted_shirt',
+        hasWristwatch: true
       };
     case 'NPC_MALE_001':
       return {
         skinHex: 0x5c3317,
+        skinCss: '#5c3317',
+        lipCss: '#3b1d0e',
         hairHex: 0x18181b,
         trouserHex: 0x0f172a,
         shoeUpperHex: 0x78350f,
@@ -712,6 +967,8 @@ function getArchetypeSpec(id: CharacterArchetypeId): ArchetypeVisualSpec {
     case 'NPC_FEMALE_001':
       return {
         skinHex: 0x7a482b,
+        skinCss: '#7a482b',
+        lipCss: '#881337',
         hairHex: 0x18181b,
         trouserHex: 0x065f46,
         shoeUpperHex: 0xd97706,
@@ -726,7 +983,9 @@ function getArchetypeSpec(id: CharacterArchetypeId): ArchetypeVisualSpec {
     case 'NPC_OLDER_001':
       return {
         skinHex: 0x4a2511,
-        hairHex: 0x9ca3af, // Salt-and-pepper elder hair & beard
+        skinCss: '#4a2511',
+        lipCss: '#32180a',
+        hairHex: 0x9ca3af,
         trouserHex: 0x334155,
         shoeUpperHex: 0x451a03,
         shoeSoleHex: 0x1c1917,
