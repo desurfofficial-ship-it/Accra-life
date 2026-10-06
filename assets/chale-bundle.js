@@ -1,1 +1,1 @@
-PLACEHOLDER
+console.error('BUNDLE_PENDING');
