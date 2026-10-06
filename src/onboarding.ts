@@ -44,6 +44,7 @@ export function startOnboarding(
     onComplete({ mode: 'guest', displayName: 'Chale', userId: null });
     return;
   }
+  const overlayEl = overlay;
 
   const screens: Record<ScreenId, HTMLElement | null> = {
     welcome: document.getElementById('obScreenWelcome'),
@@ -93,9 +94,9 @@ export function startOnboarding(
     if (loadingName) loadingName.textContent = result.displayName;
 
     setTimeout(() => {
-      overlay.classList.add('exit');
+      overlayEl.classList.add('exit');
       setTimeout(() => {
-        overlay.style.display = 'none';
+        overlayEl.style.display = 'none';
         onComplete(result);
       }, 420);
     }, 1100);

@@ -450,6 +450,10 @@ export class HeatSystem {
     };
   }
 
+  public tickHeatDecay(dt: number): void {
+    this.update(dt);
+  }
+
   public update(dt: number): void {
     if (this.policeStatus === 'ARRESTED') {
       this.arrestReleaseTimerSeconds -= dt;
