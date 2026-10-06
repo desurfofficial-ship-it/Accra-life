@@ -1,8 +1,8 @@
 import { Phase1Scene } from './game/Core/Phase1Scene';
 import {
   ACCRA_ILLEGAL_HUSTLES,
-  CrimeSystem
-} from './game/Economy/CrimeSystem';
+  HeatSystem
+} from './game/Crime/HeatSystem';
 import {
   formatGHS,
   formatSignedGHS
@@ -11,11 +11,11 @@ import {
   ACCRA_EVERYDAY_EXPENSES,
   EconomyManager
 } from './game/Economy/EconomyManager';
+import { JobManager } from './game/Jobs/JobManager';
 import {
   ACCRA_LEGAL_JOBS,
-  ACCRA_SIDE_HUSTLES,
-  JobSystem
-} from './game/Economy/JobSystem';
+  ACCRA_SIDE_HUSTLES
+} from './game/Jobs/JobRegistry';
 import { InteractableTarget } from './game/Player/InteractionSystem';
 
 const container = document.getElementById('viewportContainer');
@@ -65,8 +65,8 @@ let phase1SceneRef: Phase1Scene | null = null;
 
 // Initialize Phase 3 Economy, Jobs, Side Hustles, and Risk/Crime Systems
 const economyManager = new EconomyManager();
-const jobSystem = new JobSystem(economyManager);
-const crimeSystem = new CrimeSystem(economyManager);
+const jobSystem = new JobManager(economyManager);
+const crimeSystem = new HeatSystem(economyManager);
 
 economyManager.bindExternalStateProviders(
   () => jobSystem.getPersistedState(),
@@ -520,7 +520,7 @@ function renderModalTabContent(): void {
 
 function handleWorldTargetInteracted(target: InteractableTarget): void {
   // 1. Check if this location advances an active legal job or side hustle step
-  const jobStepResult = jobSystem.tryAdvanceAtInteractable(target.id);
+  const jobStepResult = jobSystem.tryAdvanceAtInteractable(target.id, target.assetId);
   if (jobStepResult.handled) {
     showInteractionFeedback(jobStepResult.message);
     syncEconomyHUD();
@@ -528,7 +528,7 @@ function handleWorldTargetInteracted(target: InteractableTarget): void {
   }
 
   // 2. Check if this location advances an active risky/illegal hustle step
-  const crimeStepResult = crimeSystem.tryAdvanceAtInteractable(target.id);
+  const crimeStepResult = crimeSystem.tryAdvanceAtInteractable(target.id, target.assetId);
   if (crimeStepResult.handled) {
     showInteractionFeedback(crimeStepResult.message, crimeStepResult.arrested);
     syncEconomyHUD();
@@ -562,6 +562,13 @@ if (container) {
   });
   phase1SceneRef = phase1;
   syncEconomyHUD();
+
+  crimeSystem.onArrest(() => {
+    phase1.player.position.set(-10.5, 0.08, 6.2);
+    phase1.player.rotationY = Math.PI;
+    phase1.player.group.rotation.y = Math.PI;
+    phase1.thirdPersonCamera.resetBehindPlayer(Math.PI);
+  });
 
   // Real-time police heat cooldown & arrest timer tick
   let lastTickTime = performance.now();
