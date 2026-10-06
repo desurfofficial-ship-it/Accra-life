@@ -18,6 +18,7 @@ import {
   ACCRA_SIDE_HUSTLES
 } from './game/Jobs/JobRegistry';
 import { InteractableTarget } from './game/Player/InteractionSystem';
+import { NeedsSystem } from './game/Needs/NeedsSystem';
 
 const container = document.getElementById('viewportContainer');
 const promptEl = document.getElementById('interactionPrompt');
@@ -65,6 +66,7 @@ let phase1SceneRef: Phase1Scene | null = null;
 const economyManager = new EconomyManager();
 const jobSystem = new JobManager(economyManager);
 const crimeSystem = new HeatSystem(economyManager);
+const needsSystem = new NeedsSystem();
 
 economyManager.bindExternalStateProviders(
   () => jobSystem.getPersistedState(),
@@ -138,6 +140,24 @@ function getActiveObjectiveInfo(): {
   return null;
 }
 
+function syncNeedsHUD(): void {
+  const state = needsSystem.getState();
+  const hBar = document.getElementById('needHungerBar');
+  const eBar = document.getElementById('needEnergyBar');
+  const hVal = document.getElementById('needHungerVal');
+  const eVal = document.getElementById('needEnergyVal');
+  if (hBar) {
+    hBar.style.width = `${Math.round(state.hunger)}%`;
+    hBar.classList.toggle('low', state.hunger < 25);
+  }
+  if (eBar) {
+    eBar.style.width = `${Math.round(state.energy)}%`;
+    eBar.classList.toggle('low', state.energy < 25);
+  }
+  if (hVal) hVal.textContent = String(Math.round(state.hunger));
+  if (eVal) eVal.textContent = String(Math.round(state.energy));
+}
+
 function syncEconomyHUD(): void {
   const cash = economyManager.wallet.getCashBalance();
   if (hudCashAmountEl) hudCashAmountEl.textContent = formatGHS(cash);
@@ -164,6 +184,7 @@ function syncEconomyHUD(): void {
       activeObjectiveBannerEl.classList.remove('visible', 'risky');
     }
   }
+  syncNeedsHUD();
   if (phase1SceneRef) {
     phase1SceneRef.interactionSystem.setObjectiveTarget(
       obj ? obj.targetInteractableId : null,
@@ -178,6 +199,7 @@ economyManager.wallet.onBalanceChange((_b, tx) => {
   syncEconomyHUD();
 });
 economyManager.onUpdate(() => syncEconomyHUD());
+needsSystem.onUpdate(() => syncNeedsHUD());
 
 function updateInteractionPromptUI(target: InteractableTarget | null): void {
   if (!promptEl || !promptTitleEl || !promptSubEl) return;
@@ -229,12 +251,18 @@ function renderModalTabContent(): void {
       const btn = card.querySelector('button');
       if (btn) {
         if (isThisActive) btn.disabled = true;
-        else btn.addEventListener('click', () => {
-          const res = jobSystem.acceptJob(job.id);
-          showInteractionFeedback(res.message, !res.success);
-          syncEconomyHUD();
-          if (res.success) closeEconomyModal();
-        });
+        else
+          btn.addEventListener('click', () => {
+            const gate = needsSystem.canWork();
+            if (!gate.ok) {
+              showInteractionFeedback(gate.reason || 'Cannot work now.', true);
+              return;
+            }
+            const res = jobSystem.acceptJob(job.id);
+            showInteractionFeedback(res.message, !res.success);
+            syncEconomyHUD();
+            if (res.success) closeEconomyModal();
+          });
       }
       modalBodyContent.appendChild(card);
     }
@@ -242,15 +270,52 @@ function renderModalTabContent(): void {
   }
 
   if (currentModalTab === 'hustles' || currentModalTab === 'spend' || currentModalTab === 'wallet') {
-    modalBodyContent.innerHTML = '<p style="color:#9a9a9a;padding:8px;">Jobs tab for shifts. Other tabs use the same systems.</p>';
+    modalBodyContent.innerHTML =
+      '<p style="color:#9a9a9a;padding:8px;">Jobs tab for shifts. Eat at the waakye joint. Rest at the compound.</p>';
   }
 }
 
 function handleWorldTargetInteracted(target: InteractableTarget): void {
-  if (target.id === 'provision_store' || target.id === 'waakye_joint' || target.id === 'trotro_stop') {
+  const advance = jobSystem.tryAdvanceAtInteractable(target.id);
+  if (advance.handled) {
+    if (advance.completedWork) {
+      const drain = needsSystem.onWorkCompleted();
+      showInteractionFeedback(`${advance.message} ${drain.message}`);
+    } else {
+      showInteractionFeedback(advance.message);
+    }
+    syncEconomyHUD();
+    return;
+  }
+
+  if (target.id === 'food_vendor') {
+    if (!economyManager.canAfford(12, 'CASH')) {
+      showInteractionFeedback('Need ₵12 for waakye.', true);
+      return;
+    }
+    const buy = economyManager.purchaseEverydayExpense('EXP_WAAKYE_MEAL');
+    if (buy.success) {
+      const meal = needsSystem.eatMeal('Waakye');
+      showInteractionFeedback(meal.message);
+    } else {
+      showInteractionFeedback(buy.message || 'Could not buy meal.', true);
+    }
+    syncEconomyHUD();
+    return;
+  }
+
+  if (target.id === 'home_door') {
+    const rest = needsSystem.sleep();
+    showInteractionFeedback(rest.message, !rest.success);
+    return;
+  }
+
+  if (target.id === 'provision_shop' || target.id === 'trotro_stop') {
     openEconomyModal('jobs', target.id);
   } else if (target.id === 'npc_older_001') {
     openEconomyModal('hustles', target.id);
+  } else {
+    openEconomyModal('jobs', target.id);
   }
 }
 
@@ -297,6 +362,7 @@ function startGame(profile: OnboardingResult): void {
 
     const tick = () => {
       crimeSystem.tickHeatDecay(1 / 60);
+      needsSystem.tick(1 / 60);
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -338,13 +404,16 @@ function startGame(profile: OnboardingResult): void {
 
     if (joystickZone && joystickKnob) {
       let stickActive = false;
-      let centerX = 0, centerY = 0;
+      let centerX = 0;
+      let centerY = 0;
       const maxR = 36;
       const updateStick = (cx: number, cy: number) => {
-        const dx = cx - centerX, dy = cy - centerY;
+        const dx = cx - centerX;
+        const dy = cy - centerY;
         const dist = Math.min(Math.hypot(dx, dy), maxR);
         const ang = Math.atan2(dy, dx);
-        const ox = Math.cos(ang) * dist, oy = Math.sin(ang) * dist;
+        const ox = Math.cos(ang) * dist;
+        const oy = Math.sin(ang) * dist;
         joystickKnob.style.transform = `translate(calc(-50% + ${ox}px), calc(-50% + ${oy}px))`;
         phase1.player.setJoystickInput(ox / maxR, oy / maxR);
       };
@@ -367,7 +436,10 @@ function startGame(profile: OnboardingResult): void {
         e.stopPropagation();
         updateStick(e.clientX, e.clientY);
       });
-      joystickZone.addEventListener('pointerup', (e) => { e.stopPropagation(); reset(); });
+      joystickZone.addEventListener('pointerup', (e) => {
+        e.stopPropagation();
+        reset();
+      });
       joystickZone.addEventListener('pointercancel', () => reset());
     }
   }
