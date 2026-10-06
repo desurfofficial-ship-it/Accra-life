@@ -1402,13 +1402,18 @@ function setNearbyStrip(players: NearbyPlayer[], isAccount: boolean): void {
     if (!isAccount) {
       namesEl.textContent = 'guest mode';
     } else if (players.length === 0) {
-      namesEl.textContent = 'you are alone here';
+      namesEl.textContent = 'alone here';
     } else {
       namesEl.textContent = players.slice(0, 3).map((p) => p.displayName).join(', ');
     }
   }
   nearbyStrip.classList.toggle('guest', !isAccount);
   nearbyStrip.classList.toggle('offline', isAccount && players.length === 0);
+  // GTA-style: only show the strip when there's something worth seeing —
+  // either a guest mode indicator OR nearby players. When the player is
+  // alone + signed in, hide the strip entirely (less UI clutter).
+  const shouldShow = !isAccount || players.length > 0;
+  nearbyStrip.classList.toggle('visible', shouldShow);
 }
 
 function setStatusPill(kind: 'online' | 'guest' | 'offline'): void {
