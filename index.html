@@ -3,11 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Life in Accra</title>
-  <meta name="description" content="Live your story in Accra. Visit friends, build relationships, send money." />
-  <meta property="og:title" content="Life in Accra" />
-  <meta property="og:description" content="Live your story in Accra. Visit friends, build relationships, send money." />
-  <meta property="og:type" content="website" />
+  <title>CHALÉ LIFE — Accra</title>
+  <meta name="description" content="Your second life in Accra. Hustle, live, and find your people." />
   <style>
     :root {
       --bg-dark: rgba(15, 23, 42, 0.88);
@@ -20,710 +17,237 @@
       --text-main: #f8fafc;
       --text-muted: #cbd5e1;
     }
-    * {
-      box-sizing: border-box;
-      user-select: none;
-      -webkit-user-select: none;
-    }
+    * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
     html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      overscroll-behavior: none;
-      touch-action: none;
+      margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+      overscroll-behavior: none; touch-action: none;
       background: #dfeffc;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       color: var(--text-main);
     }
-    #viewportContainer {
-      position: fixed;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      touch-action: none;
-    }
+    #viewportContainer { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; }
 
-    /* Top HUD Layout */
-    .phase1-hud-top {
-      position: fixed;
-      top: 14px;
-      left: 14px;
-      right: 14px;
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      pointer-events: none;
-      z-index: 20;
-      gap: 12px;
+    /* Onboarding */
+    #onboardingOverlay {
+      position: fixed; inset: 0; z-index: 1000;
+      background: linear-gradient(160deg, #0f172a 0%, #1e293b 40%, #0c4a6e 100%);
+      display: flex; align-items: center; justify-content: center; padding: 24px;
+      opacity: 0; pointer-events: none; transition: opacity 0.35s ease;
     }
-    .hud-left-stack {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      max-width: 340px;
-      pointer-events: none;
-    }
-    .brand-card {
-      background: var(--bg-dark);
-      backdrop-filter: blur(12px);
-      border: 1px solid var(--border-light);
-      border-radius: 16px;
-      padding: 11px 15px;
-      pointer-events: auto;
-      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.25);
-    }
-    .brand-top-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 3px;
-    }
-    .brand-badge {
-      font-size: 0.7rem;
-      font-weight: 700;
-      color: var(--accent-gold);
-      letter-spacing: 0.02em;
-    }
-    .tier-badge {
-      font-size: 0.68rem;
-      font-weight: 800;
-      color: #ecfdf5;
-      background: rgba(16, 185, 129, 0.22);
-      border: 1px solid rgba(52, 211, 153, 0.45);
-      padding: 2px 8px;
-      border-radius: 6px;
-      white-space: nowrap;
-    }
-    .brand-title {
-      font-size: 1.12rem;
-      font-weight: 900;
-      letter-spacing: -0.02em;
-      margin: 0 0 3px 0;
-    }
-    .brand-sub {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      line-height: 1.35;
-      margin: 0;
-    }
-    .controls-list {
-      margin-top: 8px;
-      padding-top: 7px;
-      border-top: 1px solid rgba(255, 255, 255, 0.12);
-      font-size: 0.72rem;
-      color: var(--text-muted);
-      display: grid;
-      gap: 3px;
-    }
-    .controls-list strong {
-      color: #fff;
-    }
-
-    /* Active Job / Hustle Objective Tracker */
-    .objective-banner {
+    #onboardingOverlay.visible { opacity: 1; pointer-events: auto; }
+    #onboardingOverlay.exit { opacity: 0; transition: opacity 0.4s ease; }
+    .ob-card {
+      width: 100%; max-width: 400px;
       background: rgba(15, 23, 42, 0.92);
-      backdrop-filter: blur(12px);
-      border-left: 4px solid var(--accent-green);
-      border-top: 1px solid var(--border-light);
-      border-right: 1px solid var(--border-light);
-      border-bottom: 1px solid var(--border-light);
-      border-radius: 12px;
-      padding: 10px 13px;
-      pointer-events: auto;
-      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
-      display: none;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 24px; padding: 32px 28px;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45); text-align: center;
     }
-    .objective-banner.visible {
-      display: block;
+    .ob-screen { display: none; flex-direction: column; align-items: center; gap: 18px; }
+    .ob-screen.active { display: flex; }
+    .ob-flag { font-size: 2.4rem; line-height: 1; }
+    .ob-title { font-size: 1.85rem; font-weight: 900; color: #fff; letter-spacing: -0.03em; margin: 0; }
+    .ob-tagline { font-size: 0.95rem; color: #94a3b8; margin: 0; line-height: 1.45; }
+    .ob-tagline strong { color: #fde68a; }
+    .ob-btn {
+      width: 100%; border: none; border-radius: 14px; padding: 14px 20px;
+      font-size: 0.95rem; font-weight: 800; cursor: pointer;
+      transition: transform 0.12s ease;
     }
-    .objective-banner.risky {
-      border-left-color: var(--accent-red);
+    .ob-btn:active { transform: scale(0.98); }
+    .ob-btn-primary {
+      background: linear-gradient(135deg, #f59e0b, #d97706); color: #0f172a;
+      box-shadow: 0 8px 24px rgba(245, 158, 11, 0.35);
     }
-    .obj-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 4px;
+    .ob-btn-secondary {
+      background: rgba(255, 255, 255, 0.08); color: #f8fafc;
+      border: 1.5px solid rgba(255, 255, 255, 0.2);
     }
-    .obj-tag {
-      font-size: 0.68rem;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: #34d399;
+    .ob-btn-ghost { background: transparent; color: #94a3b8; font-size: 0.82rem; font-weight: 700; padding: 8px; }
+    .ob-input {
+      width: 100%; background: rgba(30, 41, 59, 0.8);
+      border: 1.5px solid rgba(255, 255, 255, 0.16); border-radius: 12px;
+      padding: 13px 16px; font-size: 0.95rem; color: #fff; outline: none; font-family: inherit;
     }
-    .objective-banner.risky .obj-tag {
-      color: #f87171;
+    .ob-input:focus { border-color: #f59e0b; }
+    .ob-input::placeholder { color: #64748b; }
+    .ob-error { display: none; color: #fca5a5; font-size: 0.8rem; font-weight: 700; margin: 0; }
+    .ob-error.visible { display: block; }
+    .ob-back { align-self: flex-start; background: none; border: none; color: #94a3b8; font-size: 0.82rem; font-weight: 700; cursor: pointer; padding: 0; }
+    .ob-loading-city { font-size: 1.1rem; color: #fde68a; font-weight: 800; margin: 0; }
+    .ob-loading-name { font-size: 0.9rem; color: #94a3b8; margin: 0; }
+    .ob-spinner {
+      width: 36px; height: 36px;
+      border: 3px solid rgba(245, 158, 11, 0.25); border-top-color: #f59e0b;
+      border-radius: 50%; animation: obspin 0.7s linear infinite;
     }
-    .obj-cancel-btn {
-      background: rgba(255, 255, 255, 0.1);
-      color: #cbd5e1;
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      border-radius: 6px;
-      padding: 2px 7px;
-      font-size: 0.66rem;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    .obj-title {
-      font-size: 0.82rem;
-      font-weight: 800;
-      color: #fff;
-      margin-bottom: 2px;
-    }
-    .obj-desc {
-      font-size: 0.74rem;
-      color: #fde68a;
-      line-height: 1.35;
-    }
+    @keyframes obspin { to { transform: rotate(360deg); } }
 
-    /* Top-Right Wallet, Opportunities & Police Heat HUD */
-    .hud-right-stack {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 8px;
-      pointer-events: none;
+    /* HUD (existing) */
+    .phase1-hud-top {
+      position: fixed; top: 14px; left: 14px; right: 14px;
+      display: flex; justify-content: space-between; align-items: flex-start;
+      pointer-events: none; z-index: 20; gap: 12px;
     }
-    .hud-top-actions {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-      pointer-events: auto;
+    .hud-left-stack { display: flex; flex-direction: column; gap: 8px; max-width: 340px; pointer-events: none; }
+    .brand-card {
+      background: var(--bg-dark); backdrop-filter: blur(12px);
+      border: 1px solid var(--border-light); border-radius: 16px; padding: 11px 15px;
+      pointer-events: auto; box-shadow: 0 12px 28px rgba(15, 23, 42, 0.25);
     }
+    .brand-top-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 3px; }
+    .brand-badge { font-size: 0.7rem; font-weight: 700; color: var(--accent-gold); letter-spacing: 0.02em; }
+    .tier-badge {
+      font-size: 0.68rem; font-weight: 800; color: #ecfdf5;
+      background: rgba(16, 185, 129, 0.22); border: 1px solid rgba(52, 211, 153, 0.45);
+      padding: 2px 8px; border-radius: 6px; white-space: nowrap;
+    }
+    .brand-title { font-size: 1.12rem; font-weight: 900; letter-spacing: -0.02em; margin: 0 0 3px 0; }
+    .brand-sub { font-size: 0.75rem; color: var(--text-muted); line-height: 1.35; margin: 0; }
+    .controls-list {
+      margin-top: 8px; padding-top: 7px; border-top: 1px solid rgba(255, 255, 255, 0.12);
+      font-size: 0.72rem; color: var(--text-muted); display: grid; gap: 3px;
+    }
+    .controls-list strong { color: #fff; }
+    .objective-banner {
+      background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(12px);
+      border-left: 4px solid var(--accent-green);
+      border: 1px solid var(--border-light); border-left-width: 4px;
+      border-radius: 12px; padding: 10px 13px; pointer-events: auto;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28); display: none;
+    }
+    .objective-banner.visible { display: block; }
+    .objective-banner.risky { border-left-color: var(--accent-red); }
+    .obj-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .obj-tag { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: #34d399; }
+    .objective-banner.risky .obj-tag { color: #f87171; }
+    .obj-cancel-btn {
+      background: rgba(255, 255, 255, 0.1); color: #cbd5e1;
+      border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 6px;
+      padding: 2px 7px; font-size: 0.66rem; font-weight: 700; cursor: pointer;
+    }
+    .obj-title { font-size: 0.82rem; font-weight: 800; color: #fff; margin-bottom: 2px; }
+    .obj-desc { font-size: 0.74rem; color: #fde68a; line-height: 1.35; }
+    .hud-right-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: none; }
+    .hud-top-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; pointer-events: auto; }
     .wallet-card-btn {
-      background: var(--bg-dark);
-      backdrop-filter: blur(12px);
-      border: 1.5px solid rgba(245, 158, 11, 0.55);
-      border-radius: 14px;
-      padding: 8px 14px;
-      color: #fff;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.26);
-      position: relative;
+      background: var(--bg-dark); backdrop-filter: blur(12px);
+      border: 1.5px solid rgba(245, 158, 11, 0.55); border-radius: 14px;
+      padding: 8px 14px; color: #fff; cursor: pointer;
+      display: flex; align-items: center; gap: 10px;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.26); position: relative;
     }
-    .wallet-card-btn:active {
-      transform: scale(0.98);
-    }
-    .wallet-label {
-      font-size: 0.66rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--text-muted);
-      display: block;
-      text-align: left;
-    }
-    .wallet-amount {
-      font-size: 1.08rem;
-      font-weight: 900;
-      color: #fde68a;
-      font-variant-numeric: tabular-nums;
-      display: block;
-      text-align: left;
-    }
-    .wallet-delta {
-      position: absolute;
-      top: 100%;
-      right: 10px;
-      margin-top: 4px;
-      padding: 3px 8px;
-      border-radius: 8px;
-      font-size: 0.76rem;
-      font-weight: 900;
-      opacity: 0;
-      transform: translateY(-4px);
-      transition: opacity 0.2s ease, transform 0.2s ease;
-      pointer-events: none;
-      white-space: nowrap;
-    }
-    .wallet-delta.show-gain {
-      background: rgba(6, 78, 59, 0.96);
-      border: 1px solid #34d399;
-      color: #6ee7b7;
-      opacity: 1;
-      transform: translateY(0);
-    }
-    .wallet-delta.show-loss {
-      background: rgba(127, 29, 29, 0.96);
-      border: 1px solid #f87171;
-      color: #fca5a5;
-      opacity: 1;
-      transform: translateY(0);
-    }
+    .wallet-label { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); display: block; text-align: left; }
+    .wallet-amount { font-size: 1.08rem; font-weight: 900; color: #fde68a; font-variant-numeric: tabular-nums; display: block; text-align: left; }
+    .wallet-delta { position: absolute; top: 100%; right: 10px; margin-top: 4px; padding: 3px 8px; border-radius: 8px; font-size: 0.76rem; font-weight: 900; opacity: 0; pointer-events: none; }
+    .wallet-delta.show-gain { background: rgba(6, 78, 59, 0.96); border: 1px solid #34d399; color: #6ee7b7; opacity: 1; }
+    .wallet-delta.show-loss { background: rgba(127, 29, 29, 0.96); border: 1px solid #f87171; color: #fca5a5; opacity: 1; }
     .work-hub-btn {
-      background: linear-gradient(135deg, #f59e0b, #d97706);
-      color: #0f172a;
-      border: 1px solid #fef08a;
-      border-radius: 12px;
-      padding: 10px 14px;
-      font-size: 0.8rem;
-      font-weight: 900;
-      cursor: pointer;
-      box-shadow: 0 8px 20px rgba(245, 158, 11, 0.28);
-    }
-    .work-hub-btn:active {
-      transform: scale(0.97);
+      background: linear-gradient(135deg, #f59e0b, #d97706); color: #0f172a;
+      border: 1px solid #fef08a; border-radius: 12px; padding: 10px 14px;
+      font-size: 0.8rem; font-weight: 900; cursor: pointer;
     }
     .camera-reset-btn {
-      background: var(--bg-dark);
-      backdrop-filter: blur(12px);
-      color: #fff;
-      border: 1px solid var(--border-light);
-      border-radius: 12px;
-      padding: 10px 13px;
-      font-size: 0.78rem;
-      font-weight: 700;
-      cursor: pointer;
-      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.2);
+      background: var(--bg-dark); backdrop-filter: blur(12px); color: #fff;
+      border: 1px solid var(--border-light); border-radius: 12px; padding: 10px 13px;
+      font-size: 0.78rem; font-weight: 700; cursor: pointer;
     }
     .heat-pill {
-      pointer-events: auto;
-      background: rgba(15, 23, 42, 0.86);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.16);
-      border-radius: 10px;
-      padding: 5px 11px;
-      font-size: 0.72rem;
-      font-weight: 800;
-      color: #cbd5e1;
-      display: flex;
-      align-items: center;
-      gap: 7px;
+      pointer-events: auto; background: rgba(15, 23, 42, 0.86); backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 10px;
+      padding: 5px 11px; font-size: 0.72rem; font-weight: 800; color: #cbd5e1;
+      display: flex; align-items: center; gap: 7px;
     }
-    .heat-pill.suspicious {
-      border-color: #f59e0b;
-      color: #fde68a;
-      background: rgba(120, 53, 15, 0.88);
-    }
-    .heat-pill.wanted,
-    .heat-pill.arrested {
-      border-color: #ef4444;
-      color: #fecaca;
-      background: rgba(127, 29, 29, 0.92);
-    }
-    .heat-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #10b981;
-    }
-    .heat-pill.suspicious .heat-dot {
-      background: #f59e0b;
-    }
-    .heat-pill.wanted .heat-dot,
-    .heat-pill.arrested .heat-dot {
-      background: #ef4444;
-    }
-
-    /* Contextual Interaction Prompt */
+    .heat-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; }
     .interaction-prompt {
-      position: fixed;
-      left: 50%;
-      bottom: 112px;
-      transform: translateX(-50%) translateY(14px);
-      background: rgba(15, 23, 42, 0.94);
-      backdrop-filter: blur(12px);
-      border: 2px solid var(--accent-gold);
-      border-radius: 16px;
-      padding: 10px 18px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      box-shadow: 0 14px 32px rgba(0, 0, 0, 0.35);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.18s ease, transform 0.18s ease;
-      z-index: 30;
+      position: fixed; left: 50%; bottom: 112px; transform: translateX(-50%) translateY(14px);
+      background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(12px);
+      border: 2px solid var(--accent-gold); border-radius: 16px; padding: 10px 18px;
+      display: flex; align-items: center; gap: 12px; opacity: 0; pointer-events: none; z-index: 30;
     }
-    .interaction-prompt.visible {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-      pointer-events: auto;
-      cursor: pointer;
-    }
-    .interaction-prompt.objective-match {
-      border-color: #10b981;
-      background: rgba(6, 78, 59, 0.95);
-    }
-    .key-cap {
-      background: var(--accent-gold);
-      color: #111827;
-      font-weight: 900;
-      font-size: 0.82rem;
-      padding: 4px 9px;
-      border-radius: 8px;
-    }
-    .interaction-prompt.objective-match .key-cap {
-      background: #10b981;
-      color: #052e16;
-    }
-    .prompt-text-wrap {
-      display: flex;
-      flex-direction: column;
-    }
-    .prompt-title {
-      font-size: 0.86rem;
-      font-weight: 800;
-      color: #fff;
-    }
-    .prompt-sub {
-      font-size: 0.72rem;
-      color: #fde68a;
-    }
-
-    /* Interaction Response Banner */
+    .interaction-prompt.visible { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; cursor: pointer; }
+    .key-cap { background: var(--accent-gold); color: #111827; font-weight: 900; font-size: 0.82rem; padding: 4px 9px; border-radius: 8px; }
+    .prompt-title { font-size: 0.86rem; font-weight: 800; color: #fff; }
+    .prompt-sub { font-size: 0.72rem; color: #fde68a; }
     .interaction-toast {
-      position: fixed;
-      top: 18px;
-      left: 50%;
-      transform: translateX(-50%) translateY(-20px);
-      background: rgba(6, 78, 59, 0.96);
-      border: 1px solid #34d399;
-      color: #ecfdf5;
-      padding: 10px 18px;
-      border-radius: 12px;
-      font-size: 0.84rem;
-      font-weight: 700;
-      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.2s ease, transform 0.2s ease;
-      z-index: 60;
-      max-width: 90vw;
-      text-align: center;
+      position: fixed; top: 18px; left: 50%; transform: translateX(-50%) translateY(-20px);
+      background: rgba(6, 78, 59, 0.96); border: 1px solid #34d399; color: #ecfdf5;
+      padding: 10px 18px; border-radius: 12px; font-size: 0.84rem; font-weight: 700;
+      opacity: 0; pointer-events: none; z-index: 60;
     }
-    .interaction-toast.warn {
-      background: rgba(127, 29, 29, 0.96);
-      border-color: #f87171;
-      color: #fef2f2;
-    }
-    .interaction-toast.show {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-    }
-
-    /* Economy, Jobs & Wallet Modal Drawer */
+    .interaction-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .interaction-toast.warn { background: rgba(127, 29, 29, 0.96); border-color: #f87171; color: #fef2f2; }
     .economy-modal-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(2, 6, 23, 0.65);
-      backdrop-filter: blur(6px);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
-      z-index: 50;
+      position: fixed; inset: 0; background: rgba(2, 6, 23, 0.65); backdrop-filter: blur(6px);
+      display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50;
     }
-    .economy-modal-backdrop.open {
-      display: flex;
-    }
+    .economy-modal-backdrop.open { display: flex; }
     .economy-modal {
-      width: 100%;
-      max-width: 660px;
-      max-height: 86vh;
-      background: var(--bg-panel);
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      border-radius: 20px;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
+      width: 100%; max-width: 660px; max-height: 86vh; background: var(--bg-panel);
+      border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 20px;
+      display: flex; flex-direction: column; overflow: hidden;
     }
-    .modal-header {
-      padding: 14px 18px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-    }
-    .modal-title-wrap h2 {
-      margin: 0;
-      font-size: 1.05rem;
-      font-weight: 900;
-      color: #fff;
-    }
-    .modal-title-wrap p {
-      margin: 2px 0 0 0;
-      font-size: 0.75rem;
-      color: var(--text-muted);
-    }
-    .modal-close-btn {
-      background: rgba(255, 255, 255, 0.1);
-      color: #fff;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 10px;
-      padding: 6px 12px;
-      font-size: 0.78rem;
-      font-weight: 800;
-      cursor: pointer;
-    }
-    .modal-tabs {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 6px;
-      padding: 10px 16px;
-      background: rgba(15, 23, 42, 0.6);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    .modal-tab-btn {
-      background: rgba(255, 255, 255, 0.06);
-      color: var(--text-muted);
-      border: 1px solid transparent;
-      border-radius: 10px;
-      padding: 8px 6px;
-      font-size: 0.75rem;
-      font-weight: 800;
-      cursor: pointer;
-      text-align: center;
-    }
-    .modal-tab-btn.active {
-      background: rgba(245, 158, 11, 0.2);
-      color: #fde68a;
-      border-color: var(--accent-gold);
-    }
-    .modal-body {
-      padding: 16px 18px;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      touch-action: pan-y;
-    }
-    .econ-card {
-      background: rgba(30, 41, 59, 0.72);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 14px;
-      padding: 12px 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .econ-card.highlight-local {
-      border-color: var(--accent-gold);
-      background: rgba(120, 53, 15, 0.22);
-    }
-    .econ-card.risky-card {
-      border-color: rgba(239, 68, 68, 0.45);
-      background: rgba(69, 10, 10, 0.35);
-    }
-    .econ-card-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 10px;
-    }
-    .econ-card-title {
-      font-size: 0.9rem;
-      font-weight: 800;
-      color: #fff;
-      margin: 0;
-    }
-    .econ-card-sub {
-      font-size: 0.72rem;
-      color: #fde68a;
-      font-weight: 700;
-      margin-top: 2px;
-    }
-    .econ-pay-badge {
-      background: rgba(16, 185, 129, 0.2);
-      border: 1px solid rgba(52, 211, 153, 0.45);
-      color: #6ee7b7;
-      font-weight: 900;
-      font-size: 0.82rem;
-      padding: 4px 10px;
-      border-radius: 8px;
-      white-space: nowrap;
-    }
-    .econ-pay-badge.expense {
-      background: rgba(245, 158, 11, 0.2);
-      border-color: rgba(245, 158, 11, 0.5);
-      color: #fde68a;
-    }
-    .econ-card-desc {
-      font-size: 0.76rem;
-      color: var(--text-muted);
-      line-height: 1.4;
-      margin: 0;
-    }
-    .econ-card-footer {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-      margin-top: 2px;
-    }
-    .econ-meta {
-      font-size: 0.7rem;
-      color: #94a3b8;
-    }
-    .econ-action-btn {
-      background: var(--accent-gold);
-      color: #0f172a;
-      border: none;
-      border-radius: 10px;
-      padding: 8px 14px;
-      font-size: 0.76rem;
-      font-weight: 900;
-      cursor: pointer;
-    }
-    .econ-action-btn.secondary {
-      background: rgba(255, 255, 255, 0.12);
-      color: #fff;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-    }
-    .econ-action-btn.danger {
-      background: #ef4444;
-      color: #fff;
-    }
-    .econ-action-btn:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-    }
-    .ledger-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-    }
-    .stat-box {
-      background: rgba(15, 23, 42, 0.75);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 12px;
-      padding: 10px 12px;
-    }
-    .stat-box span {
-      display: block;
-      font-size: 0.68rem;
-      color: #94a3b8;
-      margin-bottom: 3px;
-    }
-    .stat-box strong {
-      font-size: 0.95rem;
-      color: #fff;
-      font-variant-numeric: tabular-nums;
-    }
-    .tx-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 10px;
-      background: rgba(15, 23, 42, 0.6);
-      border-radius: 10px;
-      border: 1px solid rgba(255, 255, 255, 0.07);
-      font-size: 0.75rem;
-    }
-    .tx-amt-pos {
-      color: #34d399;
-      font-weight: 800;
-    }
-    .tx-amt-neg {
-      color: #fca5a5;
-      font-weight: 800;
-    }
-
-    /* On-screen Touch / Mouse Virtual Thumbstick & Action Buttons */
-    .touch-controls {
-      position: fixed;
-      bottom: 22px;
-      left: 22px;
-      right: 22px;
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
-      pointer-events: none;
-      z-index: 25;
-    }
-    .joystick-zone {
-      width: 112px;
-      height: 112px;
-      border-radius: 50%;
-      background: rgba(15, 23, 42, 0.48);
-      border: 2px solid rgba(255, 255, 255, 0.24);
-      position: relative;
-      pointer-events: auto;
-      touch-action: none;
-    }
-    .joystick-knob {
-      width: 46px;
-      height: 46px;
-      border-radius: 50%;
-      background: rgba(245, 158, 11, 0.92);
-      border: 2px solid #fff;
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-    }
-    .action-buttons-right {
-      display: flex;
-      gap: 10px;
-      pointer-events: auto;
-    }
-    .ctrl-btn {
-      background: var(--bg-dark);
-      backdrop-filter: blur(10px);
-      color: #fff;
-      border: 1.5px solid rgba(255, 255, 255, 0.24);
-      border-radius: 14px;
-      padding: 12px 16px;
-      font-size: 0.82rem;
-      font-weight: 800;
-      cursor: pointer;
-    }
-    .ctrl-btn.active {
-      background: var(--accent-gold);
-      color: #111827;
-      border-color: #fff;
-    }
+    .modal-header { padding: 14px 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.12); display: flex; justify-content: space-between; align-items: center; }
+    .modal-title-wrap h2 { margin: 0; font-size: 1.05rem; font-weight: 900; color: #fff; }
+    .modal-title-wrap p { margin: 2px 0 0; font-size: 0.75rem; color: var(--text-muted); }
+    .modal-close-btn { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; padding: 6px 12px; font-size: 0.78rem; font-weight: 800; cursor: pointer; }
+    .modal-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 10px 16px; background: rgba(15,23,42,0.6); }
+    .modal-tab-btn { background: rgba(255,255,255,0.06); color: var(--text-muted); border: 1px solid transparent; border-radius: 10px; padding: 8px 6px; font-size: 0.75rem; font-weight: 800; cursor: pointer; }
+    .modal-tab-btn.active { background: rgba(245,158,11,0.2); color: #fde68a; border-color: var(--accent-gold); }
+    .modal-body { padding: 16px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; touch-action: pan-y; }
+    .econ-card { background: rgba(30,41,59,0.72); border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; padding: 12px 14px; }
+    .econ-card-title { font-size: 0.9rem; font-weight: 800; color: #fff; margin: 0; }
+    .econ-pay-badge { background: rgba(16,185,129,0.2); border: 1px solid rgba(52,211,153,0.45); color: #6ee7b7; font-weight: 900; font-size: 0.82rem; padding: 4px 10px; border-radius: 8px; }
+    .econ-action-btn { background: var(--accent-gold); color: #0f172a; border: none; border-radius: 10px; padding: 8px 14px; font-size: 0.76rem; font-weight: 900; cursor: pointer; }
+    .touch-controls { position: fixed; bottom: 22px; left: 22px; right: 22px; display: flex; justify-content: space-between; align-items: flex-end; pointer-events: none; z-index: 25; }
+    .joystick-zone { width: 112px; height: 112px; border-radius: 50%; background: rgba(15,23,42,0.48); border: 2px solid rgba(255,255,255,0.24); position: relative; pointer-events: auto; touch-action: none; }
+    .joystick-knob { width: 46px; height: 46px; border-radius: 50%; background: rgba(245,158,11,0.92); border: 2px solid #fff; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); }
+    .action-buttons-right { display: flex; gap: 10px; pointer-events: auto; }
+    .ctrl-btn { background: var(--bg-dark); color: #fff; border: 1.5px solid rgba(255,255,255,0.24); border-radius: 14px; padding: 12px 16px; font-size: 0.82rem; font-weight: 800; cursor: pointer; }
+    .ctrl-btn.active { background: var(--accent-gold); color: #111827; }
     @media (max-width: 640px) {
-      .phase1-hud-top {
-        top: 10px;
-        left: 10px;
-        right: 10px;
-      }
-      .brand-card {
-        padding: 8px 11px;
-        max-width: 205px;
-      }
-      .brand-title {
-        font-size: 0.96rem;
-      }
-      .controls-list {
-        display: none;
-      }
-      .touch-controls {
-        bottom: 14px;
-        left: 14px;
-        right: 14px;
-      }
-      .joystick-zone {
-        width: 96px;
-        height: 96px;
-      }
-      .interaction-prompt {
-        bottom: 122px;
-      }
-      .modal-tabs {
-        grid-template-columns: repeat(2, 1fr);
-      }
-      .ledger-grid {
-        grid-template-columns: 1fr;
-      }
+      .brand-card { max-width: 205px; }
+      .controls-list { display: none; }
+      .modal-tabs { grid-template-columns: repeat(2, 1fr); }
     }
   </style>
 </head>
 <body>
+  <div id="onboardingOverlay">
+    <div class="ob-card">
+      <div id="obScreenWelcome" class="ob-screen active">
+        <div class="ob-flag">🇬🇭</div>
+        <h1 class="ob-title">CHALÉ LIFE</h1>
+        <p class="ob-tagline">Your second life in <strong>Accra</strong>.<br>Hustle, live, and find your people.</p>
+        <button id="obBtnGuest" class="ob-btn ob-btn-primary" type="button">Play as Guest</button>
+        <button id="obBtnAccount" class="ob-btn ob-btn-secondary" type="button">Create Account / Sign In</button>
+      </div>
+      <div id="obScreenAuth" class="ob-screen">
+        <button id="obBackFromAuth" class="ob-back" type="button">← Back</button>
+        <h2 id="obAuthTitle" class="ob-title" style="font-size:1.4rem;">Create your account</h2>
+        <p class="ob-tagline">Save your progress across devices.</p>
+        <input id="obEmailInput" class="ob-input" type="email" placeholder="Email" autocomplete="email" />
+        <input id="obPasswordInput" class="ob-input" type="password" placeholder="Password (min 6)" autocomplete="new-password" />
+        <p id="obError" class="ob-error"></p>
+        <button id="obAuthSubmit" class="ob-btn ob-btn-primary" type="button">Create Account</button>
+        <button id="obAuthToggle" class="ob-btn ob-btn-ghost" type="button">Already have an account? Sign in</button>
+      </div>
+      <div id="obScreenName" class="ob-screen">
+        <button id="obBackFromName" class="ob-back" type="button">← Back</button>
+        <h2 class="ob-title" style="font-size:1.4rem;">What should we call you?</h2>
+        <p class="ob-tagline">This is how you’ll appear in Accra.</p>
+        <input id="obNameInput" class="ob-input" type="text" placeholder="Your name" maxlength="24" autocomplete="nickname" />
+        <p id="obNameError" class="ob-error"></p>
+        <button id="obBtnEnter" class="ob-btn ob-btn-primary" type="button">Enter Accra</button>
+      </div>
+      <div id="obScreenLoading" class="ob-screen">
+        <div class="ob-spinner"></div>
+        <p class="ob-loading-city">Welcome to Adabraka…</p>
+        <p id="obLoadingName" class="ob-loading-name">Chale</p>
+      </div>
+    </div>
+  </div>
+
   <div id="viewportContainer"></div>
 
   <div class="phase1-hud-top">
@@ -737,41 +261,31 @@
         <p id="livingSituationSub" class="brand-sub">Start from ₵0 · Work jobs, run hustles, and build your life.</p>
         <div class="controls-list">
           <div><strong>Move:</strong> W A S D / Arrow Keys / Thumbstick</div>
-          <div><strong>Jog:</strong> Hold Shift / Toggle Jog Button</div>
-          <div><strong>Camera:</strong> Drag Mouse/Screen, Q &amp; R, Scroll Zoom</div>
-          <div><strong>Interact / Work:</strong> Press E / Enter or Tap Prompt</div>
+          <div><strong>Jog:</strong> Hold Shift / Toggle Jog</div>
+          <div><strong>Interact:</strong> Press E or Tap Prompt</div>
         </div>
       </div>
-
       <div id="activeObjectiveBanner" class="objective-banner">
         <div class="obj-header">
-          <span id="objTag" class="obj-tag">Active Shift · Step 1/4</span>
+          <span id="objTag" class="obj-tag">Active Shift</span>
           <button id="cancelObjectiveBtn" class="obj-cancel-btn" type="button">Cancel</button>
         </div>
-        <div id="objTitle" class="obj-title">Provision Delivery</div>
-        <div id="objDesc" class="obj-desc">Walk to Adabraka Provision Store</div>
+        <div id="objTitle" class="obj-title">Job</div>
+        <div id="objDesc" class="obj-desc">Follow the objective</div>
       </div>
     </div>
-
     <div class="hud-right-stack">
       <div class="hud-top-actions">
-        <button id="walletOpenBtn" class="wallet-card-btn" type="button" title="Open Wallet &amp; Ledger">
+        <button id="walletOpenBtn" class="wallet-card-btn" type="button">
           <div>
             <span class="wallet-label">Cash Wallet (GHS)</span>
             <span id="hudCashAmount" class="wallet-amount">₵0.00</span>
           </div>
           <div id="walletDeltaFloating" class="wallet-delta">+₵0.00</div>
         </button>
-
-        <button id="workMenuOpenBtn" class="work-hub-btn" type="button">
-          Jobs &amp; Hustles
-        </button>
-
-        <button id="resetCameraBtn" class="camera-reset-btn" type="button">
-          Reset Cam
-        </button>
+        <button id="workMenuOpenBtn" class="work-hub-btn" type="button">Jobs & Hustles</button>
+        <button id="resetCameraBtn" class="camera-reset-btn" type="button">Reset Cam</button>
       </div>
-
       <div id="heatStatusPill" class="heat-pill">
         <span class="heat-dot"></span>
         <span id="heatStatusText">Police: NORMAL · 0% Heat</span>
@@ -780,7 +294,6 @@
   </div>
 
   <div id="interactionToast" class="interaction-toast"></div>
-
   <div id="interactionPrompt" class="interaction-prompt" role="button" tabindex="0">
     <span class="key-cap">E</span>
     <div class="prompt-text-wrap">
@@ -789,24 +302,21 @@
     </div>
   </div>
 
-  <!-- Accra Opportunities, Jobs, Hustles & Wallet Modal -->
   <div id="economyModalBackdrop" class="economy-modal-backdrop" role="dialog" aria-modal="true">
     <div class="economy-modal">
       <div class="modal-header">
         <div class="modal-title-wrap">
-          <h2 id="modalHeaderTitle">Accra Opportunities &amp; Wallet</h2>
-          <p id="modalHeaderSub">Adabraka Neighborhood · Earn every Cedi from the ground up</p>
+          <h2 id="modalHeaderTitle">Accra Opportunities</h2>
+          <p id="modalHeaderSub">Adabraka</p>
         </div>
-        <button id="modalCloseBtn" class="modal-close-btn" type="button">Close (Esc)</button>
+        <button id="modalCloseBtn" class="modal-close-btn" type="button">Close</button>
       </div>
-
       <div class="modal-tabs">
-        <button class="modal-tab-btn active" data-tab="jobs" type="button">Legal Jobs</button>
-        <button class="modal-tab-btn" data-tab="hustles" type="button">Hustles &amp; Risk</button>
-        <button class="modal-tab-btn" data-tab="spend" type="button">Daily Spend</button>
-        <button class="modal-tab-btn" data-tab="wallet" type="button">Wallet &amp; Home</button>
+        <button class="modal-tab-btn active" data-tab="jobs" type="button">Jobs</button>
+        <button class="modal-tab-btn" data-tab="hustles" type="button">Hustles</button>
+        <button class="modal-tab-btn" data-tab="spend" type="button">Spend</button>
+        <button class="modal-tab-btn" data-tab="wallet" type="button">Wallet</button>
       </div>
-
       <div id="modalBodyContent" class="modal-body"></div>
     </div>
   </div>
@@ -815,10 +325,9 @@
     <div id="joystickZone" class="joystick-zone">
       <div id="joystickKnob" class="joystick-knob"></div>
     </div>
-
     <div class="action-buttons-right">
       <button id="sprintToggleBtn" class="ctrl-btn" type="button">Jog: OFF</button>
-      <button id="interactTriggerBtn" class="ctrl-btn" type="button">Interact (E)</button>
+      <button id="interactTriggerBtn" class="ctrl-btn" type="button">Interact</button>
     </div>
   </div>
 
