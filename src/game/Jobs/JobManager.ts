@@ -11,12 +11,27 @@ import {
   WorkStepDefinition
 } from './JobRegistry';
 
+export interface JobRequirementCheckContext {
+  energy: number;
+  hunger?: number;
+  trait?: string;
+}
+
+export interface JobRequirementEvaluation {
+  met: boolean;
+  energyMet: boolean;
+  hungerMet: boolean;
+  traitMet: boolean;
+  unmetReasons: string[];
+}
+
 export class JobManager {
   private readonly economy: EconomyManager;
   private activeJobId: string | null = null;
   private status: JobLifecycleStatus = 'AVAILABLE';
   private currentStepIndex = 0;
   private completedJobCounts: Record<string, number> = {};
+  private jobCooldownUntilMs: Record<string, number> = {};
 
   private activeHustleId: string | null = null;
   private activeHustleStepIndex = 0;
@@ -32,6 +47,7 @@ export class JobManager {
       status: this.status,
       currentStepIndex: this.currentStepIndex,
       completedJobCounts: { ...this.completedJobCounts },
+      jobCooldownUntilMs: { ...this.jobCooldownUntilMs },
       activeHustleId: this.activeHustleId,
       activeHustleStepIndex: this.activeHustleStepIndex
     };
@@ -43,6 +59,7 @@ export class JobManager {
     this.status = state.status ?? 'AVAILABLE';
     this.currentStepIndex = Math.max(0, Number(state.currentStepIndex) || 0);
     this.completedJobCounts = state.completedJobCounts ? { ...state.completedJobCounts } : {};
+    this.jobCooldownUntilMs = state.jobCooldownUntilMs ? { ...state.jobCooldownUntilMs } : {};
     this.activeHustleId = state.activeHustleId ?? null;
     this.activeHustleStepIndex = Math.max(0, Number(state.activeHustleStepIndex) || 0);
     this.completedStepIds.clear();
@@ -70,9 +87,57 @@ export class JobManager {
     this.status = 'AVAILABLE';
     this.currentStepIndex = 0;
     this.completedJobCounts = {};
+    this.jobCooldownUntilMs = {};
     this.activeHustleId = null;
     this.activeHustleStepIndex = 0;
     this.completedStepIds.clear();
+  }
+
+  public getRemainingCooldownSeconds(jobId: string, nowMs = Date.now()): number {
+    const until = this.jobCooldownUntilMs[jobId] ?? 0;
+    if (until <= nowMs) return 0;
+    return Math.ceil((until - nowMs) / 1000);
+  }
+
+  public isJobOnCooldown(jobId: string, nowMs = Date.now()): boolean {
+    return this.getRemainingCooldownSeconds(jobId, nowMs) > 0;
+  }
+
+  public evaluateJobRequirements(
+    job: LegalJobDefinition,
+    context: JobRequirementCheckContext
+  ): JobRequirementEvaluation {
+    const req = job.requirements;
+    const energy = Math.round(context.energy);
+    const hunger = context.hunger !== undefined ? Math.round(context.hunger) : 100;
+    const trait = (context.trait ?? '').toLowerCase();
+
+    const energyMet = energy >= req.minEnergy;
+    const minHunger = req.minHunger ?? 0;
+    const hungerMet = hunger >= minHunger;
+    const traitMet =
+      !req.requiredTraits ||
+      req.requiredTraits.length === 0 ||
+      (trait.length > 0 && req.requiredTraits.includes(trait));
+
+    const unmetReasons: string[] = [];
+    if (!energyMet) {
+      unmetReasons.push(`Need Energy ≥ ${req.minEnergy} (Current: ${energy})`);
+    }
+    if (!hungerMet) {
+      unmetReasons.push(`Need Hunger ≥ ${minHunger} (Current: ${hunger})`);
+    }
+    if (!traitMet && req.requiredTraits) {
+      unmetReasons.push(`Requires trait: ${req.requiredTraits.join(' / ')}`);
+    }
+
+    return {
+      met: energyMet && hungerMet && traitMet,
+      energyMet,
+      hungerMet,
+      traitMet,
+      unmetReasons
+    };
   }
 
   public getActiveJob(): {
@@ -155,7 +220,10 @@ export class JobManager {
     return null;
   }
 
-  public acceptJob(jobId: string): { success: boolean; message: string } {
+  public acceptJob(
+    jobId: string,
+    context?: JobRequirementCheckContext
+  ): { success: boolean; message: string } {
     const job = getLegalJobById(jobId);
     if (!job) {
       return { success: false, message: 'Job not found in registry.' };
@@ -173,10 +241,29 @@ export class JobManager {
       };
     }
 
+    const remainingCooldown = this.getRemainingCooldownSeconds(job.id);
+    if (remainingCooldown > 0) {
+      return {
+        success: false,
+        message: `Cooldown active: wait ${remainingCooldown}s before taking ${job.title} again.`
+      };
+    }
+
+    if (context) {
+      const evalResult = this.evaluateJobRequirements(job, context);
+      if (!evalResult.met) {
+        return {
+          success: false,
+          message: evalResult.unmetReasons[0] ?? 'Job requirements not met.'
+        };
+      }
+    }
+
     this.activeJobId = job.id;
     this.status = 'ACCEPTED';
     this.currentStepIndex = 0;
     this.completedStepIds.clear();
+    this.jobCooldownUntilMs[job.id] = Date.now() + job.cooldownSeconds * 1000;
     this.economy.saveSnapshot();
 
     return {

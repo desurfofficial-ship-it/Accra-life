@@ -1,5 +1,11 @@
 import { Phase1Scene } from './game/Core/Phase1Scene';
-import { startOnboarding, type OnboardingResult } from './onboarding';
+import {
+  loadSavedProfile,
+  startOnboarding,
+  TRAIT_DEFS,
+  type OnboardingResult,
+  type TraitId
+} from './onboarding';
 import {
   ACCRA_ILLEGAL_HUSTLES,
   HeatSystem
@@ -72,6 +78,8 @@ const needsSystem = new NeedsSystem();
 const homeSystem = new HomeSystem();
 let homeVisuals: HomeFurnitureVisuals | null = null;
 let playerDisplayName = 'Chale';
+let playerTrait: TraitId = (loadSavedProfile()?.trait as TraitId) || 'hustler';
+let lastCooldownUiTickMs = 0;
 
 economyManager.bindExternalStateProviders(
   () => jobSystem.getPersistedState(),
@@ -246,38 +254,177 @@ function closeEconomyModal(): void {
   currentFocusedInteractableId = null;
 }
 
+function formatTraitList(traits: ReadonlyArray<string>): string {
+  return traits
+    .map((t) => TRAIT_DEFS[t as TraitId]?.label ?? t)
+    .join(' / ');
+}
+
+function updateLiveJobModalCooldowns(): void {
+  if (!economyModalBackdrop?.classList.contains('open') || currentModalTab !== 'jobs') return;
+  const activeJob = jobSystem.getActiveJob();
+  const needs = needsSystem.getState();
+
+  for (const job of ACCRA_LEGAL_JOBS) {
+    const isThisActive = activeJob?.job.id === job.id;
+    const remaining = jobSystem.getRemainingCooldownSeconds(job.id);
+    const reqEval = jobSystem.evaluateJobRequirements(job, {
+      energy: needs.energy,
+      hunger: needs.hunger,
+      trait: playerTrait
+    });
+
+    const cdEl = modalBodyContent?.querySelector<HTMLElement>(
+      `[data-cooldown-label="${job.id}"]`
+    );
+    if (cdEl) {
+      cdEl.classList.toggle('active', remaining > 0);
+      cdEl.textContent =
+        remaining > 0
+          ? `Cooldown: ${remaining}s remaining`
+          : `Cooldown: ${job.cooldownSeconds}s timer`;
+    }
+
+    const btn = modalBodyContent?.querySelector<HTMLButtonElement>(
+      `button[data-job-btn="${job.id}"]`
+    );
+    if (btn) {
+      if (isThisActive) {
+        btn.disabled = true;
+        btn.textContent = 'In Progress';
+      } else if (remaining > 0) {
+        btn.disabled = true;
+        btn.textContent = `Cooldown (${remaining}s)`;
+      } else if (!reqEval.met) {
+        btn.disabled = true;
+        btn.textContent = 'Requirements Not Met';
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'Take Job';
+      }
+    }
+  }
+}
+
 function renderModalTabContent(): void {
   if (!modalBodyContent || !modalHeaderTitle || !modalHeaderSub) return;
   modalBodyContent.innerHTML = '';
   const cash = economyManager.wallet.getCashBalance();
+  const needs = needsSystem.getState();
+  const traitLabel = TRAIT_DEFS[playerTrait]?.label ?? playerTrait;
   modalHeaderTitle.textContent = `Jobs · ${formatGHS(cash)}`;
-  modalHeaderSub.textContent = '';
+  modalHeaderSub.textContent = `Energy ${Math.round(needs.energy)} · Hunger ${Math.round(needs.hunger)} · Trait: ${traitLabel}`;
 
   if (currentModalTab === 'jobs') {
     const activeJob = jobSystem.getActiveJob();
-    for (const job of ACCRA_LEGAL_JOBS) {
+    const jobs = jobSystem.getAvailableJobs(currentFocusedInteractableId);
+
+    for (const job of jobs) {
       const isThisActive = activeJob?.job.id === job.id;
+      const remainingCooldown = jobSystem.getRemainingCooldownSeconds(job.id);
+      const reqEval = jobSystem.evaluateJobRequirements(job, {
+        energy: needs.energy,
+        hunger: needs.hunger,
+        trait: playerTrait
+      });
+
+      const minHunger = job.requirements.minHunger ?? 0;
+      const traitReqHtml =
+        job.requirements.requiredTraits && job.requirements.requiredTraits.length > 0
+          ? `<span class="econ-req-item ${reqEval.traitMet ? '' : 'unmet'}">${
+              reqEval.traitMet ? '✓' : '✗'
+            } Trait: ${formatTraitList(job.requirements.requiredTraits)}</span>`
+          : `<span class="econ-req-item">✓ Any Trait</span>`;
+
+      const hungerReqHtml =
+        minHunger > 0
+          ? `<span class="econ-req-item ${reqEval.hungerMet ? '' : 'unmet'}">${
+              reqEval.hungerMet ? '✓' : '✗'
+            } Hunger ≥ ${minHunger}</span>`
+          : '';
+
+      const buttonLabel = isThisActive
+        ? 'In Progress'
+        : remainingCooldown > 0
+          ? `Cooldown (${remainingCooldown}s)`
+          : !reqEval.met
+            ? 'Requirements Not Met'
+            : 'Take Job';
+
       const card = document.createElement('div');
       card.className = 'econ-card';
-      card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><strong class="econ-card-title">${job.title}</strong><span class="econ-pay-badge">+${formatGHS(job.payGHS)}</span></div><button class="econ-action-btn" type="button" style="margin-top:8px">${isThisActive ? 'In Progress' : 'Accept'}</button>`;
-      const btn = card.querySelector('button');
+      card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <strong class="econ-card-title">${job.title}</strong>
+          <span class="econ-pay-badge">+${formatGHS(job.payGHS)}</span>
+        </div>
+        <p style="margin:3px 0 4px;font-size:0.68rem;color:#bdbdbd">${job.summary}</p>
+        <div class="econ-req-list">
+          <span class="econ-req-item ${reqEval.energyMet ? '' : 'unmet'}">${
+            reqEval.energyMet ? '✓' : '✗'
+          } Energy ≥ ${job.requirements.minEnergy}</span>
+          ${hungerReqHtml}
+          ${traitReqHtml}
+        </div>
+        <div class="econ-cooldown-row ${
+          remainingCooldown > 0 ? 'active' : ''
+        }" data-cooldown-label="${job.id}">
+          ${
+            remainingCooldown > 0
+              ? `Cooldown: ${remainingCooldown}s remaining`
+              : `Cooldown: ${job.cooldownSeconds}s timer`
+          }
+        </div>
+        <button class="econ-action-btn" data-job-btn="${job.id}" type="button" style="margin-top:4px">${buttonLabel}</button>
+      `;
+
+      const btn = card.querySelector<HTMLButtonElement>('button');
       if (btn) {
-        if (isThisActive) btn.disabled = true;
-        else
-          btn.addEventListener('click', () => {
-            const gate = needsSystem.canWork();
-            if (!gate.ok) {
-              showInteractionFeedback(gate.reason || 'Cannot work.', true);
-              return;
-            }
-            const res = jobSystem.acceptJob(job.id);
-            if (res.success) {
-              const aj = jobSystem.getActiveJob();
-              showInteractionFeedback(`Job on · ${aj ? aj.currentStep.stepTitle : 'Go'}`);
-              closeEconomyModal();
-            } else showInteractionFeedback(res.message, true);
-            syncEconomyHUD();
+        if (isThisActive || remainingCooldown > 0 || !reqEval.met) {
+          btn.disabled = true;
+        }
+        btn.addEventListener('click', () => {
+          const latestNeeds = needsSystem.getState();
+          const latestCooldown = jobSystem.getRemainingCooldownSeconds(job.id);
+          if (latestCooldown > 0) {
+            showInteractionFeedback(`Cooldown · ${latestCooldown}s left`, true);
+            updateLiveJobModalCooldowns();
+            return;
+          }
+          const latestEval = jobSystem.evaluateJobRequirements(job, {
+            energy: latestNeeds.energy,
+            hunger: latestNeeds.hunger,
+            trait: playerTrait
           });
+          if (!latestEval.met) {
+            showInteractionFeedback(
+              latestEval.unmetReasons[0] || 'Requirements not met.',
+              true
+            );
+            renderModalTabContent();
+            return;
+          }
+          const gate = needsSystem.canWork();
+          if (!gate.ok) {
+            showInteractionFeedback(gate.reason || 'Cannot work.', true);
+            return;
+          }
+          const res = jobSystem.acceptJob(job.id, {
+            energy: latestNeeds.energy,
+            hunger: latestNeeds.hunger,
+            trait: playerTrait
+          });
+          if (res.success) {
+            const aj = jobSystem.getActiveJob();
+            showInteractionFeedback(`Job on · ${aj ? aj.currentStep.stepTitle : 'Go'}`);
+            renderModalTabContent();
+            closeEconomyModal();
+          } else {
+            showInteractionFeedback(res.message, true);
+            renderModalTabContent();
+          }
+          syncEconomyHUD();
+        });
       }
       modalBodyContent.appendChild(card);
     }
@@ -437,6 +584,7 @@ function startGame(profile: OnboardingResult): void {
     homeVisuals = new HomeFurnitureVisuals(phase1.scene);
     homeVisuals.sync(homeSystem.getOwned());
     playerDisplayName = profile.displayName || 'Chale';
+    playerTrait = profile.trait || 'hustler';
 
     document.getElementById('homeModalClose')?.addEventListener('click', () => closeHomeSheet());
     document.getElementById('homeModalBackdrop')?.addEventListener('click', (e) => {
@@ -477,6 +625,11 @@ function startGame(profile: OnboardingResult): void {
     const tick = () => {
       crimeSystem.tickHeatDecay(1 / 60);
       needsSystem.tick(1 / 60);
+      const now = performance.now();
+      if (now - lastCooldownUiTickMs >= 500) {
+        lastCooldownUiTickMs = now;
+        updateLiveJobModalCooldowns();
+      }
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);

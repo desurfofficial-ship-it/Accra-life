@@ -11,6 +11,13 @@ export interface WorkStepDefinition {
   readonly completionMessage: string;
 }
 
+export interface JobRequirements {
+  readonly minEnergy: number;
+  readonly minHunger?: number;
+  readonly requiredTraits?: ReadonlyArray<string>;
+  readonly label: string;
+}
+
 export interface LegalJobDefinition {
   readonly id: string;
   readonly title: string;
@@ -18,6 +25,8 @@ export interface LegalJobDefinition {
   readonly startInteractableId: string;
   readonly employerAssetId: string;
   readonly payGHS: number;
+  readonly cooldownSeconds: number;
+  readonly requirements: JobRequirements;
   readonly summary: string;
   readonly steps: ReadonlyArray<WorkStepDefinition>;
 }
@@ -33,7 +42,7 @@ export interface SideHustleDefinition {
   readonly steps: ReadonlyArray<WorkStepDefinition>;
 }
 
-/** Core legal jobs — 3 steps each, multi-spot walk, clear pay. */
+/** Core legal jobs — 3 steps each, multi-spot walk, clear pay, requirements, and cooldowns. */
 export const ACCRA_LEGAL_JOBS: ReadonlyArray<LegalJobDefinition> = [
   {
     id: 'JOB_PROVISIONS_ASSISTANT',
@@ -42,6 +51,12 @@ export const ACCRA_LEGAL_JOBS: ReadonlyArray<LegalJobDefinition> = [
     startInteractableId: 'provision_shop',
     employerAssetId: 'ACC_SHOP_001',
     payGHS: 18.0,
+    cooldownSeconds: 45,
+    requirements: {
+      minEnergy: 20,
+      minHunger: 15,
+      label: 'Energy ≥ 20 · Hunger ≥ 15'
+    },
     summary: 'Load stock, deliver to waakye joint, collect pay.',
     steps: [
       {
@@ -83,6 +98,13 @@ export const ACCRA_LEGAL_JOBS: ReadonlyArray<LegalJobDefinition> = [
     startInteractableId: 'food_vendor',
     employerAssetId: 'ACC_RESTAURANT_001',
     payGHS: 22.0,
+    cooldownSeconds: 60,
+    requirements: {
+      minEnergy: 30,
+      minHunger: 20,
+      requiredTraits: ['hustler', 'campus', 'family', 'party'],
+      label: 'Energy ≥ 30 · Hunger ≥ 20 · Trait: Hustler / Campus / Family / Party'
+    },
     summary: 'Pick packs, drop at trotro, collect pay.',
     steps: [
       {
@@ -124,6 +146,12 @@ export const ACCRA_LEGAL_JOBS: ReadonlyArray<LegalJobDefinition> = [
     startInteractableId: 'trotro_stop',
     employerAssetId: 'ACC_PROP_001',
     payGHS: 15.0,
+    cooldownSeconds: 30,
+    requirements: {
+      minEnergy: 15,
+      minHunger: 10,
+      label: 'Energy ≥ 15 · Hunger ≥ 10'
+    },
     summary: 'Call passengers, fetch water, collect pay.',
     steps: [
       {

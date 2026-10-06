@@ -10,6 +10,7 @@ export interface PersistedJobState {
   status: 'AVAILABLE' | 'ACCEPTED' | 'WORKING' | 'COMPLETED' | 'PAID';
   currentStepIndex: number;
   completedJobCounts: Record<string, number>;
+  jobCooldownUntilMs?: Record<string, number>;
   activeHustleId: string | null;
   activeHustleStepIndex: number;
 }
