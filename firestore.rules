@@ -217,6 +217,54 @@ service cloud.firestore {
     }
 
     // ============================================================
+    // /homes/{userId} — public, visit-ready home showcase
+    // (Phase-6 social groundwork: friends visiting each other's homes.)
+    //
+    // The private save in /players/{uid} is owner-read-only, so visiting
+    // needs a PUBLIC read surface. This doc is a deliberately-minimal,
+    // PII-free copy of the player's home layout — no wallet, no needs,
+    // no email, nothing but tier + placed furniture.
+    //
+    //   { ownerId, tier, placed, updatedAt }
+    //     tier    — HousingTierId string (1-32 chars)
+    //     placed  — list (<= 40) of { catalogId, x, z, rotationY }
+    //
+    // READ: any signed-in + verified player (matches /profiles read).
+    // WRITE: owner only + verified, hasOnly whitelist, coarse bounds.
+    // The client (HomeShowcase.ts) does STRICT registry validation of
+    // every fetched doc — these rules are the coarse second layer.
+    // ============================================================
+
+    match /homes/{userId} {
+      allow get: if isSignedIn() && isVerified() && isValidId(userId);
+      allow list: if false;
+
+      allow create: if isOwner(userId)
+        && isVerified()
+        && isValidId(userId)
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.keys().hasOnly(['ownerId', 'tier', 'placed', 'updatedAt'])
+        && request.resource.data.tier is string
+        && request.resource.data.tier.size() >= 1
+        && request.resource.data.tier.size() <= 32
+        && (!('placed' in request.resource.data) || (request.resource.data.placed is list && request.resource.data.placed.size() <= 40));
+
+      allow update: if isOwner(userId)
+        && isVerified()
+        && isValidId(userId)
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.keys().hasOnly(['ownerId', 'tier', 'placed', 'updatedAt'])
+        && request.resource.data.tier is string
+        && request.resource.data.tier.size() >= 1
+        && request.resource.data.tier.size() <= 32
+        && (!('placed' in request.resource.data) || (request.resource.data.placed is list && request.resource.data.placed.size() <= 40));
+
+      allow delete: if isOwner(userId) && isVerified();
+    }
+
+    // ============================================================
     // /presence/{userId} — non-PII multiplayer presence
     // (No email-verification requirement — broadcast data only.)
     // ============================================================
