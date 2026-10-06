@@ -83,7 +83,7 @@ function showInteractionFeedback(message: string, isWarning = false): void {
   toastEl.classList.toggle('warn', isWarning);
   toastEl.classList.add('show');
   if (toastTimeout) clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(() => toastEl.classList.remove('show'), 3400);
+  toastTimeout = setTimeout(() => toastEl.classList.remove('show'), 2200);
 }
 
 function showFloatingWalletDelta(deltaAmount: number): void {
@@ -93,7 +93,7 @@ function showFloatingWalletDelta(deltaAmount: number): void {
   void walletDeltaEl.offsetWidth;
   walletDeltaEl.classList.add(deltaAmount > 0 ? 'show-gain' : 'show-loss');
   if (deltaTimeout) clearTimeout(deltaTimeout);
-  deltaTimeout = setTimeout(() => walletDeltaEl.classList.remove('show-gain', 'show-loss'), 2400);
+  deltaTimeout = setTimeout(() => walletDeltaEl.classList.remove('show-gain', 'show-loss'), 1800);
 }
 
 function getActiveObjectiveInfo(): {
@@ -109,7 +109,7 @@ function getActiveObjectiveInfo(): {
     return {
       targetInteractableId: activeJob.currentStep.targetInteractableId,
       isRisky: false,
-      tag: `Job · Step ${activeJob.stepIndex + 1}/${activeJob.totalSteps} · ${formatGHS(activeJob.job.payGHS)}`,
+      tag: `Step ${activeJob.stepIndex + 1}/${activeJob.totalSteps}`,
       title: activeJob.job.title,
       instruction: activeJob.currentStep.instruction,
       stepTitle: activeJob.currentStep.stepTitle
@@ -120,7 +120,7 @@ function getActiveObjectiveInfo(): {
     return {
       targetInteractableId: activeHustle.currentStep.targetInteractableId,
       isRisky: false,
-      tag: `Hustle · Step ${activeHustle.stepIndex + 1}/${activeHustle.totalSteps}`,
+      tag: `Step ${activeHustle.stepIndex + 1}/${activeHustle.totalSteps}`,
       title: activeHustle.hustle.title,
       instruction: activeHustle.currentStep.instruction,
       stepTitle: activeHustle.currentStep.stepTitle
@@ -131,7 +131,7 @@ function getActiveObjectiveInfo(): {
     return {
       targetInteractableId: activeIllegal.currentStep.targetInteractableId,
       isRisky: true,
-      tag: `Risky · Step ${activeIllegal.stepIndex + 1}/${activeIllegal.totalSteps}`,
+      tag: `Step ${activeIllegal.stepIndex + 1}/${activeIllegal.totalSteps}`,
       title: activeIllegal.hustle.title,
       instruction: activeIllegal.currentStep.instruction,
       stepTitle: activeIllegal.currentStep.stepTitle
@@ -170,16 +170,16 @@ function syncEconomyHUD(): void {
     if (status === 'SUSPICIOUS') heatStatusPillEl.classList.add('suspicious');
     else if (status === 'WANTED') heatStatusPillEl.classList.add('wanted');
     else if (status === 'ARRESTED') heatStatusPillEl.classList.add('arrested');
-    heatStatusTextEl.textContent = `${status} · ${heat}%`;
+    heatStatusTextEl.textContent = status === 'CLEAN' ? 'Clean' : `${status}`;
   }
   const obj = getActiveObjectiveInfo();
-  if (activeObjectiveBannerEl && objTagEl && objTitleEl && objDescEl) {
+  if (activeObjectiveBannerEl && objTagEl && objTitleEl) {
     if (obj) {
       activeObjectiveBannerEl.classList.add('visible');
       activeObjectiveBannerEl.classList.toggle('risky', obj.isRisky);
       objTagEl.textContent = obj.tag;
       objTitleEl.textContent = obj.title;
-      objDescEl.textContent = obj.instruction;
+      if (objDescEl) objDescEl.textContent = '';
     } else {
       activeObjectiveBannerEl.classList.remove('visible', 'risky');
     }
@@ -202,18 +202,23 @@ economyManager.onUpdate(() => syncEconomyHUD());
 needsSystem.onUpdate(() => syncNeedsHUD());
 
 function updateInteractionPromptUI(target: InteractableTarget | null): void {
-  if (!promptEl || !promptTitleEl || !promptSubEl) return;
+  if (!promptEl || !promptTitleEl) return;
   if (target) {
     const obj = getActiveObjectiveInfo();
     const match = obj && obj.targetInteractableId === target.id;
     promptEl.classList.toggle('objective-match', Boolean(match));
     if (match && obj) {
-      promptTitleEl.textContent = `Complete: ${obj.stepTitle}`;
-      promptSubEl.textContent = `${target.title} · Active`;
+      promptTitleEl.textContent = obj.stepTitle;
     } else {
-      promptTitleEl.textContent = target.promptLabel;
-      promptSubEl.textContent = target.title;
+      const short: Record<string, string> = {
+        food_vendor: 'Waakye · ₵12',
+        home_door: 'Rest',
+        provision_shop: 'Shop',
+        trotro_stop: 'Trotro'
+      };
+      promptTitleEl.textContent = short[target.id] || target.promptLabel;
     }
+    if (promptSubEl) promptSubEl.textContent = '';
     promptEl.classList.add('visible');
   } else {
     promptEl.classList.remove('visible', 'objective-match');
@@ -237,9 +242,8 @@ function renderModalTabContent(): void {
   if (!modalBodyContent || !modalHeaderTitle || !modalHeaderSub) return;
   modalBodyContent.innerHTML = '';
   const cash = economyManager.wallet.getCashBalance();
-  const tier = economyManager.getProgressionInfo();
-  modalHeaderTitle.textContent = `Opportunities · ${formatGHS(cash)}`;
-  modalHeaderSub.textContent = tier.title;
+  modalHeaderTitle.textContent = `Jobs · ${formatGHS(cash)}`;
+  modalHeaderSub.textContent = '';
 
   if (currentModalTab === 'jobs') {
     const activeJob = jobSystem.getActiveJob();
@@ -247,7 +251,7 @@ function renderModalTabContent(): void {
       const isThisActive = activeJob?.job.id === job.id;
       const card = document.createElement('div');
       card.className = 'econ-card';
-      card.innerHTML = `<div class="econ-card-top"><div><h3 class="econ-card-title">${job.title}</h3><div class="econ-card-sub">${job.employerName}</div></div><span class="econ-pay-badge">+${formatGHS(job.payGHS)}</span></div><p class="econ-card-desc">${job.summary}</p><div class="econ-card-footer"><span class="econ-meta">${job.steps.length} steps</span><button class="econ-action-btn" type="button">${isThisActive ? 'In Progress' : 'Accept'}</button></div>`;
+      card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><strong class="econ-card-title">${job.title}</strong><span class="econ-pay-badge">+${formatGHS(job.payGHS)}</span></div><button class="econ-action-btn" type="button" style="margin-top:8px">${isThisActive ? 'In Progress' : 'Accept'}</button>`;
       const btn = card.querySelector('button');
       if (btn) {
         if (isThisActive) btn.disabled = true;
@@ -255,7 +259,7 @@ function renderModalTabContent(): void {
           btn.addEventListener('click', () => {
             const gate = needsSystem.canWork();
             if (!gate.ok) {
-              showInteractionFeedback(gate.reason || 'Cannot work now.', true);
+              showInteractionFeedback(gate.reason || 'Cannot work.', true);
               return;
             }
             const res = jobSystem.acceptJob(job.id);
@@ -269,18 +273,15 @@ function renderModalTabContent(): void {
     return;
   }
 
-  if (currentModalTab === 'hustles' || currentModalTab === 'spend' || currentModalTab === 'wallet') {
-    modalBodyContent.innerHTML =
-      '<p style="color:#9a9a9a;padding:8px;">Jobs tab for shifts. Eat at the waakye joint. Rest at the compound.</p>';
-  }
+  modalBodyContent.innerHTML = '<p style="color:#9a9a9a;font-size:0.8rem;">Use Jobs. Eat at waakye. Rest at home.</p>';
 }
 
 function handleWorldTargetInteracted(target: InteractableTarget): void {
   const advance = jobSystem.tryAdvanceAtInteractable(target.id);
   if (advance.handled) {
     if (advance.completedWork) {
-      const drain = needsSystem.onWorkCompleted();
-      showInteractionFeedback(`${advance.message} ${drain.message}`);
+      needsSystem.onWorkCompleted();
+      showInteractionFeedback(advance.message);
     } else {
       showInteractionFeedback(advance.message);
     }
@@ -290,15 +291,15 @@ function handleWorldTargetInteracted(target: InteractableTarget): void {
 
   if (target.id === 'food_vendor') {
     if (!economyManager.canAfford(12, 'CASH')) {
-      showInteractionFeedback('Need ₵12 for waakye.', true);
+      showInteractionFeedback('Need ₵12', true);
       return;
     }
     const buy = economyManager.purchaseEverydayExpense('EXP_WAAKYE_MEAL');
     if (buy.success) {
-      const meal = needsSystem.eatMeal('Waakye');
-      showInteractionFeedback(meal.message);
+      needsSystem.eatMeal('Waakye');
+      showInteractionFeedback('+Hunger');
     } else {
-      showInteractionFeedback(buy.message || 'Could not buy meal.', true);
+      showInteractionFeedback(buy.message || 'No', true);
     }
     syncEconomyHUD();
     return;
@@ -306,35 +307,19 @@ function handleWorldTargetInteracted(target: InteractableTarget): void {
 
   if (target.id === 'home_door') {
     const rest = needsSystem.sleep();
-    showInteractionFeedback(rest.message, !rest.success);
+    showInteractionFeedback(rest.success ? '+Energy' : rest.message, !rest.success);
     return;
   }
 
-  if (target.id === 'provision_shop' || target.id === 'trotro_stop') {
-    openEconomyModal('jobs', target.id);
-  } else if (target.id === 'npc_older_001') {
-    openEconomyModal('hustles', target.id);
-  } else {
-    openEconomyModal('jobs', target.id);
-  }
+  openEconomyModal('jobs', target.id);
 }
 
 function startGame(profile: OnboardingResult): void {
-  const originLabel = profile.origin === 'dbee' ? 'DBee' : 'Aunty Ba';
-  const livingSub = document.getElementById('livingSituationSub');
-  if (livingSub) {
-    livingSub.textContent = `${profile.displayName} · ${originLabel} · ${profile.trait || 'hustler'}`;
-  }
-  const brandBadge = document.querySelector('.brand-badge');
-  if (brandBadge) {
-    brandBadge.textContent = profile.mode === 'account' ? 'Accra · Cloud Save' : 'Accra · Guest';
-  }
-
   if (profile.origin === 'dbee' && economyManager.wallet.getCashBalance() === 0) {
     economyManager.wallet.addFunds({
       amount: 500,
       category: 'REWARD',
-      description: 'DBee start — family soft landing'
+      description: 'DBee start'
     });
   }
 
@@ -345,12 +330,7 @@ function startGame(profile: OnboardingResult): void {
         onTargetChanged: (target) => updateInteractionPromptUI(target),
         onTargetInteracted: (target) => handleWorldTargetInteracted(target)
       },
-      {
-        look: {
-          skin: profile.skin,
-          hair: profile.hair
-        }
-      }
+      { look: { skin: profile.skin, hair: profile.hair } }
     );
     phase1SceneRef = phase1;
     syncEconomyHUD();
@@ -399,7 +379,7 @@ function startGame(profile: OnboardingResult): void {
       sprintToggled = !sprintToggled;
       phase1.player.setSprintState(sprintToggled);
       sprintToggleBtn.classList.toggle('active', sprintToggled);
-      sprintToggleBtn.textContent = sprintToggled ? 'Jog ON' : 'Jog';
+      sprintToggleBtn.textContent = sprintToggled ? 'ON' : 'Jog';
     });
 
     if (joystickZone && joystickKnob) {
