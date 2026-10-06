@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { InputManager } from './InputManager';
 import { ColliderBox } from './PlayerController';
+import { isPlayerInCompoundCutaway } from '../World/PlayerCompound';
 
 export class ThirdPersonCamera {
   public readonly camera: THREE.PerspectiveCamera;
@@ -189,18 +190,18 @@ export class ThirdPersonCamera {
     );
 
     if (snap || unobstructedDist < this.currentDistance) {
-      // Pull camera in quickly when obstructed by a building wall
+      // Pull camera in smoothly when obstructed by a building wall
       this.currentDistance = THREE.MathUtils.lerp(
         this.currentDistance,
         unobstructedDist,
-        snap ? 1 : Math.min(1, dt * 22)
+        snap ? 1 : Math.min(1, dt * 14)
       );
     } else {
       // Ease camera back out smoothly once line of sight clears
       this.currentDistance = THREE.MathUtils.lerp(
         this.currentDistance,
         unobstructedDist,
-        Math.min(1, dt * 8)
+        Math.min(1, dt * 6)
       );
     }
 
@@ -232,16 +233,19 @@ export class ThirdPersonCamera {
     let closestHitDist = maxDist;
     const pad = this.cameraCollisionPadding;
 
-    const isInsideCompoundRoom =
-      ox >= -14.5 && ox <= -6.5 && oz >= 9.0 && oz <= 15.95;
+    const isInsideCompoundRoom = isPlayerInCompoundCutaway();
 
     for (let i = 0; i < colliders.length; i++) {
       const box = colliders[i];
-      if (
-        isInsideCompoundRoom &&
-        (box.id === 'ACC_HOUSE_001_WALL_S_L' || box.id === 'ACC_HOUSE_001_WALL_S_R')
-      ) {
-        continue;
+      if (isInsideCompoundRoom) {
+        // In cutaway view, ignore front room walls and outer front walls to allow clean cutaway camera
+        if (
+          box.id === 'ACC_HOUSE_001_WALL_S_L' ||
+          box.id === 'ACC_HOUSE_001_WALL_S_R' ||
+          (dz < 0 && (box.id === 'ACC_HOUSE_001_WALL_L' || box.id === 'ACC_HOUSE_001_WALL_R'))
+        ) {
+          continue;
+        }
       }
       const boxHeight = box.height ?? 3.6;
       // Ignore very narrow poles/trees or low compound walls below camera ray height

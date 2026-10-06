@@ -11,6 +11,7 @@ let compoundFrontFullWallsGroup: THREE.Group | null = null;
 let compoundFrontCutawayRimGroup: THREE.Group | null = null;
 let worldCollidersRef: ColliderBox[] | null = null;
 let currentBuiltTierId: HousingTierId = 'single_room';
+let isCutawayActive = false;
 
 const HOUSE_WALL_COLLIDER_IDS = new Set([
   'ACC_HOUSE_001_WALL_N',
@@ -20,23 +21,42 @@ const HOUSE_WALL_COLLIDER_IDS = new Set([
   'ACC_HOUSE_001_WALL_S_R'
 ]);
 
+export function isPlayerInCompoundCutaway(): boolean {
+  return isCutawayActive;
+}
+
 export function updatePlayerCompoundCutaway(playerPos: THREE.Vector3): boolean {
-  const isInsideOrVeranda =
-    playerPos.x >= -14.95 &&
-    playerPos.x <= -6.05 &&
-    playerPos.z >= 9.0 &&
-    playerPos.z <= 15.95;
+  // Generous hysteresis deadzone: prevents rapid flicker when moving near doorway / veranda
+  if (isCutawayActive) {
+    if (
+      playerPos.x < -15.4 ||
+      playerPos.x > -5.6 ||
+      playerPos.z < 8.3 ||
+      playerPos.z > 16.3
+    ) {
+      isCutawayActive = false;
+    }
+  } else {
+    if (
+      playerPos.x >= -14.6 &&
+      playerPos.x <= -6.4 &&
+      playerPos.z >= 9.3 &&
+      playerPos.z <= 15.8
+    ) {
+      isCutawayActive = true;
+    }
+  }
 
   if (compoundRoofCutawayGroup) {
-    compoundRoofCutawayGroup.visible = !isInsideOrVeranda;
+    compoundRoofCutawayGroup.visible = !isCutawayActive;
   }
   if (compoundFrontFullWallsGroup) {
-    compoundFrontFullWallsGroup.visible = !isInsideOrVeranda;
+    compoundFrontFullWallsGroup.visible = !isCutawayActive;
   }
   if (compoundFrontCutawayRimGroup) {
-    compoundFrontCutawayRimGroup.visible = isInsideOrVeranda;
+    compoundFrontCutawayRimGroup.visible = isCutawayActive;
   }
-  return isInsideOrVeranda;
+  return isCutawayActive;
 }
 
 export function rebuildPlayerCompoundForTier(tierId: HousingTierId): void {
@@ -140,14 +160,17 @@ function createDynamicHouseShell(
 
   const interiorFloorMat = sharedArtLibrary.getMaterial('house_interior_tile_floor', {
     map: sharedArtLibrary.getRoomTileFloorTexture(),
-    roughness: tier.level >= 4 ? 0.38 : 0.68
+    roughness: tier.level >= 4 ? 0.38 : 0.68,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1
   });
   const interiorFloor = new THREE.Mesh(
-    new THREE.BoxGeometry(roomW - 0.08, 0.03, roomD - 0.08),
+    new THREE.BoxGeometry(roomW - 0.06, 0.04, roomD - 0.06),
     interiorFloorMat
   );
-  // Top surface at 0.225 + 0.015 = 0.240 (flush with terrace deck so player shoes never clip)
-  interiorFloor.position.set(0, 0.225, roomZ);
+  // Top surface at 0.228 + 0.02 = 0.248 (sits cleanly above 0.240 terrace plinth to prevent depth fighting)
+  interiorFloor.position.set(0, 0.228, roomZ);
   interiorFloor.receiveShadow = true;
   shellGroup.add(interiorFloor);
 
@@ -186,12 +209,12 @@ function createDynamicHouseShell(
   );
   posterHeader.position.set(-roomW * 0.22, 2.08, northWallZ - wallT / 2 - 0.025);
   const backWinFrame = new THREE.Mesh(
-    new THREE.BoxGeometry(1.15, 0.95, 0.06),
+    new THREE.BoxGeometry(1.15, 0.95, 0.08),
     matWhiteTrim
   );
   backWinFrame.position.set(roomW * 0.18, 1.9, northWallZ - wallT / 2 - 0.02);
   const backWinGlass = new THREE.Mesh(
-    new THREE.BoxGeometry(0.98, 0.78, 0.07),
+    new THREE.BoxGeometry(0.98, 0.78, 0.02),
     matGlassWindow
   );
   backWinGlass.position.set(roomW * 0.18, 1.9, northWallZ - wallT / 2 - 0.02);
@@ -207,6 +230,7 @@ function createDynamicHouseShell(
   // Full front facade group (visible from outside; cuts away when inside)
   const frontFullGroup = new THREE.Group();
   frontFullGroup.name = 'ACC_HOUSE_001_FRONT_FULL';
+  frontFullGroup.visible = !isCutawayActive;
 
   const wallSL = new THREE.Mesh(new THREE.BoxGeometry(southHalf, wallH, wallT), matWallExterior);
   wallSL.position.set(-roomW / 2 + southHalf / 2, roomY, southWallZ);
@@ -239,13 +263,13 @@ function createDynamicHouseShell(
     const winOffset = -roomW / 2 + southHalf / 2;
     for (const wx of [winOffset, -winOffset]) {
       const winW = Math.min(1.25, southHalf - 0.36);
-      const winFrame = new THREE.Mesh(new THREE.BoxGeometry(winW, 1.15, 0.32), matWhiteTrim);
+      const winFrame = new THREE.Mesh(new THREE.BoxGeometry(winW, 1.15, wallT + 0.06), matWhiteTrim);
       winFrame.position.set(wx, 1.88, southWallZ);
-      const winGlass = new THREE.Mesh(new THREE.BoxGeometry(winW - 0.16, 0.98, 0.34), matGlassWindow);
+      const winGlass = new THREE.Mesh(new THREE.BoxGeometry(winW - 0.16, 0.98, 0.04), matGlassWindow);
       winGlass.position.set(wx, 1.88, southWallZ);
       frontFullGroup.add(winFrame, winGlass);
       for (const barY of [1.62, 1.88, 2.14]) {
-        const bar = new THREE.Mesh(new THREE.BoxGeometry(winW - 0.12, 0.025, 0.36), matIronWork);
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(winW - 0.12, 0.025, wallT + 0.08), matIronWork);
         bar.position.set(wx, barY, southWallZ);
         frontFullGroup.add(bar);
       }
@@ -268,15 +292,15 @@ function createDynamicHouseShell(
   // Low cutaway front rim group (visible when inside so player sees wall boundary & full legs)
   const frontCutawayGroup = new THREE.Group();
   frontCutawayGroup.name = 'ACC_HOUSE_001_FRONT_CUTAWAY';
-  frontCutawayGroup.visible = false;
+  frontCutawayGroup.visible = isCutawayActive;
   const rimH = 0.28;
-  const rimSL = new THREE.Mesh(new THREE.BoxGeometry(southHalf, rimH, wallT), matWallInterior);
+  const rimSL = new THREE.Mesh(new THREE.BoxGeometry(southHalf, rimH, wallT - 0.02), matWallInterior);
   rimSL.position.set(-roomW / 2 + southHalf / 2, 0.24 + rimH / 2, southWallZ);
-  const rimSLCap = new THREE.Mesh(new THREE.BoxGeometry(southHalf, 0.04, wallT + 0.04), matWoodWarm);
+  const rimSLCap = new THREE.Mesh(new THREE.BoxGeometry(southHalf, 0.04, wallT + 0.02), matWoodWarm);
   rimSLCap.position.set(-roomW / 2 + southHalf / 2, 0.24 + rimH + 0.02, southWallZ);
-  const rimSR = new THREE.Mesh(new THREE.BoxGeometry(southHalf, rimH, wallT), matWallInterior);
+  const rimSR = new THREE.Mesh(new THREE.BoxGeometry(southHalf, rimH, wallT - 0.02), matWallInterior);
   rimSR.position.set(roomW / 2 - southHalf / 2, 0.24 + rimH / 2, southWallZ);
-  const rimSRCap = new THREE.Mesh(new THREE.BoxGeometry(southHalf, 0.04, wallT + 0.04), matWoodWarm);
+  const rimSRCap = new THREE.Mesh(new THREE.BoxGeometry(southHalf, 0.04, wallT + 0.02), matWoodWarm);
   rimSRCap.position.set(roomW / 2 - southHalf / 2, 0.24 + rimH + 0.02, southWallZ);
   frontCutawayGroup.add(rimSL, rimSLCap, rimSR, rimSRCap);
   shellGroup.add(frontCutawayGroup);
@@ -284,6 +308,7 @@ function createDynamicHouseShell(
   // Roof group (cuts away when player steps onto veranda/room)
   const roofGroup = new THREE.Group();
   roofGroup.name = 'ACC_HOUSE_001_ROOF';
+  roofGroup.visible = !isCutawayActive;
   const roofSpanW = Math.max(roomW + 0.8, 4.8);
   const roofSpanD = roomD + 1.5;
   const roofCenterZ = roomZ - 0.35;
@@ -386,7 +411,7 @@ function buildBuiltInTierInterior(
   northWallZ: number,
   wallT: number
 ): void {
-  const floorY = 0.24;
+  const floorY = 0.248;
   const innerWestX = -roomW / 2 + wallT + 0.06;
   const innerEastX = roomW / 2 - wallT - 0.06;
   const innerNorthZ = northWallZ - wallT / 2 - 0.06;

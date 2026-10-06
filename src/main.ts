@@ -29,7 +29,7 @@ import { NeedsSystem } from './game/Needs/NeedsSystem';
 import { FURNITURE_CATALOG, HOUSING_TIERS, HomeSystem, type FurnitureId } from './game/Home/HomeSystem';
 import { PlacementEngine, buildPlacedFurnitureMesh } from './game/Housing/PlacementEngine';
 import { HomeFurnitureVisuals } from './game/Home/HomeFurnitureVisuals';
-import { rebuildPlayerCompoundForTier } from './game/World/PlayerCompound';
+import { rebuildPlayerCompoundForTier, isPlayerInCompoundCutaway } from './game/World/PlayerCompound';
 import { PresenceManager, type PresenceStatus } from './game/Multiplayer/PresenceManager';
 import { LocationChatManager } from './game/Multiplayer/LocationChatManager';
 import type { NearbyPlayer, ChatMessageView } from './game/Multiplayer/types';
@@ -1299,10 +1299,7 @@ function startGame(profile: OnboardingResult): void {
       crimeSystem.tickHeatDecay(1 / 60);
       needsSystem.tick(1 / 60);
       if (homeVisuals) {
-        const p = phase1.player.position;
-        const isInsideCompound =
-          p.x >= -14.5 && p.x <= -6.5 && p.z >= 9.0 && p.z <= 15.95;
-        homeVisuals.setCutawayMode(isInsideCompound);
+        homeVisuals.setCutawayMode(isPlayerInCompoundCutaway());
       }
       const now = performance.now();
       if (now - lastCooldownUiTickMs >= 500) {

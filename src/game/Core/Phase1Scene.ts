@@ -112,51 +112,19 @@ export class Phase1Scene {
       const webgl = new THREE.WebGLRenderer({ antialias: true });
       const gl = webgl.getContext();
       if (gl && !gl.isContextLost()) {
-        const origShaderSource = gl.shaderSource.bind(gl);
-        const origCompileShader = gl.compileShader.bind(gl);
-        const origGetShaderParam = gl.getShaderParameter.bind(gl);
-        const origGetShaderInfoLog = gl.getShaderInfoLog.bind(gl);
-        const origAttachShader = gl.attachShader.bind(gl);
-        const origDeleteShader = gl.deleteShader.bind(gl);
+        webgl.setSize(width, height);
+        webgl.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+        webgl.shadowMap.enabled = true;
+        webgl.shadowMap.type = THREE.PCFSoftShadowMap;
+        webgl.toneMapping = THREE.ACESFilmicToneMapping;
+        webgl.toneMappingExposure = 1.1;
 
-        gl.shaderSource = (shader: WebGLShader | null, source: string) => {
-          if (shader instanceof WebGLShader) origShaderSource(shader, source);
-        };
-        gl.compileShader = (shader: WebGLShader | null) => {
-          if (shader instanceof WebGLShader) origCompileShader(shader);
-        };
-        gl.getShaderParameter = (shader: WebGLShader | null, pname: GLenum) => {
-          if (shader instanceof WebGLShader) return origGetShaderParam(shader, pname);
-          return true;
-        };
-        gl.getShaderInfoLog = (shader: WebGLShader | null) => {
-          if (shader instanceof WebGLShader) return origGetShaderInfoLog(shader);
-          return '';
-        };
-        gl.attachShader = (program: WebGLProgram | null, shader: WebGLShader | null) => {
-          if (program && shader instanceof WebGLShader) origAttachShader(program, shader);
-        };
-        gl.deleteShader = (shader: WebGLShader | null) => {
-          if (shader instanceof WebGLShader) origDeleteShader(shader);
-        };
+        webgl.domElement.addEventListener('webglcontextlost', (e) => {
+          e.preventDefault();
+          this.switchToFallbackRenderer();
+        });
 
-        const testShader = gl.createShader(gl.VERTEX_SHADER);
-        if (testShader instanceof WebGLShader) {
-          origDeleteShader(testShader);
-          webgl.setSize(width, height);
-          webgl.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
-          webgl.shadowMap.enabled = true;
-          webgl.shadowMap.type = THREE.PCFSoftShadowMap;
-          webgl.toneMapping = THREE.ACESFilmicToneMapping;
-          webgl.toneMappingExposure = 1.1;
-
-          webgl.domElement.addEventListener('webglcontextlost', (e) => {
-            e.preventDefault();
-            this.switchToFallbackRenderer();
-          });
-
-          return webgl;
-        }
+        return webgl;
       }
       webgl.dispose();
     } catch {
@@ -198,7 +166,7 @@ export class Phase1Scene {
     sunLight.shadow.camera.right = d;
     sunLight.shadow.camera.top = d;
     sunLight.shadow.camera.bottom = -d;
-    sunLight.shadow.bias = -0.0004;
+    sunLight.shadow.bias = 0.0002;
     sunLight.shadow.normalBias = 0.02;
     this.scene.add(sunLight);
 

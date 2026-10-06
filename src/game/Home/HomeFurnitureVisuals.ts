@@ -12,14 +12,14 @@ const COURTYARD_SLOTS: [number, number, number][] = [
   [-8.2, 0.24, 9.6]
 ];
 
-/** Interior slots — inside room (floor top at Y = 0.24) */
+/** Interior slots — inside room (floor top at Y = 0.248) */
 const INTERIOR_SLOTS: [number, number, number][] = [
-  [-11.55, 0.24, 11.75],
-  [-11.65, 0.24, 12.85],
-  [-9.35, 0.24, 11.45],
-  [-9.25, 0.24, 12.35],
-  [-10.5, 0.24, 12.15],
-  [-11.1, 0.24, 11.35]
+  [-11.55, 0.248, 11.75],
+  [-11.65, 0.248, 12.85],
+  [-9.35, 0.248, 11.45],
+  [-9.25, 0.248, 12.35],
+  [-10.5, 0.248, 12.15],
+  [-11.1, 0.248, 11.35]
 ];
 
 export class HomeFurnitureVisuals {
@@ -76,7 +76,7 @@ export class HomeFurnitureVisuals {
       roughness: 0.9
     });
     const mat = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.006, 0.45), doorMat);
-    mat.position.set(-10.5, 0.243, 10.95);
+    mat.position.set(-10.5, 0.252, 10.95);
     g.add(mat);
 
     return g;
