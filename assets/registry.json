@@ -1,0 +1,299 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Accra Life — Asset Registry. Single source of truth for every visual asset in the project. Update this whenever a new asset is added, replaced, or retired. Schema fields are documented in assets/README.md.",
+  "version": 1,
+  "updated_at": "2026-10-06",
+  "strategy": {
+    "principle": "Use generic CC0 assets to build the system first, then replace/augment with culturally specific Accra art as the product develops. Do not allow generic asset packs to define Accra Life's visual identity. Priority: playable + coherent Accra Life over an enormous asset collection.",
+    "approved_sources": [
+      { "name": "Kenney", "url": "https://kenney.nl/assets", "license": "CC0", "preferred": true, "notes": "Primary source for prototype kits — street, city, furniture, vehicles." },
+      { "name": "OpenGameArt", "url": "https://opengameart.org/", "license": "varies (CC0 / CC-BY / GPL)", "preferred": true, "notes": "Verify per-asset license before use; prefer CC0." },
+      { "name": "itch.io free/CC0 packs", "url": "https://itch.io/game-assets/free/tag-cc0", "license": "CC0 (verify per-pack)", "preferred": true, "notes": "Low-poly street kits, modular storefronts, prop packs." },
+      { "name": "Sketchfab Ghana tags", "url": "https://sketchfab.com/search?q=ghana&type=models", "license": "varies (CC-BY / CC-BY-NC / editorial)", "preferred": false, "notes": "Localized architectural props + Accra-specific references. Verify commercial-use license; many are non-commercial." },
+      { "name": "Meshy AI", "url": "https://www.meshy.ai/", "license": "AI-generated, varies", "preferred": false, "notes": "Use only for rapid prototyping of street kiosks/MoMo umbrellas/etc. Replace with hand-crafted or licensed assets before launch." }
+    ],
+    "workflow": [
+      "1. Verify asset license before incorporating (CC0 preferred for MVP).",
+      "2. Save the asset under assets/external/<source>/ or assets/accra/<category>/.",
+      "3. Add an entry to assets/registry.json with name, source, url, license, author, intended_use, status.",
+      "4. Load via GLTFLoader in src/game/Art/ExternalAssetLoader.ts (TBD — see roadmap).",
+      "5. Normalize scale + perspective + lighting to match the existing world's units (1 unit = 1 meter, +Y up, scene background #dcebfa).",
+      "6. Do not mix radically different art styles. Reuse assets consistently instead of downloading many visually redundant packs."
+    ],
+    "production_art_targets": [
+      "Player characters",
+      "Accra streets",
+      "Buildings",
+      "Major landmarks",
+      "Trotros",
+      "Local food",
+      "Shops",
+      "Signage",
+      "Housing",
+      "Transport",
+      "Important NPCs",
+      "Major locations"
+    ]
+  },
+  "assets": {
+    "procedural": [
+      {
+        "id": "PLAYER_GHA_001",
+        "name": "Local player character rig",
+        "source": "src/game/Art/CharacterBuilder.ts",
+        "license": "project-owned",
+        "author": "Accra Life team",
+        "intended_use": "Local player avatar",
+        "status": "production"
+      },
+      {
+        "id": "NPC_MALE_001",
+        "name": "NPC Kojo (male character rig)",
+        "source": "src/game/Art/CharacterBuilder.ts",
+        "license": "project-owned",
+        "author": "Accra Life team",
+        "intended_use": "NPC at Osu Oxford Street (north sidewalk)",
+        "status": "production"
+      },
+      {
+        "id": "NPC_FEMALE_001",
+        "name": "NPC Ama (female character rig)",
+        "source": "src/game/Art/CharacterBuilder.ts",
+        "license": "project-owned",
+        "author": "Accra Life team",
+        "intended_use": "NPC at Osu Oxford Street (north sidewalk)",
+        "status": "production"
+      },
+      {
+        "id": "NPC_OLDER_001",
+        "name": "NPC Uncle Mensah (older character rig)",
+        "source": "src/game/Art/CharacterBuilder.ts",
+        "license": "project-owned",
+        "author": "Accra Life team",
+        "intended_use": "NPC errand-giver at south sidewalk",
+        "status": "production"
+      },
+      {
+        "id": "ACC_HOUSE_001",
+        "name": "Player compound house",
+        "source": "src/game/World/PlayerCompound.ts",
+        "license": "project-owned",
+        "author": "Accra Life team",
+        "intended_use": "Player's home (compound + hollow walkable interior)",
+        "status": "production"
+      },
+      {
+        "id": "ACC_SHOP_001",
+        "name": "Adabraka Provisions kiosk",
+        "source": "src/game/World/NeighborhoodProvision.ts",
+        "license": "project-owned",
+        "author": "Accra Life team",
+        "intended_use": "Shop kiosk (NW corner of the neighborhood)",
+        "status": "production"
+      },
+      {
+        "id": "ACC_RESTAURANT_001",
+        "name": "Sister Akosua's Waakye Joint",
+        "source": "src/game/World/NeighborhoodFood.ts",
+        "license": "project-owned",
+        "author": "Accra Life team",
+        "intended_use": "Food vendor stall (NE corner)",
+        "status": "production"
+      },
+      {
+        "id": "ACC_PROP_001",
+        "name": "Trotro stop shelter + van",
+        "source": "src/game/World/NeighborhoodTrotro.ts",
+        "license": "project-owned",
+        "author": "Accra Life team",
+        "intended_use": "Trotro boarding pad + vehicle (SE corner)",
+        "status": "production"
+      },
+      {
+        "id": "ENV_DRAIN_001",
+        "name": "Roadside gutters + sidewalks + crossover bridges",
+        "source": "src/game/World/NeighborhoodGutters.ts",
+        "license": "project-owned",
+        "author": "Accra Life team",
+        "intended_use": "Pedestrian infrastructure (both sidewalks + concrete crossovers)",
+        "status": "production"
+      },
+      {
+        "id": "ENV_NEIGHBORHOOD_BLOCK",
+        "name": "Neighborhood block orchestrator (ground, road, dash lines, edge lines, bollards)",
+        "source": "src/game/World/NeighborhoodBlock.ts",
+        "license": "project-owned",
+        "author": "Accra Life team",
+        "intended_use": "Top-level world layout (asphalt road + lane markings + edge bollards)",
+        "status": "production"
+      },
+      {
+        "id": "ENV_UTILITY_POLE",
+        "name": "Utility pole + overhead cables",
+        "source": "src/game/World/NeighborhoodStreet.ts",
+        "license": "project-owned",
+        "author": "Accra Life team",
+        "intended_use": "Concrete power pole with crossarm, lamp, insulators, overhead cables",
+        "status": "production"
+      },
+      {
+        "id": "ENV_SHADE_TREE",
+        "name": "Stylized shade tree",
+        "source": "src/game/World/NeighborhoodStreet.ts",
+        "license": "project-owned",
+        "author": "Accra Life team",
+        "intended_use": "Roadside trees (6 placed across both sidewalks)",
+        "status": "production"
+      },
+      {
+        "id": "ACC_MOMO_UMBRELLA",
+        "name": "MoMo umbrella (MTN-yellow mobile-money booth)",
+        "source": "src/game/World/NeighborhoodExtras.ts",
+        "license": "project-owned",
+        "author": "Accra Life team",
+        "intended_use": "Mobile-money booth near the Adabraka Provisions store",
+        "status": "production"
+      },
+      {
+        "id": "ACC_HAWKER_TABLE",
+        "name": "Market hawker table (tomatoes, plantains, oranges)",
+        "source": "src/game/World/NeighborhoodExtras.ts",
+        "license": "project-owned",
+        "author": "Accra Life team",
+        "intended_use": "Street hawker produce table on north sidewalk",
+        "status": "production"
+      },
+      {
+        "id": "ACC_COOL_CHEST",
+        "name": "Cool chest (ice chest for cold drinks)",
+        "source": "src/game/World/NeighborhoodExtras.ts",
+        "license": "project-owned",
+        "author": "Accra Life team",
+        "intended_use": "Drinks cooler near the waakye joint",
+        "status": "production"
+      },
+      {
+        "id": "ACC_SUSU_KIOSK",
+        "name": "Susu collection kiosk (traditional savings booth)",
+        "source": "src/game/World/NeighborhoodExtras.ts",
+        "license": "project-owned",
+        "author": "Accra Life team",
+        "intended_use": "Susu collector's kiosk on south sidewalk near compound",
+        "status": "production"
+      },
+      {
+        "id": "ACC_PARK_BENCH",
+        "name": "Concrete park bench",
+        "source": "src/game/World/NeighborhoodExtras.ts",
+        "license": "project-owned",
+        "author": "Accra Life team",
+        "intended_use": "Seating at the trotro stop",
+        "status": "production"
+      },
+      {
+        "id": "ACC_CHALE_WOTE_PANEL",
+        "name": "Chale Wote graffiti wall panel",
+        "source": "src/game/World/NeighborhoodExtras.ts",
+        "license": "project-owned",
+        "author": "Accra Life team",
+        "intended_use": "Street-art mural panel at west edge of north sidewalk",
+        "status": "production"
+      },
+      {
+        "id": "ACC_BILLBOARD_GANTRY",
+        "name": "Overhead billboard gantry (ad inventory slot)",
+        "source": "src/game/World/NeighborhoodExtras.ts",
+        "license": "project-owned",
+        "author": "Accra Life team",
+        "intended_use": "In-world ad slot above Oxford Street; placeholder text + colored panel for now, will be wired to the ad system later",
+        "status": "production"
+      }
+    ],
+    "external": [
+      {
+        "id": "EXT_TBD_KENNEY_CITY_KIT",
+        "name": "Kenney City Kit (CC0)",
+        "source": "Kenney",
+        "url": "https://kenney.nl/assets/city-kit",
+        "license": "CC0",
+        "author": "Kenney Vleugels",
+        "intended_use": "Modular low-poly road kits + generic storefronts (PROTOTYPE — replace with Accra-specific shopfronts before launch)",
+        "status": "planned",
+        "notes": "Download target. Once integrated, save under assets/external/kenney/city-kit/ and load via ExternalAssetLoader.ts."
+      },
+      {
+        "id": "EXT_TBD_OGA_STREET_PROPS",
+        "name": "OpenGameArt street props pack (CC0)",
+        "source": "OpenGameArt",
+        "url": "https://opengameart.org/art-search-advanced?keys=street+props&field_art_type=3d&field_art_licenses[]=1",
+        "license": "CC0 (verify per-asset)",
+        "author": "various",
+        "intended_use": "Generic urban props for prototyping (bollards, planters, signage). Replace with Accra-specific props before launch.",
+        "status": "planned"
+      },
+      {
+        "id": "EXT_TBD_ITCH_LOW_POLY_STREET",
+        "name": "itch.io low-poly street assets",
+        "source": "itch.io",
+        "url": "https://itch.io/game-assets/free/tag-low-poly+street",
+        "license": "CC0 (verify per-pack)",
+        "author": "various",
+        "intended_use": "Modular storefronts + road-side clutter. Replace with Accra-specific shopfronts before launch.",
+        "status": "planned"
+      },
+      {
+        "id": "EXT_TBD_SKETCHFAB_TROTRO_REF",
+        "name": "Sketchfab TroTro 3D reference (geometry reference only — NOT for direct use)",
+        "source": "Sketchfab",
+        "url": "https://sketchfab.com/search?q=trotro&type=models",
+        "license": "varies (verify per-asset)",
+        "author": "various",
+        "intended_use": "Visual reference for hand-modeling a more authentic trotro later. The current ACC_PROP_001 trotro is too generic — use this as a reference to rebuild the geometry with Accra-specific details (route-board on dashboard, scratched paint, etc.).",
+        "status": "reference-only"
+      }
+    ]
+  },
+  "categories": {
+    "characters": "Player + NPC rigs. assets/accra/characters/ for hand-crafted Accra character art (replacing procedural rigs eventually).",
+    "buildings": "Compound houses, shopfronts, kiosks, religious buildings.",
+    "vehicles": "Trotros, okadas (motorcycles), Bolt/Uber sedans, market trucks.",
+    "food": "Waakye pots, kelewele frying pans, banku + tilapia platters, sachet water racks.",
+    "landmarks": "Independence Arch, Black Star Square, Jamestown Lighthouse, Kwame Nkrumah Mausoleum.",
+    "props": "MoMo umbrellas, hawker tables, cool chests, susu kiosks, benches, signage, bollards, planters."
+  },
+  "directory_layout": {
+    "assets/registry.json": "this file",
+    "assets/README.md": "strategy + workflow documentation",
+    "assets/external/kenney/": "CC0 assets downloaded from kenney.nl",
+    "assets/external/opengameart/": "CC0 assets downloaded from opengameart.org",
+    "assets/external/itch/": "CC0 assets downloaded from itch.io",
+    "assets/accra/characters/": "Hand-crafted Accra character art (production replacements for procedural rigs)",
+    "assets/accra/buildings/": "Hand-crafted Accra building art",
+    "assets/accra/vehicles/": "Hand-crafted Accra vehicle art (trotros especially)",
+    "assets/accra/food/": "Hand-crafted Accra food props",
+    "assets/accra/landmarks/": "Major Accra landmarks",
+    "assets/accra/props/": "Hand-crafted Accra props (replacing the procedural ones in NeighborhoodExtras.ts eventually)"
+  },
+  "roadmap": [
+    {
+      "step": "1. Immediate (this slice)",
+      "work": "Build 7 distinctly Accra environment props procedurally (MoMo umbrella, hawker table, cool chest, susu kiosk, park bench, Chale Wote graffiti, billboard gantry) + create registry + README + directory structure."
+    },
+    {
+      "step": "2. Next slice (external asset integration infrastructure)",
+      "work": "Build src/game/Art/ExternalAssetLoader.ts that uses GLTFLoader to load GLB/FBX files from assets/external/. This unblocks future external asset integration."
+    },
+    {
+      "step": "3. Trotro replacement (high visual-identity value)",
+      "work": "Replace the procedural ACC_PROP_001 trotro with a hand-crafted Accra trotro model — Urvan van with route-board on dashboard, scratched paint, customized body work. Source: hand-model OR commission. Save under assets/accra/vehicles/trotro-001.glb."
+    },
+    {
+      "step": "4. Building replacements (high visual-identity value)",
+      "work": "Replace the Adabraka Provisions + Waakye Joint + Player Compound with hand-crafted Accra shopfronts. Source: hand-model OR commission. Save under assets/accra/buildings/."
+    },
+    {
+      "step": "5. Landmark integration",
+      "work": "Add 2-3 major Accra landmarks (Black Star Square, Jamestown Lighthouse, Kwame Nkrumah Mausoleum) as travel destinations outside the current neighborhood — requires expanding the world geometry."
+    }
+  ]
+}

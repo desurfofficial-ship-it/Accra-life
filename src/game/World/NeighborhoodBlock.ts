@@ -9,6 +9,7 @@ import { buildRoadsideGuttersAndWalkways } from './NeighborhoodGutters';
 import { buildProvisionStore } from './NeighborhoodProvision';
 import { buildFoodVendorJoint } from './NeighborhoodFood';
 import { buildTrotroStopAndVehicle } from './NeighborhoodTrotro';
+import { buildNeighborhoodExtras } from './NeighborhoodExtras';
 import {
   buildUtilityPole,
   buildOverheadUtilityCables,
@@ -89,6 +90,7 @@ export function buildFirstNeighborhoodBlock(scene: THREE.Scene): BuiltNeighborho
   buildProvisionStore(scene, colliders, interactables);
   buildFoodVendorJoint(scene, colliders, interactables);
   buildTrotroStopAndVehicle(scene, colliders, interactables);
+  buildNeighborhoodExtras(scene, colliders, interactables);
 
   const northPoles: Array<[number, number, number]> = [
     [-16, -4.8, 1],
