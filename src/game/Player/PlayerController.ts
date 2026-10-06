@@ -133,17 +133,21 @@ export class PlayerController {
       }
     }
 
-    if (this.currentSpeed > 0.01) {
-      const steps = 2;
+    if (this.currentSpeed > 0.005) {
+      const steps = 8;
       const stepDt = dt / steps;
       for (let s = 0; s < steps; s++) {
         const nextX = this.position.x + this.velocity.x * stepDt;
         if (!this.checkCollision(nextX, this.position.z, colliders)) {
           this.position.x = nextX;
+        } else {
+          this.velocity.x = 0;
         }
         const nextZ = this.position.z + this.velocity.z * stepDt;
         if (!this.checkCollision(this.position.x, nextZ, colliders)) {
           this.position.z = nextZ;
+        } else {
+          this.velocity.z = 0;
         }
         this.resolvePenetration(colliders);
       }
@@ -154,7 +158,11 @@ export class PlayerController {
     this.position.x = THREE.MathUtils.clamp(this.position.x, -this.worldBoundsX, this.worldBoundsX);
     this.position.z = THREE.MathUtils.clamp(this.position.z, -this.worldBoundsZ, this.worldBoundsZ);
     const targetSurfaceY = getSurfaceHeightAt(this.position.x, this.position.z);
-    this.position.y = THREE.MathUtils.lerp(this.position.y, targetSurfaceY, Math.min(1, dt * 20));
+    if (targetSurfaceY >= this.position.y) {
+      this.position.y = targetSurfaceY;
+    } else {
+      this.position.y = THREE.MathUtils.lerp(this.position.y, targetSurfaceY, Math.min(1, dt * 28));
+    }
 
     const moveSpeedRatio = this.currentSpeed / baseSpeed;
     this.characterRig.updateAnimation(

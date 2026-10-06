@@ -538,6 +538,26 @@ class SharedArtLibrary {
     return tex;
   }
 
+  public getRoomTileFloorTexture(): THREE.CanvasTexture {
+    const tex = this.getOrCreateTexture('room_tile_floor', 256, 256, (ctx) => {
+      const step = 64;
+      for (let y = 0; y < 256; y += step) {
+        for (let x = 0; x < 256; x += step) {
+          const isEven = ((x / step) + (y / step)) % 2 === 0;
+          ctx.fillStyle = isEven ? '#eadbc8' : '#dfc9af';
+          ctx.fillRect(x, y, step, step);
+          ctx.strokeStyle = '#c2a687';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x + 1, y + 1, step - 2, step - 2);
+        }
+      }
+    });
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(6, 4);
+    return tex;
+  }
+
   public getLateriteEarthTexture(): THREE.CanvasTexture {
     const tex = this.getOrCreateTexture('laterite_earth', 256, 256, (ctx) => {
       ctx.fillStyle = '#d6b087';

@@ -236,7 +236,12 @@ export class Canvas3DFallbackRenderer {
     if (!anyVisible) return;
 
     const shades = this.getShadedColorsForHex(baseHex);
-    const isFlatSlab = max.y - min.y < 0.22;
+    const heightY = max.y - min.y;
+    const spanX = max.x - min.x;
+    const spanZ = max.z - min.z;
+    const isFlatSlab = heightY < 0.26;
+    const isGroundOrFloorSurface =
+      this.corners[6].y <= 0.28 && (spanX > 2.0 || spanZ > 2.0);
 
     for (let f = 0; f < Canvas3DFallbackRenderer.BOX_FACES.length; f++) {
       if (isFlatSlab && f !== 4) continue;
@@ -268,7 +273,9 @@ export class Canvas3DFallbackRenderer {
       pooled.points[2].y = this.screenPts[idx[2]].y;
       pooled.points[3].x = this.screenPts[idx[3]].x;
       pooled.points[3].y = this.screenPts[idx[3]].y;
-      pooled.depth = this.scratchCenter.distanceToSquared(this.currentCamPos);
+      pooled.depth =
+        this.scratchCenter.distanceToSquared(this.currentCamPos) +
+        (isGroundOrFloorSurface ? 800 : 0);
       pooled.fillStyle = shades[f];
       pooled.strokeStyle = Canvas3DFallbackRenderer.DEFAULT_STROKE;
 

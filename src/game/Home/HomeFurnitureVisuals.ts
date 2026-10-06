@@ -4,28 +4,29 @@ import { FURNITURE_CATALOG, type FurnitureId } from './HomeSystem';
 
 /** Courtyard slots — outside veranda */
 const COURTYARD_SLOTS: [number, number, number][] = [
-  [-12.4, 0.12, 9.6],
-  [-11.2, 0.12, 9.5],
-  [-9.6, 0.12, 9.6],
-  [-12.6, 0.12, 10.8],
-  [-10.5, 0.12, 10.6],
-  [-8.6, 0.12, 10.8]
+  [-12.4, 0.1, 9.6],
+  [-11.2, 0.1, 9.5],
+  [-9.6, 0.1, 9.6],
+  [-12.6, 0.24, 10.0],
+  [-8.8, 0.24, 10.0],
+  [-8.6, 0.1, 9.6]
 ];
 
-/** Interior slots — inside hollowed room */
+/** Interior slots — inside hollowed room (floor top at Y = 0.24) */
 const INTERIOR_SLOTS: [number, number, number][] = [
-  [-12.8, 0.12, 13.2],
-  [-9.0, 0.12, 14.6],
-  [-9.2, 0.12, 12.4],
-  [-12.6, 0.12, 14.4],
-  [-10.5, 0.12, 13.5],
-  [-11.5, 0.12, 12.2]
+  [-12.8, 0.24, 13.2],
+  [-9.0, 0.24, 14.6],
+  [-9.2, 0.24, 12.4],
+  [-12.6, 0.24, 14.4],
+  [-10.5, 0.24, 13.5],
+  [-11.5, 0.24, 12.2]
 ];
 
 export class HomeFurnitureVisuals {
   private readonly scene: THREE.Scene;
   private readonly root: THREE.Group;
   private readonly interiorShell: THREE.Group;
+  private ceilingFanGroup: THREE.Group | null = null;
   private meshes = new Map<FurnitureId, THREE.Object3D>();
 
   constructor(scene: THREE.Scene) {
@@ -37,29 +38,25 @@ export class HomeFurnitureVisuals {
     this.scene.add(this.interiorShell);
   }
 
+  public setCutawayMode(isInside: boolean): void {
+    if (this.ceilingFanGroup) {
+      this.ceilingFanGroup.visible = !isInside;
+    }
+  }
+
   private buildInteriorShell(): THREE.Group {
     const g = new THREE.Group();
     g.name = 'HOME_INTERIOR_SHELL';
-
-    const floorMat = sharedArtLibrary.getMaterial('home_interior_floor', {
-      color: 0xd6c3a8,
-      roughness: 0.82
-    });
-    const floor = new THREE.Mesh(new THREE.BoxGeometry(6.6, 0.06, 4.4), floorMat);
-    floor.position.set(-10.5, 0.14, 13.1);
-    floor.receiveShadow = true;
-    g.add(floor);
 
     const trim = sharedArtLibrary.getMaterial('home_baseboard', {
       color: 0xf8fafc,
       roughness: 0.6
     });
     const boardN = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.12, 0.06), trim);
-    boardN.position.set(-10.5, 0.22, 15.2);
-    const boardS = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.12, 0.06), trim);
-    boardS.position.set(-10.5, 0.22, 11.0);
-    g.add(boardN, boardS);
+    boardN.position.set(-10.5, 0.3, 15.2);
+    g.add(boardN);
 
+    const fanGroup = new THREE.Group();
     const metal = sharedArtLibrary.getMaterial('home_fan_metal', {
       color: 0x4b5563,
       roughness: 0.35,
@@ -76,16 +73,18 @@ export class HomeFurnitureVisuals {
       const a = (i / 3) * Math.PI * 2;
       blade.position.set(-10.5 + Math.cos(a) * 0.35, 3.12, 13.1 + Math.sin(a) * 0.35);
       blade.rotation.y = a;
-      g.add(blade);
+      fanGroup.add(blade);
     }
-    g.add(fanHub);
+    fanGroup.add(fanHub);
+    this.ceilingFanGroup = fanGroup;
+    g.add(fanGroup);
 
     const doorMat = sharedArtLibrary.getMaterial('home_door_mat', {
       color: 0x7c2d12,
       roughness: 0.9
     });
-    const mat = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.03, 0.5), doorMat);
-    mat.position.set(-10.5, 0.16, 11.15);
+    const mat = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.006, 0.5), doorMat);
+    mat.position.set(-10.5, 0.243, 11.15);
     g.add(mat);
 
     return g;
@@ -303,10 +302,10 @@ export class HomeFurnitureVisuals {
       }
       case 'rug': {
         const rug = new THREE.Mesh(
-          new THREE.BoxGeometry(1.6, 0.04, 1.1),
+          new THREE.BoxGeometry(1.6, 0.008, 1.1),
           sharedArtLibrary.getMaterial('rug_pattern', { color: 0xa16207, roughness: 0.9 })
         );
-        rug.position.y = 0.02;
+        rug.position.y = 0.004;
         g.add(rug);
         break;
       }

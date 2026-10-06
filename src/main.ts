@@ -924,6 +924,12 @@ function startGame(profile: OnboardingResult): void {
     const tick = () => {
       crimeSystem.tickHeatDecay(1 / 60);
       needsSystem.tick(1 / 60);
+      if (homeVisuals) {
+        const p = phase1.player.position;
+        const isInsideCompound =
+          p.x >= -14.5 && p.x <= -6.5 && p.z >= 9.0 && p.z <= 15.95;
+        homeVisuals.setCutawayMode(isInsideCompound);
+      }
       const now = performance.now();
       if (now - lastCooldownUiTickMs >= 500) {
         lastCooldownUiTickMs = now;
@@ -935,6 +941,8 @@ function startGame(profile: OnboardingResult): void {
 
     walletOpenBtn?.addEventListener('click', () => openEconomyModal('wallet'));
     workMenuOpenBtn?.addEventListener('click', () => openEconomyModal('jobs'));
+    document.getElementById('homeOpenTopBtn')?.addEventListener('click', () => openHomeSheet());
+    document.getElementById('chatCloseBtn')?.addEventListener('click', () => closeChatSheet());
     document.getElementById('walletDiagToggle')?.addEventListener('click', () => {
       document.getElementById('walletDiagnosticPanel')?.classList.toggle('expanded');
     });

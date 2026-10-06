@@ -4,49 +4,1052 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
 <title>CHALÉ LIFE — Accra</title>
-<style>:root{--gta-black:#0a0a0a;--gta-panel:#080808e6;--gta-yellow:#fc0;--gta-green:#6f6;--gta-red:#f44;--gta-white:#f0f0f0;--gta-muted:#9a9a9a}*{box-sizing:border-box;-webkit-user-select:none;user-select:none}html,body{width:100%;height:100%;color:var(--gta-white);background:#0a0a0a;margin:0;padding:0;font-family:Arial Narrow,Arial,sans-serif;overflow:hidden}#viewportContainer{position:fixed;inset:0}#onboardingOverlay{z-index:1000;opacity:0;pointer-events:none;background:linear-gradient(#0a0a0a,#2a1a0c);justify-content:center;align-items:center;padding:24px;transition:opacity .35s;display:flex;position:fixed;inset:0}#onboardingOverlay.visible{opacity:1;pointer-events:auto}#onboardingOverlay.exit{opacity:0;pointer-events:none}.ob-card{text-align:center;width:100%;max-width:420px}.ob-screen{flex-direction:column;align-items:center;gap:12px;display:none}.ob-screen.active{display:flex}.ob-place{letter-spacing:.28em;color:var(--gta-yellow);margin:0;font-size:.75rem;font-weight:700}.ob-title{text-transform:uppercase;text-shadow:3px 3px #000;margin:0;font-size:2.8rem;font-weight:900}.ob-tagline{color:var(--gta-muted);font-size:1rem}.ob-tagline em{color:var(--gta-yellow);font-style:normal;font-weight:800}.ob-divider{background:var(--gta-yellow);width:60px;height:3px}.ob-btn{cursor:pointer;text-transform:uppercase;border:2px solid #0000;width:100%;max-width:320px;padding:14px 24px;font-family:inherit;font-size:1rem;font-weight:900}.ob-btn-primary{background:var(--gta-yellow);color:#0a0a0a;border-color:#000;box-shadow:4px 4px #000}.ob-btn-secondary{color:#fff;background:0 0;border:2px solid #ffffff59}.ob-btn-ghost{color:var(--gta-muted);background:0 0;border:none;font-size:.78rem}.ob-input{color:#fff;background:#000;border:2px solid #fc06;width:100%;max-width:320px;padding:12px;font-family:inherit;font-size:1rem}.ob-error{color:var(--gta-red);font-size:.8rem;font-weight:800;display:none}.ob-error.visible{display:block}.ob-back{color:var(--gta-muted);cursor:pointer;text-transform:uppercase;background:0 0;border:none;align-self:flex-start;font-weight:800}.ob-chip-row{flex-wrap:wrap;justify-content:center;gap:8px;max-width:340px;display:flex}.ob-chip{color:#fff;cursor:pointer;text-transform:uppercase;background:#000;border:2px solid #fff3;padding:10px 14px;font-family:inherit;font-size:.78rem;font-weight:900}.ob-chip.selected{border-color:var(--gta-yellow);color:var(--gta-yellow);background:#ffcc002e}.ob-hint{color:var(--gta-muted);margin:0;font-size:.75rem}.ob-spinner{border:3px solid #fc03;border-top-color:var(--gta-yellow);border-radius:50%;width:36px;height:36px;animation:.6s linear infinite s}@keyframes s{to{transform:rotate(360deg)}}.phase1-hud-top{z-index:20;pointer-events:none;justify-content:space-between;display:flex;position:fixed;top:8px;left:8px;right:8px}.objective-banner{background:var(--gta-panel);border:1px solid #ffffff26;border-left:3px solid var(--gta-green);padding:6px 8px;pointer-events:auto;max-width:220px;display:none}.objective-banner.visible{display:block!important}.objective-banner.risky{border-left-color:var(--gta-red)}.hud-right-stack{flex-direction:column;align-items:flex-end;gap:4px;display:flex}.hud-top-actions{pointer-events:auto;gap:4px;display:flex}.wallet-chip{background:var(--gta-panel);color:var(--gta-green);cursor:pointer;border:1px solid #66ff6673;padding:4px 9px;font-family:inherit;font-weight:900}.jobs-btn,.cam-btn{background:var(--gta-yellow);color:#000;cursor:pointer;border:1px solid #000;padding:5px 10px;font-family:inherit;font-size:.72rem;font-weight:900}.cam-btn{color:#fff;background:#1a1a1a}.needs-stack{background:var(--gta-panel);border:1px solid #ffffff1f;min-width:96px;padding:4px 7px}.need-row{align-items:center;gap:5px;font-size:.65rem;font-weight:800;display:flex}.need-bar{background:#222;flex:1;height:5px}.need-fill{background:var(--gta-green);height:100%}.need-fill.low{background:var(--gta-red)}.heat-pill{color:var(--gta-muted);padding:2px 7px;font-size:.64rem;font-weight:900}.heat-pill.suspicious{color:var(--gta-yellow)}.heat-pill.wanted,.heat-pill.arrested{color:var(--gta-red)}#interactionPrompt{background:var(--gta-panel);z-index:25;opacity:0;pointer-events:auto;cursor:pointer;text-align:center;border:1.5px solid #ffcc008c;padding:7px 14px;position:fixed;bottom:92px;left:50%;transform:translate(-50%)}#interactionPrompt.visible{opacity:1}#promptTitle{color:var(--gta-yellow);margin:0;font-size:.86rem;font-weight:900}#interactionToast{z-index:60;opacity:0;pointer-events:none;background:#080808;border:1.5px solid #66ff6673;padding:8px 14px;font-weight:800;position:fixed;top:16%;left:50%;transform:translate(-50%)}#interactionToast.visible,#interactionToast.show{opacity:1}#interactionToast.warn{border-color:var(--gta-red);color:#ffd6d6}#walletDeltaFloating{z-index:60;opacity:0;pointer-events:none;font-size:1.15rem;font-weight:900;position:fixed;top:24%;left:50%;transform:translate(-50%)}#walletDeltaFloating.show-gain{opacity:1;color:var(--gta-green)}#walletDeltaFloating.show-loss{opacity:1;color:var(--gta-red)}.economy-modal-backdrop{z-index:50;background:#000000c7;justify-content:center;align-items:center;padding:12px;display:none;position:fixed;inset:0}.economy-modal-backdrop.open{display:flex}.economy-modal{background:#111;border:2px solid #ffcc0073;width:100%;max-width:440px;max-height:85vh;overflow:auto}.modal-header{border-bottom:1px solid #ffffff1f;justify-content:space-between;align-items:center;padding:11px 14px;display:flex}.modal-tabs{display:flex}.modal-tab-btn{color:var(--gta-muted);cursor:pointer;background:#0a0a0a;border:none;flex:1;padding:10px;font-family:inherit;font-size:.72rem;font-weight:900}.modal-tab-btn.active{color:var(--gta-yellow);border-bottom:2px solid var(--gta-yellow)}.modal-body{padding:12px;display:flex;flex-direction:column;gap:8px}.econ-card{background:#181818;border:1px solid #ffffff24;padding:10px 12px;display:flex;flex-direction:column;gap:5px}.econ-card.risky{border-color:#ff444466}.econ-card-title{font-size:.88rem;font-weight:900;color:#fff}.econ-pay-badge{background:#66ff6624;border:1px solid #66ff6666;color:var(--gta-green);font-weight:900;font-size:.74rem;padding:2px 6px}.econ-pay-badge.risky{background:#ff444426;border-color:#ff444473;color:#ff8888}.econ-req-list{display:flex;flex-wrap:wrap;gap:5px}.econ-req-item{font-size:.64rem;font-weight:800;padding:2px 6px;background:#66ff661a;border:1px solid #66ff664d;color:var(--gta-green)}.econ-req-item.unmet{background:#ff44441f;border-color:#ff444466;color:#ff8888}.econ-cooldown-row{font-size:.64rem;font-weight:800;color:var(--gta-muted)}.econ-cooldown-row.active{color:var(--gta-yellow)}.econ-action-btn{align-self:flex-start;background:var(--gta-yellow);color:#0a0a0a;border:1px solid #000;padding:6px 12px;font-weight:900;font-size:.73rem;cursor:pointer;text-transform:uppercase;font-family:inherit}.econ-action-btn:disabled{background:#2a2a2a;color:#777;border-color:#3a3a3a;cursor:not-allowed}.home-modal-backdrop{z-index:55;background:#000000bf;justify-content:center;align-items:flex-end;display:none;position:fixed;inset:0}.home-modal-backdrop.open{display:flex}.home-sheet{border-top:3px solid var(--gta-yellow);background:#111;width:100%;max-width:480px;max-height:78vh;padding:14px;overflow:auto}.furn-row{background:#1a1a1a;border:1px solid #ffffff1f;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}.furn-row.owned{border-color:#66ff6659}.furn-title{margin:0;font-size:.8rem;font-weight:900}.furn-blurb{margin:2px 0 0;font-size:.66rem;color:var(--gta-muted)}.furn-buy{background:var(--gta-yellow);color:#000;border:1px solid #000;padding:5px 10px;font-weight:900;font-size:.7rem;cursor:pointer;text-transform:uppercase}.furn-buy:disabled{background:#2a2a2a;color:var(--gta-green);cursor:default}.touch-controls{pointer-events:none;z-index:15;justify-content:space-between;padding:0 12px;display:flex;position:fixed;bottom:12px;left:0;right:0}.joystick-zone{pointer-events:auto;background:#ffffff0f;border:2px solid #ffffff26;border-radius:50%;width:110px;height:110px;position:relative}.joystick-knob{background:#ffcc00d9;border-radius:50%;width:44px;height:44px;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}.action-buttons-right{pointer-events:auto;flex-direction:column;gap:8px;display:flex}.ctrl-btn{color:#fff;cursor:pointer;background:#000000bf;border:2px solid #ffffff47;padding:12px 16px;font-family:inherit;font-size:.75rem;font-weight:900}</style>
+<meta name="description" content="3D open-neighborhood life & hustle simulator set in Accra, Ghana."/>
+<meta property="og:title" content="CHALÉ LIFE — Accra"/>
+<meta property="og:description" content="3D open-neighborhood life & hustle simulator set in Accra, Ghana."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=JetBrains+Mono:wght@500;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg-obsidian: #090d16;
+  --panel-bg: rgba(11, 15, 25, 0.88);
+  --panel-elevated: #131b2e;
+  --panel-card: #182238;
+  --border-subtle: rgba(255, 255, 255, 0.12);
+  --border-gold: rgba(250, 204, 21, 0.45);
+  --gta-yellow: #facc15;
+  --gta-amber: #f59e0b;
+  --gta-green: #22c55e;
+  --gta-red: #ef4444;
+  --gta-white: #f8fafc;
+  --gta-muted: #94a3b8;
+  --font-display: 'Chakra Petch', system-ui, sans-serif;
+  --font-body: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+* {
+  box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+}
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  color: var(--gta-white);
+  background: var(--bg-obsidian);
+  font-family: var(--font-body);
+  overflow: hidden;
+}
+button, input {
+  font-family: inherit;
+}
+button:focus-visible, input:focus-visible {
+  outline: 2px solid var(--gta-yellow);
+  outline-offset: 2px;
+}
+#viewportContainer {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Onboarding Overlay */
+#onboardingOverlay {
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 22%, rgba(245, 158, 11, 0.22), transparent 60%),
+    linear-gradient(165deg, #090d16 0%, #1a120b 55%, #0f172a 100%);
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  transition: opacity 0.3s ease;
+  display: flex;
+  position: fixed;
+  inset: 0;
+}
+#onboardingOverlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+#onboardingOverlay.exit {
+  opacity: 0;
+  pointer-events: none;
+}
+.ob-card {
+  background: rgba(15, 23, 42, 0.86);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(250, 204, 21, 0.28);
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65);
+  text-align: center;
+  width: 100%;
+  max-width: 420px;
+  padding: 28px 24px;
+}
+.ob-screen {
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  display: none;
+}
+.ob-screen.active {
+  display: flex;
+}
+.ob-place {
+  letter-spacing: 0.22em;
+  color: var(--gta-yellow);
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.ob-title {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  margin: 0;
+  font-size: 2.5rem;
+  line-height: 1.02;
+  font-weight: 700;
+}
+.ob-tagline {
+  color: var(--gta-muted);
+  margin: 2px 0 6px;
+  font-size: 0.94rem;
+  line-height: 1.45;
+}
+.ob-tagline em {
+  color: var(--gta-yellow);
+  font-style: normal;
+  font-weight: 700;
+}
+.ob-divider {
+  background: linear-gradient(90deg, #ef4444, #facc15, #22c55e);
+  border-radius: 99px;
+  width: 72px;
+  height: 4px;
+}
+.ob-btn {
+  cursor: pointer;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  width: 100%;
+  max-width: 320px;
+  min-height: 44px;
+  padding: 12px 20px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  transition: transform 0.14s ease, background-color 0.14s ease;
+  justify-content: center;
+  align-items: center;
+  display: inline-flex;
+}
+.ob-btn:active {
+  transform: scale(0.98);
+}
+.ob-btn-primary {
+  background: var(--gta-yellow);
+  color: #090d16;
+  border-color: #fde047;
+  box-shadow: 0 6px 20px rgba(250, 204, 21, 0.25);
+}
+.ob-btn-secondary {
+  color: var(--gta-white);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.ob-btn-ghost {
+  color: var(--gta-muted);
+  background: transparent;
+  border: none;
+  font-size: 0.8rem;
+}
+.ob-input {
+  color: #fff;
+  background: rgba(9, 13, 22, 0.9);
+  border: 1px solid rgba(250, 204, 21, 0.4);
+  border-radius: 10px;
+  width: 100%;
+  max-width: 320px;
+  min-height: 44px;
+  padding: 11px 14px;
+  font-size: 0.95rem;
+}
+.ob-error {
+  color: var(--gta-red);
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: none;
+}
+.ob-error.visible {
+  display: block;
+}
+.ob-back {
+  color: var(--gta-muted);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  align-self: flex-start;
+  padding: 4px 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.ob-chip-row {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-width: 350px;
+  display: flex;
+}
+.ob-chip {
+  color: var(--gta-white);
+  cursor: pointer;
+  background: rgba(9, 13, 22, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  min-height: 40px;
+  padding: 8px 14px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  transition: border-color 0.14s ease, background-color 0.14s ease;
+}
+.ob-chip.selected {
+  border-color: var(--gta-yellow);
+  color: var(--gta-yellow);
+  background: rgba(250, 204, 21, 0.16);
+}
+.ob-hint {
+  color: var(--gta-muted);
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+.ob-spinner {
+  border: 3px solid rgba(250, 204, 21, 0.2);
+  border-top-color: var(--gta-yellow);
+  border-radius: 50%;
+  width: 38px;
+  height: 38px;
+  animation: 0.65s linear infinite spin;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Main Top HUD */
+.phase1-hud-top {
+  z-index: 20;
+  pointer-events: none;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  display: flex;
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+}
+.hud-left-stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: min(310px, 52vw);
+  display: flex;
+}
+.identity-card {
+  pointer-events: auto;
+  background: var(--panel-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--gta-yellow);
+  border-radius: 10px;
+  padding: 7px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.identity-top-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.brand-kicker {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--gta-yellow);
+  letter-spacing: 0.06em;
+}
+.tier-sep {
+  color: rgba(255, 255, 255, 0.28);
+  font-size: 0.7rem;
+}
+#progressionTierBadge {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--gta-white);
+  white-space: nowrap;
+}
+#livingSituationSub {
+  font-size: 0.66rem;
+  color: var(--gta-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+/* Active Objective Banner */
+.objective-banner {
+  background: var(--panel-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--gta-green);
+  border-radius: 10px;
+  padding: 8px 11px;
+  pointer-events: auto;
+  width: 100%;
+  display: none;
+}
+.objective-banner.visible {
+  display: block !important;
+}
+.objective-banner.risky {
+  border-left-color: var(--gta-red);
+}
+.obj-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+#objTag {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--gta-green);
+}
+.objective-banner.risky #objTag {
+  color: var(--gta-red);
+}
+#cancelObjectiveBtn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--gta-muted);
+  font-size: 0.64rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  cursor: pointer;
+}
+#objTitle {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--gta-white);
+  margin-top: 2px;
+}
+#objDesc {
+  font-size: 0.7rem;
+  color: var(--gta-muted);
+  margin-top: 2px;
+  line-height: 1.35;
+}
+
+/* Wallet & Firebase Store Diagnostic Panel */
+.wallet-diag-panel {
+  pointer-events: auto;
+  background: var(--panel-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  width: 100%;
+  overflow: hidden;
+}
+.wallet-diag-header {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--gta-white);
+  padding: 6px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.68rem;
+}
+.wallet-diag-body {
+  border-top: 1px solid var(--border-subtle);
+  padding: 7px 10px;
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+}
+.wallet-diag-panel.expanded .wallet-diag-body {
+  display: flex;
+}
+.wallet-diag-tx {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.65rem;
+  color: var(--gta-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Multiplayer Nearby Strip */
+.nearby-strip {
+  pointer-events: auto;
+  background: var(--panel-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 5px 10px;
+  color: var(--gta-white);
+  font-size: 0.68rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.nearby-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gta-green);
+}
+.nearby-strip.guest .nearby-dot {
+  background: var(--gta-yellow);
+}
+
+/* Top-Right HUD Stack */
+.hud-right-stack {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  display: flex;
+}
+.hud-top-actions {
+  pointer-events: auto;
+  gap: 5px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  display: flex;
+}
+.wallet-chip {
+  background: var(--panel-bg);
+  backdrop-filter: blur(10px);
+  color: var(--gta-green);
+  cursor: pointer;
+  border: 1px solid rgba(34, 197, 94, 0.45);
+  border-radius: 8px;
+  min-height: 36px;
+  padding: 5px 11px;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.jobs-btn, .cam-btn, .home-top-btn, .chat-top-btn {
+  cursor: pointer;
+  border-radius: 8px;
+  min-height: 36px;
+  padding: 5px 11px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.jobs-btn {
+  background: var(--gta-yellow);
+  color: #090d16;
+  border: 1px solid #fde047;
+}
+.home-top-btn {
+  background: var(--panel-bg);
+  backdrop-filter: blur(10px);
+  color: var(--gta-white);
+  border: 1px solid var(--border-gold);
+}
+.chat-top-btn {
+  background: var(--panel-bg);
+  backdrop-filter: blur(10px);
+  color: var(--gta-white);
+  border: 1px solid var(--border-subtle);
+  position: relative;
+}
+.chat-badge {
+  background: var(--gta-red);
+  color: #fff;
+  border-radius: 99px;
+  padding: 1px 5px;
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+.chat-badge.zero {
+  display: none;
+}
+.cam-btn {
+  color: var(--gta-white);
+  background: var(--panel-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Needs Stack */
+.needs-stack {
+  pointer-events: auto;
+  background: var(--panel-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  min-width: 158px;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.need-row {
+  align-items: center;
+  gap: 7px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+}
+.need-label {
+  color: var(--gta-muted);
+  width: 44px;
+}
+.need-bar {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 99px;
+  flex: 1;
+  height: 6px;
+  overflow: hidden;
+}
+.need-fill {
+  background: var(--gta-green);
+  border-radius: 99px;
+  height: 100%;
+  transition: width 0.2s ease;
+}
+.need-fill.low {
+  background: var(--gta-red);
+}
+.need-val {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  width: 22px;
+  text-align: right;
+}
+.heat-pill {
+  background: var(--panel-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--gta-muted);
+  padding: 3px 9px;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+.heat-pill.suspicious {
+  color: var(--gta-yellow);
+  border-color: var(--border-gold);
+}
+.heat-pill.wanted, .heat-pill.arrested {
+  color: var(--gta-red);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+/* Prompts & Toasts */
+#interactionPrompt {
+  background: var(--panel-bg);
+  backdrop-filter: blur(12px);
+  z-index: 25;
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+  text-align: center;
+  border: 1.5px solid var(--gta-yellow);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  padding: 9px 18px;
+  position: fixed;
+  bottom: 98px;
+  left: 50%;
+  transform: translate(-50%, 6px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+#interactionPrompt.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+#interactionPrompt.objective-match {
+  border-color: var(--gta-green);
+}
+#promptTitle {
+  color: var(--gta-yellow);
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+#promptSub {
+  color: var(--gta-muted);
+  margin: 2px 0 0;
+  font-size: 0.72rem;
+}
+#interactionToast {
+  z-index: 60;
+  opacity: 0;
+  pointer-events: none;
+  background: var(--panel-bg);
+  backdrop-filter: blur(12px);
+  border: 1.5px solid rgba(34, 197, 94, 0.55);
+  border-radius: 10px;
+  padding: 9px 16px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  position: fixed;
+  top: 15%;
+  left: 50%;
+  transform: translate(-50%, -4px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+#interactionToast.visible, #interactionToast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+#interactionToast.warn {
+  border-color: var(--gta-red);
+  color: #fecaca;
+}
+#walletDeltaFloating {
+  z-index: 60;
+  opacity: 0;
+  pointer-events: none;
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  font-weight: 700;
+  position: fixed;
+  top: 22%;
+  left: 50%;
+  transform: translate(-50%);
+}
+#walletDeltaFloating.show-gain {
+  opacity: 1;
+  color: var(--gta-green);
+}
+#walletDeltaFloating.show-loss {
+  opacity: 1;
+  color: var(--gta-red);
+}
+
+/* Economy Modal */
+.economy-modal-backdrop {
+  z-index: 50;
+  background: rgba(5, 8, 15, 0.78);
+  backdrop-filter: blur(6px);
+  justify-content: center;
+  align-items: center;
+  padding: 14px;
+  display: none;
+  position: fixed;
+  inset: 0;
+}
+.economy-modal-backdrop.open {
+  display: flex;
+}
+.economy-modal {
+  background: var(--panel-elevated);
+  border: 1px solid var(--border-gold);
+  border-radius: 16px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65);
+  width: 100%;
+  max-width: 480px;
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modal-header {
+  border-bottom: 1px solid var(--border-subtle);
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 14px 16px 10px;
+  display: flex;
+}
+#modalHeaderTitle {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  margin: 0;
+}
+#modalHeaderSub {
+  color: var(--gta-muted);
+  font-size: 0.72rem;
+  margin: 3px 0 0;
+}
+.modal-close-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--gta-white);
+  width: 34px;
+  height: 34px;
+  font-size: 1.15rem;
+  cursor: pointer;
+}
+.modal-tabs {
+  background: rgba(9, 13, 22, 0.6);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 4px 8px 0;
+  gap: 4px;
+  display: flex;
+}
+.modal-tab-btn {
+  color: var(--gta-muted);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  flex: 1;
+  min-height: 40px;
+  padding: 9px 8px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.modal-tab-btn.active {
+  color: var(--gta-yellow);
+  border-bottom-color: var(--gta-yellow);
+}
+.modal-body {
+  padding: 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.econ-card {
+  background: var(--panel-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.econ-card.risky {
+  border-color: rgba(239, 68, 68, 0.42);
+}
+.econ-card-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--gta-white);
+}
+.econ-pay-badge {
+  font-family: var(--font-mono);
+  color: var(--gta-green);
+  font-weight: 700;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+.econ-pay-badge.risky {
+  color: #fca5a5;
+}
+.econ-req-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.econ-req-item {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--gta-green);
+}
+.econ-req-item.unmet {
+  color: #fca5a5;
+}
+.econ-cooldown-row {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--gta-muted);
+  font-variant-numeric: tabular-nums;
+}
+.econ-cooldown-row.active {
+  color: var(--gta-yellow);
+}
+.econ-action-btn {
+  align-self: flex-start;
+  background: var(--gta-yellow);
+  color: #090d16;
+  border: 1px solid #fde047;
+  border-radius: 8px;
+  min-height: 36px;
+  padding: 7px 14px;
+  font-weight: 700;
+  font-size: 0.76rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.econ-action-btn:disabled {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--gta-muted);
+  border-color: var(--border-subtle);
+  cursor: not-allowed;
+}
+
+/* Compound Home Sheet */
+.home-modal-backdrop, .chat-modal-backdrop {
+  z-index: 55;
+  background: rgba(5, 8, 15, 0.76);
+  backdrop-filter: blur(6px);
+  justify-content: center;
+  align-items: flex-end;
+  display: none;
+  position: fixed;
+  inset: 0;
+}
+.home-modal-backdrop.open, .chat-modal-backdrop.open {
+  display: flex;
+}
+.home-sheet, .chat-sheet {
+  border-top: 2px solid var(--gta-yellow);
+  background: var(--panel-elevated);
+  border-radius: 18px 18px 0 0;
+  width: 100%;
+  max-width: 520px;
+  max-height: 82vh;
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.home-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.home-actions-bar {
+  display: flex;
+  gap: 8px;
+}
+.furn-row {
+  background: var(--panel-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.furn-row.owned {
+  border-color: rgba(34, 197, 94, 0.45);
+}
+.furn-title {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+.furn-blurb {
+  margin: 2px 0 0;
+  font-size: 0.7rem;
+  color: var(--gta-muted);
+}
+.furn-buy {
+  background: var(--gta-yellow);
+  color: #090d16;
+  border: 1px solid #fde047;
+  border-radius: 8px;
+  min-height: 36px;
+  padding: 6px 12px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.74rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.furn-buy:disabled {
+  background: rgba(34, 197, 94, 0.14);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: var(--gta-green);
+  cursor: default;
+}
+
+/* Chat Sheet */
+.chat-messages {
+  background: rgba(9, 13, 22, 0.65);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  min-height: 160px;
+  max-height: 280px;
+  padding: 10px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chat-empty {
+  color: var(--gta-muted);
+  font-size: 0.76rem;
+  text-align: center;
+  padding: 28px 10px;
+}
+.chat-msg {
+  background: var(--panel-card);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+}
+.chat-msg.mine {
+  border-left: 3px solid var(--gta-yellow);
+}
+.chat-msg .name {
+  color: var(--gta-yellow);
+  font-weight: 700;
+  margin-right: 6px;
+}
+.chat-msg .time {
+  color: var(--gta-muted);
+  font-size: 0.64rem;
+  margin-left: 8px;
+}
+.chat-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+/* Bottom Touch Controls */
+.touch-controls {
+  pointer-events: none;
+  z-index: 15;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 14px;
+  display: flex;
+  position: fixed;
+  bottom: 14px;
+  left: 0;
+  right: 0;
+}
+.joystick-zone {
+  pointer-events: auto;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(6px);
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  width: 108px;
+  height: 108px;
+  position: relative;
+}
+.joystick-knob {
+  background: rgba(250, 204, 21, 0.88);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+.action-buttons-right {
+  pointer-events: auto;
+  flex-direction: column;
+  gap: 8px;
+  display: flex;
+}
+.ctrl-btn {
+  color: var(--gta-white);
+  cursor: pointer;
+  background: var(--panel-bg);
+  backdrop-filter: blur(8px);
+  border: 1.5px solid rgba(255, 255, 255, 0.28);
+  border-radius: 12px;
+  min-width: 68px;
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.ctrl-btn.active {
+  border-color: var(--gta-yellow);
+  color: var(--gta-yellow);
+}
+#interactTriggerBtn {
+  background: var(--gta-yellow);
+  color: #090d16;
+  border-color: #fde047;
+}
+</style>
 </head>
 <body>
-<div id="viewportContainer"></div>
+<div id="viewportContainer" data-testid="viewport-container"></div>
+
+<!-- Onboarding Overlay -->
 <div id="onboardingOverlay">
   <div class="ob-card">
     <div id="obScreenWelcome" class="ob-screen active">
-      <p class="ob-place">ACCRA</p>
+      <p class="ob-place">ACCRA · GHANA</p>
       <h1 class="ob-title">CHALÉ<br/>LIFE</h1>
       <div class="ob-divider"></div>
       <p class="ob-tagline">Your second life in the capital.<br/><em>Earn. Eat. Rest. Flex.</em></p>
+      <button id="obBtnQuickResume" class="ob-btn ob-btn-primary" type="button" style="display:none">Continue</button>
       <button id="obBtnGuest" class="ob-btn ob-btn-primary" type="button">Enter Accra</button>
-      <button id="obBtnAccount" class="ob-btn ob-btn-secondary" type="button">Save Progress</button>
+      <button id="obBtnAccount" class="ob-btn ob-btn-secondary" type="button">Save Progress (Cloud)</button>
     </div>
+
     <div id="obScreenAuth" class="ob-screen">
       <button id="obBackFromAuth" class="ob-back" type="button">← Back</button>
-      <h2 id="obAuthTitle" class="ob-title" style="font-size:1.6rem">Keep Your Story</h2>
-      <input id="obEmailInput" class="ob-input" type="email" placeholder="Email"/>
-      <input id="obPasswordInput" class="ob-input" type="password" placeholder="Password (min 6)"/>
+      <h2 id="obAuthTitle" class="ob-title" style="font-size:1.65rem">Keep Your Story</h2>
+      <input id="obEmailInput" class="ob-input" type="email" placeholder="Email" autocomplete="email"/>
+      <input id="obPasswordInput" class="ob-input" type="password" placeholder="Password (min 6)" autocomplete="current-password"/>
       <p id="obError" class="ob-error"></p>
       <button id="obAuthSubmit" class="ob-btn ob-btn-primary" type="button">Create Account</button>
       <button id="obAuthToggle" class="ob-btn ob-btn-ghost" type="button">Already have an account? Sign in</button>
     </div>
+
     <div id="obScreenName" class="ob-screen">
       <button id="obBackFromName" class="ob-back" type="button">← Back</button>
       <p class="ob-place">WHO YOU BE</p>
-      <h2 class="ob-title" style="font-size:1.6rem">Your Name</h2>
+      <h2 class="ob-title" style="font-size:1.65rem">Your Name</h2>
       <input id="obNameInput" class="ob-input" type="text" placeholder="e.g. Kofi, Ama, Chale…" value="Chale" maxlength="24"/>
       <p id="obNameError" class="ob-error"></p>
       <button id="obBtnNameNext" class="ob-btn ob-btn-primary" type="button">Next</button>
     </div>
+
     <div id="obScreenLook" class="ob-screen">
       <button id="obBackFromLook" class="ob-back" type="button">← Back</button>
-      <p class="ob-place">LOOK</p>
-      <h2 class="ob-title" style="font-size:1.6rem">Skin & Hair</h2>
-      <p class="ob-hint">Pick skin tone</p>
+      <p class="ob-place">CHARACTER</p>
+      <h2 class="ob-title" style="font-size:1.65rem">Skin & Hair</h2>
+      <p class="ob-hint">Skin tone</p>
       <div id="obSkinRow" class="ob-chip-row">
         <button class="ob-chip" data-skin="deep" type="button">Deep</button>
         <button class="ob-chip selected" data-skin="rich" type="button">Rich</button>
         <button class="ob-chip" data-skin="warm" type="button">Warm</button>
         <button class="ob-chip" data-skin="light" type="button">Light</button>
       </div>
-      <p class="ob-hint">Pick hair</p>
+      <p class="ob-hint">Hairstyle</p>
       <div id="obHairRow" class="ob-chip-row">
         <button class="ob-chip selected" data-hair="fade" type="button">Fade</button>
         <button class="ob-chip" data-hair="twists" type="button">Twists</button>
@@ -55,52 +1058,115 @@
       </div>
       <button id="obBtnLookNext" class="ob-btn ob-btn-primary" type="button">Next</button>
     </div>
+
     <div id="obScreenTrait" class="ob-screen">
       <button id="obBackFromTrait" class="ob-back" type="button">← Back</button>
       <p class="ob-place">TRAIT</p>
-      <h2 class="ob-title" style="font-size:1.6rem">How You Move</h2>
+      <h2 class="ob-title" style="font-size:1.65rem">How You Move</h2>
       <div id="obTraitRow" class="ob-chip-row"></div>
+      <p id="obTraitBlurb" class="ob-hint">Side money finds you. Rest is harder.</p>
       <button id="obBtnTraitNext" class="ob-btn ob-btn-primary" type="button">Next</button>
     </div>
+
     <div id="obScreenOrigin" class="ob-screen">
       <button id="obBackFromOrigin" class="ob-back" type="button">← Back</button>
       <p class="ob-place">ORIGIN</p>
-      <h2 class="ob-title" style="font-size:1.6rem">Where You Start</h2>
+      <h2 class="ob-title" style="font-size:1.65rem">Where You Start</h2>
       <div id="obOriginRow" class="ob-chip-row">
         <button class="ob-chip" data-origin="dbee" type="button">DBee</button>
         <button class="ob-chip selected" data-origin="aunty_ba" type="button">Aunty Ba</button>
       </div>
+      <p id="obOriginBlurb" class="ob-hint">Every cedi counts.</p>
       <button id="obBtnEnter" class="ob-btn ob-btn-primary" type="button">Enter Accra</button>
     </div>
+
     <div id="obScreenLoading" class="ob-screen">
       <div class="ob-spinner"></div>
-      <p class="ob-place" style="color:var(--gta-yellow)">Loading Accra…</p>
+      <p class="ob-place">Loading Accra…</p>
       <p id="obLoadingName" class="ob-hint"></p>
     </div>
   </div>
 </div>
-<div class="phase1-hud-top">
-  <div id="activeObjectiveBanner" class="objective-banner" style="display:none"></div>
+
+<!-- Top HUD -->
+<header class="phase1-hud-top">
+  <div class="hud-left-stack">
+    <div class="identity-card">
+      <div class="identity-top-row">
+        <span class="brand-kicker">CHALÉ LIFE</span>
+        <span class="tier-sep" aria-hidden="true">·</span>
+        <span id="progressionTierBadge">Street Starter</span>
+      </div>
+      <div id="livingSituationSub">Adabraka Compound</div>
+    </div>
+
+    <div id="activeObjectiveBanner" class="objective-banner" style="display:none">
+      <div class="obj-header-row">
+        <span id="objTag">Step 1/2</span>
+        <button id="cancelObjectiveBtn" type="button">Cancel</button>
+      </div>
+      <div id="objTitle">Active Work</div>
+      <div id="objDesc">Head to target location.</div>
+    </div>
+
+    <div id="walletDiagnosticPanel" class="wallet-diag-panel">
+      <button id="walletDiagToggle" class="wallet-diag-header" type="button" aria-label="Toggle Wallet Store Diagnostic">
+        <span>Store Wallet: <strong id="walletDiagBalance" style="color:var(--gta-green)">₵0.00</strong></span>
+        <span id="walletDiagSource" style="color:var(--gta-muted)">Synced ▾</span>
+      </button>
+      <div class="wallet-diag-body">
+        <div id="walletDiagTxList"></div>
+        <button id="walletDiagOpenFullBtn" class="econ-action-btn" type="button" style="width:100%;justify-content:center;display:flex;margin-top:4px">Open Full Store Diagnostic</button>
+      </div>
+    </div>
+
+    <button id="nearbyStrip" class="nearby-strip guest" type="button" aria-label="Nearby Players in Accra">
+      <span class="nearby-dot"></span>
+      <span><strong class="count">0</strong> nearby · <span class="names">Accra</span></span>
+    </button>
+  </div>
+
   <div class="hud-right-stack">
     <div class="hud-top-actions">
-      <button id="walletOpenBtn" class="wallet-chip" type="button"><span id="hudCashAmount">₵0</span></button>
+      <button id="walletOpenBtn" class="wallet-chip" type="button" aria-label="Open Wallet"><span id="hudCashAmount">₵0.00</span></button>
       <button id="workMenuOpenBtn" class="jobs-btn" type="button">Jobs</button>
-      <button id="resetCameraBtn" class="cam-btn" type="button">Cam</button>
+      <button id="homeOpenTopBtn" class="home-top-btn" type="button">Compound</button>
+      <button id="chatOpenBtn" class="chat-top-btn" type="button">Chat <span id="chatBadge" class="chat-badge zero">0</span></button>
+      <button id="resetCameraBtn" class="cam-btn" type="button" aria-label="Reset Camera">Cam</button>
     </div>
+
     <div class="needs-stack">
-      <div class="need-row"><span>H</span><div class="need-bar"><div id="hungerFill" class="need-fill" style="width:70%"></div></div><span id="hungerVal">70</span></div>
-      <div class="need-row"><span>E</span><div class="need-bar"><div id="energyFill" class="need-fill" style="width:80%"></div></div><span id="energyVal">80</span></div>
+      <div class="need-row">
+        <span class="need-label">Hunger</span>
+        <div class="need-bar"><div id="needHungerBar" class="need-fill" style="width:70%"></div></div>
+        <span id="needHungerVal" class="need-val">70</span>
+      </div>
+      <div class="need-row">
+        <span class="need-label">Energy</span>
+        <div class="need-bar"><div id="needEnergyBar" class="need-fill" style="width:80%"></div></div>
+        <span id="needEnergyVal" class="need-val">80</span>
+      </div>
     </div>
+
     <div id="heatStatusPill" class="heat-pill"><span id="heatStatusText">◆ CLEAN</span></div>
   </div>
-</div>
+</header>
+
 <div id="interactionPrompt"><p id="promptTitle"></p><p id="promptSub" class="prompt-sub"></p></div>
 <div id="interactionToast"></div>
 <div id="walletDeltaFloating"></div>
-<div id="economyModalBackdrop" class="economy-modal-backdrop">
+
+<!-- Economy Modal -->
+<div id="economyModalBackdrop" class="economy-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalHeaderTitle">
   <div class="economy-modal">
-    <div class="modal-header"><h2 id="modalHeaderTitle">Work</h2><button id="modalCloseBtn" type="button" style="background:none;border:none;color:#999;font-size:1.3rem;cursor:pointer">×</button></div>
-    <div class="modal-tabs">
+    <div class="modal-header">
+      <div>
+        <h2 id="modalHeaderTitle">Accra Hub</h2>
+        <p id="modalHeaderSub">Energy 80 · Hunger 70 · Trait: Hustler</p>
+      </div>
+      <button id="modalCloseBtn" class="modal-close-btn" type="button" aria-label="Close Hub Modal">×</button>
+    </div>
+    <div class="modal-tabs" role="tablist">
       <button class="modal-tab-btn active" data-tab="jobs" type="button">Jobs</button>
       <button class="modal-tab-btn" data-tab="hustles" type="button">Hustles</button>
       <button class="modal-tab-btn" data-tab="spend" type="button">Spend</button>
@@ -109,21 +1175,56 @@
     <div id="modalBodyContent" class="modal-body"></div>
   </div>
 </div>
-<div id="homeModalBackdrop" class="home-modal-backdrop">
+
+<!-- Compound Home Sheet -->
+<div id="homeModalBackdrop" class="home-modal-backdrop" role="dialog" aria-modal="true">
   <div class="home-sheet">
-    <h2>My Compound</h2>
-    <p id="homeFlexScore" style="font-size:.75rem;color:#9a9a9a">Flex score: 0</p>
-    <div id="furnGrid"></div>
-    <button id="homeModalClose" type="button" style="margin-top:10px;width:100%;background:#222;color:#fff;border:1px solid #444;padding:10px;font-weight:900;cursor:pointer">Close</button>
+    <div class="home-header-row">
+      <div>
+        <h2 style="margin:0;font-family:var(--font-display);font-size:1.15rem">My Compound</h2>
+        <p id="homeFlexScore" style="margin:2px 0 0;font-size:.75rem;color:var(--gta-muted)">Flex 0 · Empty Veranda</p>
+      </div>
+      <button id="homeModalClose" class="modal-close-btn" type="button" aria-label="Close Compound Sheet">×</button>
+    </div>
+    <div class="home-actions-bar">
+      <button id="homeRestBtn" class="econ-action-btn" type="button" style="flex:1;justify-content:center;display:flex">Rest (+Energy)</button>
+      <button id="homeShareBtn" class="econ-action-btn" type="button" style="flex:1;justify-content:center;display:flex;background:rgba(255,255,255,0.08);color:#fff;border-color:var(--border-subtle)">Share Flex</button>
+    </div>
+    <div id="homeFurnList"></div>
   </div>
 </div>
+
+<!-- Location Chat Sheet -->
+<div id="chatModalBackdrop" class="chat-modal-backdrop" role="dialog" aria-modal="true">
+  <div class="chat-sheet">
+    <div class="home-header-row">
+      <div>
+        <h2 id="chatSheetTitle" style="margin:0;font-family:var(--font-display);font-size:1.1rem">Accra Street Chatter</h2>
+        <p id="chatSheetSub" style="margin:2px 0 0;font-size:.72rem;color:var(--gta-muted)">Local chat — everyone here can see this.</p>
+      </div>
+      <button id="chatCloseBtn" class="modal-close-btn" type="button" aria-label="Close Chat Sheet">×</button>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:var(--gta-muted)">
+      <span id="chatSheetNearby">Checking nearby…</span>
+      <span id="chatStatusPill" class="guest">guest mode</span>
+    </div>
+    <div id="chatMessages" class="chat-messages"></div>
+    <div class="chat-input-row">
+      <input id="chatInput" class="ob-input" type="text" placeholder="Say something to Accra…" maxlength="240" style="max-width:none;flex:1"/>
+      <button id="chatSendBtn" class="econ-action-btn" type="button" style="align-self:stretch">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom Touch Controls -->
 <div class="touch-controls">
-  <div id="joystickZone" class="joystick-zone"><div id="joystickKnob" class="joystick-knob"></div></div>
+  <div id="joystickZone" class="joystick-zone" aria-label="Movement Joystick"><div id="joystickKnob" class="joystick-knob"></div></div>
   <div class="action-buttons-right">
     <button id="sprintToggleBtn" class="ctrl-btn" type="button">Jog</button>
     <button id="interactTriggerBtn" class="ctrl-btn" type="button">Act</button>
   </div>
 </div>
+
 <script type="module" src="./src/main.ts"></script>
 </body>
 </html>

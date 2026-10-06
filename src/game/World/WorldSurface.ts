@@ -8,14 +8,14 @@
 /**
  * Returns the exact top surface elevation (Y in meters) at world (x, z)
  * so the player, NPCs, vehicles, and street props rest naturally on top of
- * sidewalks, crossover slabs, compound courtyards, veranda steps, shop pads,
- * or the asphalt road without sinking or hovering.
+ * sidewalks, crossover slabs, compound courtyards, veranda steps, interior room floors,
+ * shop pads, or the asphalt road without sinking or hovering.
  */
 export function getSurfaceHeightAt(x: number, z: number): number {
   // 1. Player Compound House Courtyard & Entrance Gate Apron (X in [-15.3, -5.7], Z in [7.7, 16.3])
   if (x >= -15.3 && x <= -5.7 && z >= 7.7 && z <= 16.3) {
-    // Raised Veranda Deck (X in [-14.2, -6.8], Z in [9.08, 10.72])
-    if (x >= -14.2 && x <= -6.8 && z >= 9.08 && z <= 10.72) {
+    // Raised Veranda Deck & Walkable Interior Room Floor (X in [-14.2, -6.8], Z in [9.08, 15.75])
+    if (x >= -14.2 && x <= -6.8 && z >= 9.08 && z <= 15.75) {
       return 0.24;
     }
     // Center Veranda Entrance Step (X in [-11.55, -9.45], Z in [8.70, 9.08])
@@ -30,13 +30,13 @@ export function getSurfaceHeightAt(x: number, z: number): number {
     return 0.10;
   }
 
-  // 3. Waakye & Jollof Dining Patio Slab (X in [4.8, 12.2], Z in [-12.95, -7.05])
-  if (x >= 4.8 && x <= 12.2 && z >= -12.95 && z <= -7.05) {
+  // 3. Waakye & Jollof Dining Patio Slab (X in [4.8, 12.2], Z in [-13.1, -7.2])
+  if (x >= 4.8 && x <= 12.2 && z >= -13.1 && z <= -7.2) {
     return 0.10;
   }
 
-  // 4. Trotro Stop Boarding Pad (X in [6.6, 11.4], Z in [5.15, 7.65])
-  if (x >= 6.6 && x <= 11.4 && z >= 5.15 && z <= 7.65) {
+  // 4. Trotro Stop Boarding Pad (X in [6.6, 11.4], Z in [4.8, 7.65])
+  if (x >= 6.6 && x <= 11.4 && z >= 4.8 && z <= 7.65) {
     return 0.10;
   }
 

@@ -101,9 +101,9 @@ function getSharedBlockyGeometries(): SharedBlockyGeometries {
       upperArm: new THREE.BoxGeometry(0.12, 0.26, 0.12),
       lowerArm: new THREE.BoxGeometry(0.11, 0.24, 0.11),
       hand: new THREE.BoxGeometry(0.1, 0.1, 0.1),
-      thigh: new THREE.BoxGeometry(0.14, 0.32, 0.14),
-      calf: new THREE.BoxGeometry(0.13, 0.3, 0.13),
-      foot: new THREE.BoxGeometry(0.13, 0.07, 0.2),
+      thigh: new THREE.BoxGeometry(0.145, 0.36, 0.145),
+      calf: new THREE.BoxGeometry(0.13, 0.34, 0.13),
+      foot: new THREE.BoxGeometry(0.135, 0.08, 0.22),
       eyeWhite: new THREE.SphereGeometry(0.03, 10, 8),
       pupil: new THREE.SphereGeometry(0.016, 8, 6),
       hairBlock: new THREE.BoxGeometry(0.32, 0.1, 0.32),
@@ -288,24 +288,32 @@ function buildBlockyLeg(
 
   const thighMat = isSkirt ? skinMat : trouserMat;
   const thigh = new THREE.Mesh(geos.thigh, thighMat);
-  thigh.position.y = -0.16;
+  thigh.position.y = -0.18;
   thigh.castShadow = true;
   hip.add(thigh);
 
   const knee = new THREE.Group();
   knee.name = side < 0 ? 'LeftKnee' : 'RightKnee';
-  knee.position.y = -0.32;
+  knee.position.y = -0.36;
   hip.add(knee);
 
   const calf = new THREE.Mesh(geos.calf, isSkirt ? skinMat : trouserMat);
-  calf.position.y = -0.15;
+  calf.position.y = -0.17;
   calf.castShadow = true;
   knee.add(calf);
 
   const foot = new THREE.Mesh(geos.foot, shoeMat);
-  foot.position.set(0, -0.32, 0.035);
+  foot.position.set(0, -0.36, 0.035);
   foot.castShadow = true;
   knee.add(foot);
+
+  const soleMat = sharedArtLibrary.getMaterial('shoe_sole_rubber', {
+    color: 0x0f172a,
+    roughness: 0.85
+  });
+  const sole = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.024, 0.23), soleMat);
+  sole.position.set(0, -0.39, 0.035);
+  knee.add(sole);
 
   return { hip, knee };
 }

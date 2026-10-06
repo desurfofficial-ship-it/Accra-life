@@ -4,6 +4,7 @@ import { ColliderBox, PlayerController } from '../Player/PlayerController';
 import { ThirdPersonCamera } from '../Player/ThirdPersonCamera';
 import { InteractableTarget, InteractionSystem } from '../Player/InteractionSystem';
 import { buildFirstNeighborhoodBlock } from '../World/NeighborhoodBlock';
+import { updatePlayerCompoundCutaway } from '../World/PlayerCompound';
 import { CharacterRig, type PlayerLookOptions } from '../Art/CharacterBuilder';
 import { Canvas3DFallbackRenderer } from './Canvas3DFallbackRenderer';
 
@@ -212,6 +213,7 @@ export class Phase1Scene {
     const dt = Math.min(this.clock.getDelta(), 0.1);
 
     this.player.update(dt, this.thirdPersonCamera.yaw, this.colliders);
+    updatePlayerCompoundCutaway(this.player.position);
 
     for (let i = 0; i < this.npcRigs.length; i++) {
       this.npcRigs[i].updateAnimation(dt, false, false, i * 1.8);

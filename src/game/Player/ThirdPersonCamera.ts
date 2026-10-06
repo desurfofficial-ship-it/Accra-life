@@ -232,8 +232,17 @@ export class ThirdPersonCamera {
     let closestHitDist = maxDist;
     const pad = this.cameraCollisionPadding;
 
+    const isInsideCompoundRoom =
+      ox >= -14.5 && ox <= -6.5 && oz >= 9.0 && oz <= 15.95;
+
     for (let i = 0; i < colliders.length; i++) {
       const box = colliders[i];
+      if (
+        isInsideCompoundRoom &&
+        (box.id === 'ACC_HOUSE_001_WALL_S_L' || box.id === 'ACC_HOUSE_001_WALL_S_R')
+      ) {
+        continue;
+      }
       const boxHeight = box.height ?? 3.6;
       // Ignore very narrow poles/trees or low compound walls below camera ray height
       const boxWidth = box.maxX - box.minX;

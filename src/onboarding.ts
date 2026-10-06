@@ -57,6 +57,28 @@ function saveProfile(result: OnboardingResult): void {
 }
 
 export function startOnboarding(onComplete: (result: OnboardingResult) => void): void {
+  const params = new URLSearchParams(window.location.search);
+  const savedProfile = loadSavedProfile();
+  if (params.get('autostart') === '1') {
+    const overlay = document.getElementById('onboardingOverlay');
+    if (overlay) {
+      overlay.classList.remove('visible');
+      overlay.style.display = 'none';
+    }
+    const autoResult: OnboardingResult = {
+      mode: (savedProfile?.mode as 'guest' | 'account') || 'guest',
+      displayName: savedProfile?.displayName || 'Chale',
+      userId: savedProfile?.userId ?? null,
+      skin: (savedProfile?.skin as SkinPreset) || 'rich',
+      hair: (savedProfile?.hair as HairPreset) || 'fade',
+      trait: (savedProfile?.trait as TraitId) || 'hustler',
+      origin: (savedProfile?.origin as OriginId) || 'dbee'
+    };
+    saveProfile(autoResult);
+    onComplete(autoResult);
+    return;
+  }
+
   const overlay = document.getElementById('onboardingOverlay');
   if (!overlay) {
     onComplete({
@@ -253,6 +275,8 @@ export function startOnboarding(onComplete: (result: OnboardingResult) => void):
   document.getElementById('obBtnLookNext')?.addEventListener('click', () => {
     selectChip('obTraitRow', pendingTrait, 'trait');
     selectChip('obTraitGrid', pendingTrait, 'trait');
+    const blurb = document.getElementById('obTraitBlurb');
+    if (blurb) blurb.textContent = TRAIT_DEFS[pendingTrait].blurb;
     showScreen('trait');
   });
 
@@ -262,12 +286,16 @@ export function startOnboarding(onComplete: (result: OnboardingResult) => void):
     pendingTrait = t.getAttribute('data-trait') as TraitId;
     selectChip('obTraitRow', pendingTrait, 'trait');
     selectChip('obTraitGrid', pendingTrait, 'trait');
+    const blurb = document.getElementById('obTraitBlurb');
+    if (blurb) blurb.textContent = TRAIT_DEFS[pendingTrait].blurb;
   };
   document.getElementById('obTraitRow')?.addEventListener('click', onTrait);
   document.getElementById('obTraitGrid')?.addEventListener('click', onTrait);
 
   document.getElementById('obBtnTraitNext')?.addEventListener('click', () => {
     selectChip('obOriginRow', pendingOrigin, 'origin');
+    const originBlurb = document.getElementById('obOriginBlurb');
+    if (originBlurb) originBlurb.textContent = ORIGIN_DEFS[pendingOrigin].blurb;
     showScreen('origin');
   });
 
@@ -276,6 +304,8 @@ export function startOnboarding(onComplete: (result: OnboardingResult) => void):
     if (!t) return;
     pendingOrigin = t.getAttribute('data-origin') as OriginId;
     selectChip('obOriginRow', pendingOrigin, 'origin');
+    const originBlurb = document.getElementById('obOriginBlurb');
+    if (originBlurb) originBlurb.textContent = ORIGIN_DEFS[pendingOrigin].blurb;
   });
 
   const onEnter = () => {
@@ -291,6 +321,23 @@ export function startOnboarding(onComplete: (result: OnboardingResult) => void):
   };
   document.getElementById('obBtnEnter')?.addEventListener('click', onEnter);
   document.getElementById('obBtnOriginGo')?.addEventListener('click', onEnter);
+
+  const quickResumeBtn = document.getElementById('obBtnQuickResume');
+  if (quickResumeBtn && savedProfile?.displayName) {
+    quickResumeBtn.style.display = 'inline-flex';
+    quickResumeBtn.textContent = `Continue as ${savedProfile.displayName}`;
+    quickResumeBtn.addEventListener('click', () => {
+      finish({
+        mode: (savedProfile.mode as 'guest' | 'account') || 'guest',
+        displayName: savedProfile.displayName || 'Chale',
+        userId: savedProfile.userId ?? null,
+        skin: (savedProfile.skin as SkinPreset) || 'rich',
+        hair: (savedProfile.hair as HairPreset) || 'fade',
+        trait: (savedProfile.trait as TraitId) || 'hustler',
+        origin: (savedProfile.origin as OriginId) || 'aunty_ba'
+      });
+    });
+  }
 
   document.getElementById('obBackFromAuth')?.addEventListener('click', () => showScreen('welcome'));
   document.getElementById('obBackFromName')?.addEventListener('click', () => {
