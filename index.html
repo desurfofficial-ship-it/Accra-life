@@ -117,6 +117,23 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;overscroll-b
 .econ-card-title{font-size:.85rem;font-weight:900;color:var(--gta-white);margin:0;text-transform:uppercase}
 .econ-pay-badge{background:rgba(0,40,0,.8);border:1px solid var(--gta-green);color:var(--gta-green);font-weight:900;font-size:.75rem;padding:3px 8px}
 .econ-action-btn{background:var(--gta-yellow);color:#0a0a0a;border:1px solid #000;padding:6px 10px;font-size:.7rem;font-weight:900;cursor:pointer;text-transform:uppercase;font-family:inherit}
+.home-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:flex-end;justify-content:center;z-index:55;padding:0}
+.home-modal-backdrop.open{display:flex}
+.home-sheet{width:100%;max-width:480px;max-height:70vh;background:#0e0e0e;border:1px solid rgba(255,255,255,.15);border-bottom:none;display:flex;flex-direction:column}
+.home-sheet-head{padding:10px 12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,204,0,.2);gap:8px}
+.home-sheet-head h2{margin:0;font-size:.9rem;font-weight:900;color:var(--gta-yellow);text-transform:uppercase}
+.home-flex{font-size:.7rem;font-weight:900;color:var(--gta-green);margin-right:auto}
+.home-sheet-actions{display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.08)}
+.home-sheet-actions button{flex:1;padding:8px;font-size:.68rem;font-weight:900;text-transform:uppercase;font-family:inherit;cursor:pointer;border:1px solid #000}
+.home-btn-rest{background:var(--gta-green);color:#0a0a0a}
+.home-btn-share{background:transparent;color:var(--gta-white);border:1px solid rgba(255,255,255,.25)!important}
+.home-sheet-body{padding:8px 12px 16px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;touch-action:pan-y}
+.furn-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;background:rgba(20,20,20,.9);border:1px solid rgba(255,255,255,.1)}
+.furn-row.owned{border-color:rgba(102,255,102,.35)}
+.furn-title{font-size:.78rem;font-weight:900;color:var(--gta-white);text-transform:uppercase;margin:0}
+.furn-blurb{font-size:.62rem;color:var(--gta-muted);margin:2px 0 0}
+.furn-buy{background:var(--gta-yellow);color:#0a0a0a;border:1px solid #000;padding:6px 10px;font-size:.65rem;font-weight:900;cursor:pointer;text-transform:uppercase;font-family:inherit;white-space:nowrap}
+.furn-buy:disabled{opacity:.45;cursor:default}
 .touch-controls{position:fixed;bottom:10px;left:10px;right:10px;display:flex;justify-content:space-between;align-items:flex-end;pointer-events:none;z-index:25}
 .joystick-zone{width:84px;height:84px;border-radius:50%;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.2);position:relative;pointer-events:auto;touch-action:none;opacity:.6}
 .joystick-knob{width:34px;height:34px;border-radius:50%;background:var(--gta-yellow);border:1px solid #000;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
@@ -210,11 +227,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;overscroll-b
 <div id="viewportContainer"></div>
 <div class="phase1-hud-top">
 <div class="hud-left-stack">
-<div class="brand-card">
-<div class="brand-top-row"><span class="brand-badge">Accra</span><span id="progressionTierBadge" class="tier-badge">Survival</span></div>
-<h1 class="brand-title">CHALÉ LIFE</h1>
-<p id="livingSituationSub" class="brand-sub"></p>
-</div>
+<div class="brand-card"><span id="progressionTierBadge" class="tier-badge">Survival</span><p id="livingSituationSub" class="brand-sub"></p></div>
 <div id="activeObjectiveBanner" class="objective-banner">
 <div class="obj-header"><span id="objTag" class="obj-tag">Job</span><button id="cancelObjectiveBtn" class="obj-cancel-btn" type="button">X</button></div>
 <div id="objTitle" class="obj-title">Job</div>
@@ -237,6 +250,20 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;overscroll-b
 <div id="interactionToast" class="interaction-toast"></div>
 <div id="interactionPrompt" class="interaction-prompt" role="button" tabindex="0"><span class="key-cap">E</span><span id="promptTitle" class="prompt-title">Interact</span><span id="promptSub" class="prompt-sub"></span></div>
 <div id="economyModalBackdrop" class="economy-modal-backdrop" role="dialog" aria-modal="true"><div class="economy-modal"><div class="modal-header"><div class="modal-title-wrap"><h2 id="modalHeaderTitle">Jobs</h2><p id="modalHeaderSub"></p></div><button id="modalCloseBtn" class="modal-close-btn" type="button">Close</button></div><div class="modal-tabs"><button class="modal-tab-btn active" data-tab="jobs" type="button">Jobs</button><button class="modal-tab-btn" data-tab="hustles" type="button">Hustles</button><button class="modal-tab-btn" data-tab="spend" type="button">Spend</button><button class="modal-tab-btn" data-tab="wallet" type="button">Wallet</button></div><div id="modalBodyContent" class="modal-body"></div></div></div>
+<div id="homeModalBackdrop" class="home-modal-backdrop">
+<div class="home-sheet">
+<div class="home-sheet-head">
+<h2>Compound</h2>
+<span id="homeFlexScore" class="home-flex">Flex 0</span>
+<button id="homeModalClose" class="modal-close-btn" type="button">Close</button>
+</div>
+<div class="home-sheet-actions">
+<button id="homeRestBtn" class="home-btn-rest" type="button">Rest</button>
+<button id="homeShareBtn" class="home-btn-share" type="button">Copy Flex</button>
+</div>
+<div id="homeFurnList" class="home-sheet-body"></div>
+</div>
+</div>
 <div class="touch-controls"><div id="joystickZone" class="joystick-zone"><div id="joystickKnob" class="joystick-knob"></div></div><div class="action-buttons-right"><button id="sprintToggleBtn" class="ctrl-btn" type="button">Jog</button><button id="interactTriggerBtn" class="ctrl-btn" type="button">Act</button></div></div>
 <script type="module" src="/src/main.ts"></script>
 </body>
