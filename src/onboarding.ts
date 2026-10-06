@@ -113,7 +113,7 @@ export function startOnboarding(
   document.getElementById('obBtnAccount')?.addEventListener('click', () => {
     pendingMode = 'account';
     authMode = 'signup';
-    if (authTitle) authTitle.textContent = 'Create your account';
+    if (authTitle) authTitle.textContent = 'Keep your story';
     if (authSubmitBtn) authSubmitBtn.textContent = 'Create Account';
     if (authToggleBtn) authToggleBtn.textContent = 'Already have an account? Sign in';
     showScreen('auth');
@@ -122,7 +122,7 @@ export function startOnboarding(
   authToggleBtn?.addEventListener('click', () => {
     authMode = authMode === 'signup' ? 'signin' : 'signup';
     if (authTitle) {
-      authTitle.textContent = authMode === 'signup' ? 'Create your account' : 'Welcome back';
+      authTitle.textContent = authMode === 'signup' ? 'Keep your story' : 'Welcome back';
     }
     if (authSubmitBtn) {
       authSubmitBtn.textContent = authMode === 'signup' ? 'Create Account' : 'Sign In';
@@ -153,7 +153,7 @@ export function startOnboarding(
     }
 
     authSubmitBtn.disabled = true;
-    authSubmitBtn.textContent = 'Please wait…';
+    authSubmitBtn.textContent = 'One moment…';
 
     try {
       let user: User;
