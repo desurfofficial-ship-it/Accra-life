@@ -274,10 +274,19 @@ function startGame(profile: OnboardingResult): void {
   }
 
   if (container) {
-    const phase1 = new Phase1Scene(container, {
-      onTargetChanged: (target) => updateInteractionPromptUI(target),
-      onTargetInteracted: (target) => handleWorldTargetInteracted(target)
-    });
+    const phase1 = new Phase1Scene(
+      container,
+      {
+        onTargetChanged: (target) => updateInteractionPromptUI(target),
+        onTargetInteracted: (target) => handleWorldTargetInteracted(target)
+      },
+      {
+        look: {
+          skin: profile.skin,
+          hair: profile.hair
+        }
+      }
+    );
     phase1SceneRef = phase1;
     syncEconomyHUD();
 
