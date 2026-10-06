@@ -266,7 +266,67 @@ export type FurnitureId =
   | 'sound_box'
   | 'generator'
   | 'flower_pots'
-  | 'rug';
+  | 'rug'
+  // ── Phase-1 housing-catalog expansion (placed-furniture engine) ──
+  | 'bed_basic'        // single-bed frame
+  | 'chair_plastic'    // monobloc plastic chair (Ghanaian staple)
+  | 'chair_wooden'    // carved wooden chair
+  | 'table_small'      // small wooden table
+  | 'table_dining'     // dining table
+  | 'sofa_basic'       // 2-seater basic sofa
+  | 'tv_basic'         // flatscreen TV
+  | 'fridge_basic'     // single-door fridge
+  | 'cooker_gas'       // 2-burner gas cooker (Ghanaian-style)
+  | 'toilet_basic'     // squat toilet
+  | 'shower_basic'     // bucket shower
+  | 'fan_standing'     // standing fan
+  | 'wardrobe_basic';  // wooden wardrobe
+
+/** Per-furniture gameplay effects. Multipliers are 1.0 = neutral. */
+export interface FurnitureGameplayEffects {
+  /** Bonus to energy restored when sleeping (e.g. 20 = +20 energy). */
+  sleepEnergyBonus?: number;
+  /** Bonus to bladder restored when using toilet (e.g. 80 = +80 bladder). */
+  bladderRestoreBonus?: number;
+  /** Bonus to hygiene restored when showering (e.g. 50 = +50 hygiene). */
+  hygieneRestoreBonus?: number;
+  /** Bonus to fun restored when interacting (e.g. 35 = +35 fun). */
+  funRestoreBonus?: number;
+  /** Passive fun-decay multiplier (1.0 = normal, 0.8 = slower decay = TV lifts mood). */
+  funDecayMultiplier?: number;
+  /** Comfort score contribution (used by getComfortScore()). */
+  comfortBonus?: number;
+  /** Passive energy-decay multiplier (1.0 = normal, 0.85 = 15% slower = fan cools). */
+  energyDecayMultiplier?: number;
+}
+
+/** Grid footprint + physical dimensions in meters. */
+export interface FurnitureDimensions {
+  widthMeters: number;
+  depthMeters: number;
+  heightMeters: number;
+  /** Grid cells occupied (1 = 1×1, 2 = 2×1, etc.). Most furniture is 1×1. */
+  gridWidth: number;
+  gridDepth: number;
+}
+
+export interface PlacementRules {
+  requiresWallSnapping: boolean;
+  allowedSurfaces: ('floor' | 'wall')[];
+  stackable: boolean;
+  blocksDoor: boolean;
+}
+
+export type FurnitureRarity = 'common' | 'uncommon' | 'rare' | 'premium' | 'luxury';
+export type FurnitureCategory =
+  | 'structural'
+  | 'bedroom'
+  | 'living'
+  | 'kitchen'
+  | 'bathroom'
+  | 'electronics'
+  | 'household'
+  | 'decor';
 
 export interface FurnitureItem {
   id: FurnitureId;
@@ -274,11 +334,19 @@ export interface FurnitureItem {
   costGHS: number;
   flexPoints: number;
   comfortBonus: number;
-  /** Slot index within zone */
+  /** Slot index within zone (legacy fixed-slot system — kept for backward-compat with the existing home sheet UI). */
   slot: number;
-  /** courtyard = outside; interior = inside the room */
+  /** courtyard = outside; interior = inside the room (legacy). */
   zone: 'courtyard' | 'interior';
   blurb: string;
+  // ── Phase-1 placement-engine fields (optional for legacy items) ──
+  category?: FurnitureCategory;
+  rarity?: FurnitureRarity;
+  dimensions?: FurnitureDimensions;
+  gameplayEffects?: FurnitureGameplayEffects;
+  placementRules?: PlacementRules;
+  /** Future GLB asset path — when CC0 assets are ingested via the asset pipeline. Procedural geometry is used until then. */
+  assetPath?: string;
 }
 
 export const FURNITURE_CATALOG: FurnitureItem[] = [
@@ -401,17 +469,254 @@ export const FURNITURE_CATALOG: FurnitureItem[] = [
     slot: 5,
     zone: 'courtyard',
     blurb: 'Zero Dumsor stress when ECG goes off.'
+  },
+  // ──────────────────────────────────────────────────────────────────────────
+  // Phase-1 placement-engine items — these support grid-based placement +
+  // per-item gameplay effects + dimensions for collision. They use the
+  // same id/title/costGHS/flexPoints/comfortBonus fields as the legacy
+  // items so the existing home sheet UI + getFlexScore/getComfortScore
+  // continue to work. The new fields (dimensions, gameplayEffects,
+  // placementRules, category, rarity) drive the placement engine.
+  //
+  // The starter room is empty by default (zero beds, zero chairs, etc.)
+  // per the product spec. The player must buy + place these items.
+  // ──────────────────────────────────────────────────────────────────────────
+  {
+    id: 'bed_basic',
+    title: 'Basic Bed Frame',
+    costGHS: 250,
+    flexPoints: 22,
+    comfortBonus: 8,
+    slot: 0,
+    zone: 'interior',
+    blurb: 'Simple wooden bed frame with thin foam mattress. Better than the floor.',
+    category: 'bedroom',
+    rarity: 'common',
+    dimensions: { widthMeters: 1.0, depthMeters: 2.0, heightMeters: 0.5, gridWidth: 1, gridDepth: 2 },
+    gameplayEffects: { sleepEnergyBonus: 20, comfortBonus: 8, energyDecayMultiplier: 0.95 },
+    placementRules: { requiresWallSnapping: false, allowedSurfaces: ['floor'], stackable: false, blocksDoor: false }
+  },
+  {
+    id: 'chair_plastic',
+    title: 'Plastic Monobloc Chair',
+    costGHS: 20,
+    flexPoints: 3,
+    comfortBonus: 1,
+    slot: 6,
+    zone: 'interior',
+    blurb: 'The Ghanaian staple — white plastic chair everywhere.',
+    category: 'living',
+    rarity: 'common',
+    dimensions: { widthMeters: 0.5, depthMeters: 0.5, heightMeters: 0.85, gridWidth: 1, gridDepth: 1 },
+    gameplayEffects: { comfortBonus: 1 },
+    placementRules: { requiresWallSnapping: false, allowedSurfaces: ['floor'], stackable: false, blocksDoor: false }
+  },
+  {
+    id: 'chair_wooden',
+    title: 'Carved Wooden Chair',
+    costGHS: 60,
+    flexPoints: 6,
+    comfortBonus: 3,
+    slot: 7,
+    zone: 'interior',
+    blurb: 'Hand-carved Ashanti-style wooden chair. Proper seat.',
+    category: 'living',
+    rarity: 'uncommon',
+    dimensions: { widthMeters: 0.55, depthMeters: 0.55, heightMeters: 0.95, gridWidth: 1, gridDepth: 1 },
+    gameplayEffects: { comfortBonus: 3 },
+    placementRules: { requiresWallSnapping: false, allowedSurfaces: ['floor'], stackable: false, blocksDoor: false }
+  },
+  {
+    id: 'table_small',
+    title: 'Small Wooden Table',
+    costGHS: 90,
+    flexPoints: 8,
+    comfortBonus: 3,
+    slot: 8,
+    zone: 'interior',
+    blurb: 'Compact table for meals, work, or studying.',
+    category: 'living',
+    rarity: 'common',
+    dimensions: { widthMeters: 0.9, depthMeters: 0.6, heightMeters: 0.75, gridWidth: 1, gridDepth: 1 },
+    gameplayEffects: { comfortBonus: 3 },
+    placementRules: { requiresWallSnapping: false, allowedSurfaces: ['floor'], stackable: false, blocksDoor: false }
+  },
+  {
+    id: 'table_dining',
+    title: 'Dining Table (4-seater)',
+    costGHS: 280,
+    flexPoints: 18,
+    comfortBonus: 6,
+    slot: 9,
+    zone: 'interior',
+    blurb: 'Proper dining table for hosting meals + social.',
+    category: 'kitchen',
+    rarity: 'uncommon',
+    dimensions: { widthMeters: 1.2, depthMeters: 0.8, heightMeters: 0.78, gridWidth: 2, gridDepth: 1 },
+    gameplayEffects: { comfortBonus: 6, funRestoreBonus: 5 },
+    placementRules: { requiresWallSnapping: false, allowedSurfaces: ['floor'], stackable: false, blocksDoor: false }
+  },
+  {
+    id: 'sofa_basic',
+    title: 'Basic 2-Seater Sofa',
+    costGHS: 320,
+    flexPoints: 24,
+    comfortBonus: 9,
+    slot: 10,
+    zone: 'interior',
+    blurb: 'Cushioned 2-seater. Relax + watch TV.',
+    category: 'living',
+    rarity: 'uncommon',
+    dimensions: { widthMeters: 1.6, depthMeters: 0.8, heightMeters: 0.85, gridWidth: 2, gridDepth: 1 },
+    gameplayEffects: { comfortBonus: 9, funRestoreBonus: 8, energyDecayMultiplier: 0.92 },
+    placementRules: { requiresWallSnapping: false, allowedSurfaces: ['floor'], stackable: false, blocksDoor: false }
+  },
+  {
+    id: 'tv_basic',
+    title: 'Flatscreen TV',
+    costGHS: 480,
+    flexPoints: 32,
+    comfortBonus: 8,
+    slot: 11,
+    zone: 'interior',
+    blurb: 'Match-day + movie nights. Lifts mood passively.',
+    category: 'electronics',
+    rarity: 'uncommon',
+    dimensions: { widthMeters: 1.0, depthMeters: 0.15, heightMeters: 0.6, gridWidth: 1, gridDepth: 1 },
+    gameplayEffects: { comfortBonus: 8, funDecayMultiplier: 0.85, funRestoreBonus: 15 },
+    placementRules: { requiresWallSnapping: true, allowedSurfaces: ['wall', 'floor'], stackable: false, blocksDoor: false }
+  },
+  {
+    id: 'fridge_basic',
+    title: 'Single-Door Fridge',
+    costGHS: 650,
+    flexPoints: 38,
+    comfortBonus: 10,
+    slot: 12,
+    zone: 'interior',
+    blurb: 'Cold water, fresh stews. Reduces food spoilage.',
+    category: 'kitchen',
+    rarity: 'rare',
+    dimensions: { widthMeters: 0.6, depthMeters: 0.6, heightMeters: 1.4, gridWidth: 1, gridDepth: 1 },
+    gameplayEffects: { comfortBonus: 10 },
+    placementRules: { requiresWallSnapping: false, allowedSurfaces: ['floor'], stackable: false, blocksDoor: false }
+  },
+  {
+    id: 'cooker_gas',
+    title: '2-Burner Gas Cooker',
+    costGHS: 180,
+    flexPoints: 14,
+    comfortBonus: 4,
+    slot: 13,
+    zone: 'interior',
+    blurb: 'Gas cooker with cylinder — cook waakye, jollof, banku at home.',
+    category: 'kitchen',
+    rarity: 'common',
+    dimensions: { widthMeters: 0.6, depthMeters: 0.5, heightMeters: 0.85, gridWidth: 1, gridDepth: 1 },
+    gameplayEffects: { comfortBonus: 4 },
+    placementRules: { requiresWallSnapping: false, allowedSurfaces: ['floor'], stackable: false, blocksDoor: false }
+  },
+  {
+    id: 'toilet_basic',
+    title: 'Squat Toilet',
+    costGHS: 120,
+    flexPoints: 10,
+    comfortBonus: 2,
+    slot: 14,
+    zone: 'interior',
+    blurb: 'Basic squat toilet — better than the bush.',
+    category: 'bathroom',
+    rarity: 'common',
+    dimensions: { widthMeters: 0.6, depthMeters: 0.8, heightMeters: 0.4, gridWidth: 1, gridDepth: 1 },
+    gameplayEffects: { bladderRestoreBonus: 80, comfortBonus: 2 },
+    placementRules: { requiresWallSnapping: false, allowedSurfaces: ['floor'], stackable: false, blocksDoor: false }
+  },
+  {
+    id: 'shower_basic',
+    title: 'Bucket Shower',
+    costGHS: 80,
+    flexPoints: 8,
+    comfortBonus: 2,
+    slot: 15,
+    zone: 'interior',
+    blurb: 'Bucket + cup — the classic Ghanaian bathroom setup.',
+    category: 'bathroom',
+    rarity: 'common',
+    dimensions: { widthMeters: 0.5, depthMeters: 0.5, heightMeters: 0.8, gridWidth: 1, gridDepth: 1 },
+    gameplayEffects: { hygieneRestoreBonus: 50, comfortBonus: 2 },
+    placementRules: { requiresWallSnapping: false, allowedSurfaces: ['floor'], stackable: false, blocksDoor: false }
+  },
+  {
+    id: 'fan_standing',
+    title: 'Standing Fan',
+    costGHS: 110,
+    flexPoints: 9,
+    comfortBonus: 3,
+    slot: 16,
+    zone: 'interior',
+    blurb: 'Oscillating standing fan — cools the room passively.',
+    category: 'household',
+    rarity: 'common',
+    dimensions: { widthMeters: 0.4, depthMeters: 0.4, heightMeters: 1.5, gridWidth: 1, gridDepth: 1 },
+    gameplayEffects: { comfortBonus: 3, energyDecayMultiplier: 0.9 },
+    placementRules: { requiresWallSnapping: false, allowedSurfaces: ['floor'], stackable: false, blocksDoor: false }
+  },
+  {
+    id: 'wardrobe_basic',
+    title: 'Wooden Wardrobe',
+    costGHS: 220,
+    flexPoints: 16,
+    comfortBonus: 5,
+    slot: 17,
+    zone: 'interior',
+    blurb: 'Tall wooden wardrobe for clothes + storage.',
+    category: 'bedroom',
+    rarity: 'uncommon',
+    dimensions: { widthMeters: 1.0, depthMeters: 0.55, heightMeters: 1.8, gridWidth: 1, gridDepth: 1 },
+    gameplayEffects: { comfortBonus: 5 },
+    placementRules: { requiresWallSnapping: true, allowedSurfaces: ['floor'], stackable: false, blocksDoor: false }
   }
 ];
 
-const STORAGE_KEY = 'chale_life_home_v2';
-const LEGACY_STORAGE_KEY = 'chale_life_home_v1';
+const STORAGE_KEY = 'chale_life_home_v3';  // bumped from v2 → v3 to add placed[]
+const LEGACY_STORAGE_KEY = 'chale_life_home_v2';
+const LEGACY_STORAGE_KEY_V1 = 'chale_life_home_v1';
 const MAX_FURN_FLEX = FURNITURE_CATALOG.reduce((s, f) => s + f.flexPoints, 0);
+
+/**
+ * A placed furniture instance. Persisted across sessions so the room looks
+ * exactly as the player left it after logout + login + page refresh.
+ *
+ * Coordinates are in room-local meters (origin = room's interior-floor
+ * center, +X = east, +Y = up, +Z = south). Rotation is in radians (0 =
+ * facing +Z/south, π/2 = facing +X/east).
+ *
+ * The Firestore /players/{uid} doc persists this as `placedFurniture: PlacedFurnitureInstance[]`
+ * alongside the existing `state` + `phase3Economy` fields.
+ */
+export interface PlacedFurnitureInstance {
+  /** Stable unique id within this player's home (uuid-style). */
+  instanceId: string;
+  /** Catalog item id (references FURNITURE_CATALOG). */
+  catalogId: FurnitureId;
+  /** Room-local X position (meters, center of footprint). */
+  x: number;
+  /** Room-local Z position (meters, center of footprint). */
+  z: number;
+  /** Rotation in radians (0 = facing +Z/south, π/2 = facing +X/east). */
+  rotationY: number;
+  /** 'placing' = ghost preview (not yet confirmed); 'placed' = locked in. */
+  placementState: 'placing' | 'placed';
+  /** Price paid at purchase time (for resale value calculation). */
+  purchasePrice: number;
+}
 
 export interface HomeState {
   housingTier: HousingTierId;
   unlockedTiers: HousingTierId[];
   owned: FurnitureId[];
+  /** Phase-1 placement engine: placed furniture instances with positions/rotations. */
+  placed: PlacedFurnitureInstance[];
 }
 
 export type HomeListener = (state: HomeState) => void;
@@ -420,8 +725,10 @@ export class HomeSystem {
   private housingTier: HousingTierId = 'single_room';
   private unlockedTiers = new Set<HousingTierId>(['single_room']);
   private owned = new Set<FurnitureId>();
+  private placed: PlacedFurnitureInstance[] = [];
   private listeners = new Set<HomeListener>();
   private lastSocialAtMs = 0;
+  private instanceCounter = 0;
 
   constructor() {
     this.load();
@@ -457,6 +764,101 @@ export class HomeSystem {
     return this.getHousingTier().maxFurnitureSlots;
   }
 
+  // ── Phase-1 placement engine ──────────────────────────────────────────────
+
+  /**
+   * All placed furniture instances (placementState = 'placed').
+   * Excludes 'placing' ghosts.
+   */
+  public getPlaced(): PlacedFurnitureInstance[] {
+    return this.placed.filter((p) => p.placementState === 'placed');
+  }
+
+  /**
+   * Place a furniture instance at the given room-local coordinates.
+   * Caller is responsible for collision validation (the PlacementEngine
+   * does that before calling this).
+   */
+  public placeItem(
+    catalogId: FurnitureId,
+    x: number,
+    z: number,
+    rotationY: number,
+    purchasePrice: number
+  ): PlacedFurnitureInstance {
+    const instance: PlacedFurnitureInstance = {
+      instanceId: `furn_${Date.now()}_${++this.instanceCounter}`,
+      catalogId,
+      x,
+      z,
+      rotationY,
+      placementState: 'placed',
+      purchasePrice
+    };
+    this.placed.push(instance);
+    this.persist();
+    this.notify();
+    return instance;
+  }
+
+  /** Remove a placed furniture instance by instanceId. */
+  public removePlaced(instanceId: string): boolean {
+    const idx = this.placed.findIndex((p) => p.instanceId === instanceId);
+    if (idx === -1) return false;
+    this.placed.splice(idx, 1);
+    this.persist();
+    this.notify();
+    return true;
+  }
+
+  /** Move + rotate an existing placed instance. */
+  public movePlaced(
+    instanceId: string,
+    x: number,
+    z: number,
+    rotationY: number
+  ): boolean {
+    const inst = this.placed.find((p) => p.instanceId === instanceId);
+    if (!inst) return false;
+    inst.x = x;
+    inst.z = z;
+    inst.rotationY = rotationY;
+    this.persist();
+    this.notify();
+    return true;
+  }
+
+  /**
+   * Aggregate gameplay effects from all placed furniture.
+   * Used by NeedsSystem to apply passive bonuses (energy regen, fun decay, etc.)
+   * and by main.ts to apply active bonuses when the player sleeps/showers/etc.
+   */
+  public getAggregateGameplayEffects() {
+    const agg = {
+      sleepEnergyBonus: 0,
+      bladderRestoreBonus: 0,
+      hygieneRestoreBonus: 0,
+      funRestoreBonus: 0,
+      comfortBonus: 0,
+      funDecayMultiplier: 1,
+      energyDecayMultiplier: 1
+    };
+    for (const inst of this.getPlaced()) {
+      const item = FURNITURE_CATALOG.find((f) => f.id === inst.catalogId);
+      if (!item?.gameplayEffects) continue;
+      const g = item.gameplayEffects;
+      if (g.sleepEnergyBonus) agg.sleepEnergyBonus += g.sleepEnergyBonus;
+      if (g.bladderRestoreBonus) agg.bladderRestoreBonus += g.bladderRestoreBonus;
+      if (g.hygieneRestoreBonus) agg.hygieneRestoreBonus += g.hygieneRestoreBonus;
+      if (g.funRestoreBonus) agg.funRestoreBonus += g.funRestoreBonus;
+      if (g.comfortBonus) agg.comfortBonus += g.comfortBonus;
+      // Multipliers compound multiplicatively (e.g. fan 0.9 × bed 0.95 = 0.855).
+      if (g.funDecayMultiplier) agg.funDecayMultiplier *= g.funDecayMultiplier;
+      if (g.energyDecayMultiplier) agg.energyDecayMultiplier *= g.energyDecayMultiplier;
+    }
+    return agg;
+  }
+
   public getComfortScore(): number {
     const tier = this.getHousingTier();
     let bonus = 0;
@@ -464,6 +866,9 @@ export class HomeSystem {
       const item = FURNITURE_CATALOG.find((f) => f.id === id);
       if (item) bonus += item.comfortBonus;
     }
+    // Also count placed-furniture comfort bonus (so placement matters).
+    const agg = this.getAggregateGameplayEffects();
+    bonus += agg.comfortBonus;
     return Math.min(100, tier.comfortBase + Math.round(bonus * 0.6));
   }
 
@@ -554,31 +959,33 @@ export class HomeSystem {
     id: FurnitureId,
     canAfford: (cost: number) => boolean,
     spend: (cost: number, title: string) => boolean
-  ): { success: boolean; message: string } {
+  ): { success: boolean; message: string; purchasePrice: number } {
     const item = FURNITURE_CATALOG.find((f) => f.id === id);
-    if (!item) return { success: false, message: 'Unknown item.' };
-    if (this.owned.has(id)) return { success: false, message: 'Already own this.' };
+    if (!item) return { success: false, message: 'Unknown item.', purchasePrice: 0 };
+    if (this.owned.has(id)) return { success: false, message: 'Already own this.', purchasePrice: 0 };
 
     const maxSlots = this.getMaxSlotsCount();
     if (this.owned.size >= maxSlots) {
       return {
         success: false,
-        message: `Room storage full (${this.owned.size}/${maxSlots} slots in ${this.getHousingTier().shortLabel}). Upgrade your room for more space!`
+        message: `Room storage full (${this.owned.size}/${maxSlots} slots in ${this.getHousingTier().shortLabel}). Upgrade your room for more space!`,
+        purchasePrice: 0
       };
     }
 
     if (!canAfford(item.costGHS)) {
-      return { success: false, message: `Need ₵${item.costGHS}` };
+      return { success: false, message: `Need ₵${item.costGHS}`, purchasePrice: 0 };
     }
     if (!spend(item.costGHS, item.title)) {
-      return { success: false, message: 'Payment failed.' };
+      return { success: false, message: 'Payment failed.', purchasePrice: 0 };
     }
     this.owned.add(id);
     this.persist();
     this.notify();
     return {
       success: true,
-      message: `${item.title} added · Comfort ${this.getComfortScore()}%`
+      message: `${item.title} added · Comfort ${this.getComfortScore()}%`,
+      purchasePrice: item.costGHS
     };
   }
 
@@ -591,7 +998,8 @@ export class HomeSystem {
     const state: HomeState = {
       housingTier: this.housingTier,
       unlockedTiers: [...this.unlockedTiers],
-      owned: this.getOwned()
+      owned: this.getOwned(),
+      placed: this.getPlaced()
     };
     for (const l of this.listeners) l(state);
   }
@@ -603,11 +1011,12 @@ export class HomeSystem {
         JSON.stringify({
           housingTier: this.housingTier,
           unlockedTiers: [...this.unlockedTiers],
-          owned: this.getOwned()
+          owned: this.getOwned(),
+          placed: this.placed
         })
       );
     } catch {
-      /* ignore */
+      /* ignore quota errors */
     }
   }
 
@@ -615,7 +1024,8 @@ export class HomeSystem {
     try {
       const raw =
         localStorage.getItem(STORAGE_KEY) ??
-        localStorage.getItem(LEGACY_STORAGE_KEY);
+        localStorage.getItem(LEGACY_STORAGE_KEY) ??
+        localStorage.getItem(LEGACY_STORAGE_KEY_V1);
       if (!raw) return;
       const data = JSON.parse(raw) as Partial<HomeState>;
       if (
@@ -637,8 +1047,32 @@ export class HomeSystem {
           if (FURNITURE_CATALOG.some((f) => f.id === id)) this.owned.add(id);
         }
       }
+      if (Array.isArray(data.placed)) {
+        // Validate each placed instance against the catalog (drop unknown ids).
+        for (const inst of data.placed) {
+          if (
+            inst &&
+            inst.instanceId &&
+            inst.catalogId &&
+            FURNITURE_CATALOG.some((f) => f.id === inst.catalogId) &&
+            typeof inst.x === 'number' &&
+            typeof inst.z === 'number' &&
+            typeof inst.rotationY === 'number'
+          ) {
+            this.placed.push({
+              instanceId: inst.instanceId,
+              catalogId: inst.catalogId,
+              x: inst.x,
+              z: inst.z,
+              rotationY: inst.rotationY,
+              placementState: 'placed',
+              purchasePrice: typeof inst.purchasePrice === 'number' ? inst.purchasePrice : 0
+            });
+          }
+        }
+      }
     } catch {
-      /* ignore */
+      /* ignore parse errors */
     }
   }
 }

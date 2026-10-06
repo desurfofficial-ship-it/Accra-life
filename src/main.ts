@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { Phase1Scene } from './game/Core/Phase1Scene';
 import {
   loadSavedProfile,
@@ -25,7 +26,8 @@ import {
 } from './game/Jobs/JobRegistry';
 import { InteractableTarget } from './game/Player/InteractionSystem';
 import { NeedsSystem } from './game/Needs/NeedsSystem';
-import { FURNITURE_CATALOG, HOUSING_TIERS, HomeSystem } from './game/Home/HomeSystem';
+import { FURNITURE_CATALOG, HOUSING_TIERS, HomeSystem, type FurnitureId } from './game/Home/HomeSystem';
+import { PlacementEngine, buildPlacedFurnitureMesh } from './game/Housing/PlacementEngine';
 import { HomeFurnitureVisuals } from './game/Home/HomeFurnitureVisuals';
 import { rebuildPlayerCompoundForTier } from './game/World/PlayerCompound';
 import { PresenceManager, type PresenceStatus } from './game/Multiplayer/PresenceManager';
@@ -903,6 +905,206 @@ function closeHomeSheet(): void {
   document.getElementById('homeModalBackdrop')?.classList.remove('open');
 }
 
+// ── Phase-1 housing engine state ─────────────────────────────────────────────
+let placementEngine: PlacementEngine | null = null;
+let currentStoreCategory: string = 'all';
+
+/**
+ * Initialize the housing engine: Home Store modal + PlacementEngine +
+ * render previously-placed furniture on game start.
+ *
+ * Called from startGame() after Phase1Scene is created. The room origin
+ * is set to the player's compound interior floor center (-10.5, 0.24, 11.1)
+ * — matches PlayerCompound's interior floor position.
+ */
+function initHousingEngine(phase1: Phase1Scene): void {
+  // The compound is at world (-10.5, 0, 12.2); the interior floor is at
+  // y=0.24 (per PlayerCompound's interiorFloorMesh position). The room
+  // center (where the placement engine's origin sits) is at the interior
+  // floor center, which is around (-10.5, 0.24, 11.1) — slightly south of
+  // the compound group's position because the interior is offset.
+  const ROOM_ORIGIN_X = -10.5;
+  const ROOM_ORIGIN_Y = 0.24;
+  const ROOM_ORIGIN_Z = 11.1;
+  const ROOM_ORIGIN = new THREE.Vector3(ROOM_ORIGIN_X, ROOM_ORIGIN_Y, ROOM_ORIGIN_Z);
+
+  placementEngine = new PlacementEngine(
+    phase1.scene,
+    phase1.thirdPersonCamera.camera,
+    container ?? document.body,
+    homeSystem,
+    {
+      onPlaced: () => {
+        hidePlacementHud();
+        showInteractionFeedback('Placed!', false);
+      },
+      onCancelled: () => {
+        hidePlacementHud();
+      },
+      onValidityChange: (valid, reason) => {
+        const statusEl = document.getElementById('placementStatus');
+        if (statusEl) {
+          statusEl.textContent = valid ? '✓ Valid placement' : `✕ ${reason}`;
+          statusEl.style.color = valid ? 'var(--gta-green)' : 'var(--gta-red)';
+        }
+        const confirmBtn = document.getElementById('placementConfirmBtn') as HTMLButtonElement | null;
+        if (confirmBtn) confirmBtn.disabled = !valid;
+      }
+    }
+  );
+  placementEngine.setRoomOrigin(ROOM_ORIGIN_X, ROOM_ORIGIN_Y, ROOM_ORIGIN_Z);
+
+  // Render previously-placed furniture on game start (persistence).
+  for (const inst of homeSystem.getPlaced()) {
+    const mesh = buildPlacedFurnitureMesh(inst, ROOM_ORIGIN);
+    phase1.scene.add(mesh);
+  }
+
+  // Wire Home Store button.
+  document.getElementById('homeStoreBtn')?.addEventListener('click', () => {
+    closeHomeSheet();
+    openHomeStore();
+  });
+  document.getElementById('homeStoreCloseBtn')?.addEventListener('click', () => closeHomeStore());
+  document.getElementById('homeStoreBackdrop')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('homeStoreBackdrop')) closeHomeStore();
+  });
+  // Category tabs.
+  for (const btn of document.querySelectorAll<HTMLButtonElement>('#homeStoreTabs .modal-tab-btn')) {
+    btn.addEventListener('click', () => {
+      currentStoreCategory = btn.dataset.storeCat || 'all';
+      for (const b of document.querySelectorAll<HTMLButtonElement>('#homeStoreTabs .modal-tab-btn')) {
+        b.classList.toggle('active', b === btn);
+      }
+      renderHomeStoreBody();
+    });
+  }
+  // Placement HUD buttons.
+  document.getElementById('placementRotateBtn')?.addEventListener('click', () => {
+    placementEngine?.rotateGhost();
+  });
+  document.getElementById('placementConfirmBtn')?.addEventListener('click', () => {
+    const ok = placementEngine?.confirmPlacement() ?? false;
+    if (!ok) showInteractionFeedback('Cannot place here.', true);
+  });
+  document.getElementById('placementCancelBtn')?.addEventListener('click', () => {
+    placementEngine?.cancelPlacement();
+  });
+}
+
+function openHomeStore(): void {
+  document.getElementById('homeStoreBackdrop')?.classList.add('open');
+  renderHomeStoreBody();
+}
+
+function closeHomeStore(): void {
+  document.getElementById('homeStoreBackdrop')?.classList.remove('open');
+}
+
+function renderHomeStoreBody(): void {
+  const body = document.getElementById('homeStoreBody');
+  if (!body) return;
+  const cash = economyManager.wallet.getCashBalance();
+  const items = FURNITURE_CATALOG.filter((f) => {
+    if (currentStoreCategory === 'all') return true;
+    return f.category === currentStoreCategory;
+  });
+  body.innerHTML = items.map((item) => {
+    const owned = homeSystem.owns(item.id);
+    const canAfford = cash >= item.costGHS;
+    const dims = item.dimensions
+      ? `${item.dimensions.widthMeters}×${item.dimensions.depthMeters}×${item.dimensions.heightMeters}m`
+      : '—';
+    const effects = item.gameplayEffects
+      ? Object.entries(item.gameplayEffects)
+          .filter(([, v]) => v !== undefined && v !== 1)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(' · ')
+      : '';
+    const rarityColor = item.rarity === 'luxury' ? '#f59e0b' : item.rarity === 'premium' ? '#a855f7' : item.rarity === 'rare' ? '#3b82f6' : item.rarity === 'uncommon' ? '#22c55e' : 'var(--gta-muted)';
+    return `
+      <div class="furn-row" data-furn-id="${item.id}" style="display:flex;gap:10px;align-items:center;padding:10px;border-bottom:1px solid var(--border-subtle)">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:6px">
+            <strong style="color:var(--gta-white)">${item.title}</strong>
+            ${item.rarity ? `<span style="font-size:.6rem;color:${rarityColor};text-transform:uppercase;font-weight:800">${item.rarity}</span>` : ''}
+            ${owned ? '<span style="font-size:.6rem;color:var(--gta-green);font-weight:800">OWNED</span>' : ''}
+          </div>
+          <div style="font-size:.7rem;color:var(--gta-muted);margin-top:2px">${item.blurb}</div>
+          <div style="font-size:.62rem;color:var(--gta-muted);margin-top:3px;display:flex;gap:8px;flex-wrap:wrap">
+            <span>📐 ${dims}</span>
+            ${effects ? `<span>⚡ ${effects}</span>` : ''}
+            <span>🏠 ${item.zone}</span>
+          </div>
+        </div>
+        <div style="text-align:right;display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+          <span style="font-weight:900;color:${canAfford ? 'var(--gta-green)' : 'var(--gta-red)'}">₵${item.costGHS}</span>
+          ${owned
+            ? `<button class="econ-action-btn place-furn-btn" data-furn-id="${item.id}" type="button" style="font-size:.7rem;padding:4px 10px">Place</button>`
+            : `<button class="econ-action-btn buy-furn-btn" data-furn-id="${item.id}" type="button" ${canAfford ? '' : 'disabled'} style="font-size:.7rem;padding:4px 10px;${canAfford ? '' : 'opacity:.4;cursor:not-allowed'}">${canAfford ? 'Buy' : 'Need ₵' + item.costGHS}</button>`
+          }
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Wire buy + place buttons.
+  body.querySelectorAll<HTMLButtonElement>('.buy-furn-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.furnId as FurnitureId;
+      const res = homeSystem.buy(
+        id,
+        (c) => economyManager.canAfford(c, 'CASH'),
+        (c, title) => economyManager.wallet.spendMoney({
+          amount: c, category: 'PURCHASE', description: title, channel: 'CASH'
+        })
+      );
+      showInteractionFeedback(res.message, !res.success);
+      if (res.success) {
+        syncEconomyHUD();
+        renderHomeStoreBody();
+        // Auto-enter placement mode after purchase.
+        closeHomeStore();
+        enterPlacementMode(id);
+      }
+    });
+  });
+  body.querySelectorAll<HTMLButtonElement>('.place-furn-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.furnId as FurnitureId;
+      closeHomeStore();
+      enterPlacementMode(id);
+    });
+  });
+}
+
+function enterPlacementMode(catalogId: FurnitureId): void {
+  if (!placementEngine) return;
+  // Set room origin again in case the housing tier changed (room moves).
+  const tier = homeSystem.getHousingTier();
+  const ROOM_ORIGIN_X = -10.5;
+  const ROOM_ORIGIN_Y = 0.24;
+  const ROOM_ORIGIN_Z = 11.1;
+  placementEngine.setRoomOrigin(ROOM_ORIGIN_X, ROOM_ORIGIN_Y, ROOM_ORIGIN_Z);
+  void tier; // room origin is fixed for now; future: vary by tier.roomWidthM/roomDepthM
+  const ok = placementEngine.enterPlacementMode(catalogId);
+  if (!ok) {
+    showInteractionFeedback('Cannot enter placement mode.', true);
+    return;
+  }
+  // Show placement HUD.
+  const hud = document.getElementById('placementHud');
+  const nameEl = document.getElementById('placementItemName');
+  const item = FURNITURE_CATALOG.find((f) => f.id === catalogId);
+  if (hud) hud.style.display = 'flex';
+  if (nameEl && item) nameEl.textContent = `Placing: ${item.title}`;
+}
+
+function hidePlacementHud(): void {
+  const hud = document.getElementById('placementHud');
+  if (hud) hud.style.display = 'none';
+}
+
 function handleWorldTargetInteracted(target: InteractableTarget): void {
   const illegalAdvance = crimeSystem.tryAdvanceAtInteractable(target.id, target.assetId);
   if (illegalAdvance.handled) {
@@ -1072,6 +1274,9 @@ function startGame(profile: OnboardingResult): void {
         showInteractionFeedback(line);
       }
     });
+
+    // ── Phase-1 housing engine: Home Store + PlacementEngine ────────────────
+    initHousingEngine(phase1);
 
     syncEconomyHUD();
 
