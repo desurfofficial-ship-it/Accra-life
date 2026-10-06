@@ -17,6 +17,30 @@
           "type": "object",
           "description": "Structured game state map."
         },
+        "hunger": {
+          "type": "integer",
+          "description": "Player hunger stat (0-100)."
+        },
+        "energy": {
+          "type": "integer",
+          "description": "Player energy stat (0-100)."
+        },
+        "housingTier": {
+          "type": "string",
+          "description": "Current housing progression tier."
+        },
+        "unlockedTiers": {
+          "type": "array",
+          "description": "List of unlocked housing tier IDs."
+        },
+        "owned": {
+          "type": "array",
+          "description": "List of owned catalog furniture IDs."
+        },
+        "placedFurniture": {
+          "type": "array",
+          "description": "List of placed furniture instances with coordinates."
+        },
         "updatedAt": {
           "type": "string",
           "format": "date-time",
