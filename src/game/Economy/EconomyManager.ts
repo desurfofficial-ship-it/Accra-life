@@ -54,15 +54,6 @@ export const ACCRA_EVERYDAY_EXPENSES: Record<string, EverydayExpenseOption> = {
     locationAssetId: 'ACC_SHOP_001',
     interactableId: 'provision_shop',
     grantOwnedItemId: 'everyday_water_airtime_pack'
-  },
-  EXP_COLD_DRINK: {
-    id: 'EXP_COLD_DRINK',
-    title: 'Cold Drink from Cool Chest',
-    description: 'Iced mineral or bottled water from the roadside cool chest.',
-    costGHS: 3.0,
-    category: 'PURCHASE',
-    locationAssetId: 'ACC_COOL_CHEST',
-    interactableId: 'cool_chest'
   }
 };
 
