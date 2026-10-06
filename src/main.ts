@@ -171,11 +171,41 @@ function syncNeedsHUD(): void {
   if (eVal) eVal.textContent = String(Math.round(state.energy));
 }
 
+function syncWalletDiagnosticPanel(): void {
+  const balEl = document.getElementById('walletDiagBalance');
+  const srcEl = document.getElementById('walletDiagSource');
+  const txListEl = document.getElementById('walletDiagTxList');
+  const wallet = economyManager.wallet;
+  if (balEl) balEl.textContent = formatGHS(wallet.getCashBalance());
+  const allTxs = wallet.getTransactions();
+  if (srcEl) {
+    srcEl.textContent = allTxs.length > 0 ? `${allTxs.length} tx ▾` : 'Synced ▾';
+  }
+  if (txListEl) {
+    const recent = allTxs.slice(0, 4);
+    if (recent.length === 0) {
+      txListEl.innerHTML = '<div style="color:#888;font-size:.56rem">No transactions yet</div>';
+    } else {
+      txListEl.innerHTML = recent
+        .map(
+          (tx) =>
+            `<div class="wallet-diag-tx"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px">${
+              tx.description
+            }</span><strong style="color:${
+              tx.type === 'INCOME' ? 'var(--gta-green)' : 'var(--gta-red)'
+            }">${formatSignedGHS(tx.type === 'INCOME' ? tx.amount : -tx.amount)}</strong></div>`
+        )
+        .join('');
+    }
+  }
+}
+
 function syncEconomyHUD(): void {
   const cash = economyManager.wallet.getCashBalance();
   if (hudCashAmountEl) hudCashAmountEl.textContent = formatGHS(cash);
   const tier = economyManager.getProgressionInfo();
   if (progressionTierBadgeEl) progressionTierBadgeEl.textContent = tier.title;
+  if (livingSituationSubEl) livingSituationSubEl.textContent = tier.description;
   const heat = crimeSystem.getHeatLevel();
   const status = crimeSystem.getPoliceStatus();
   if (heatStatusPillEl && heatStatusTextEl) {
@@ -183,7 +213,8 @@ function syncEconomyHUD(): void {
     if (status === 'SUSPICIOUS') heatStatusPillEl.classList.add('suspicious');
     else if (status === 'WANTED') heatStatusPillEl.classList.add('wanted');
     else if (status === 'ARRESTED') heatStatusPillEl.classList.add('arrested');
-    heatStatusTextEl.textContent = status === 'CLEAN' || status === 'NORMAL' ? 'Clean' : `${status}`;
+    heatStatusTextEl.textContent =
+      status === 'CLEAN' || status === 'NORMAL' ? 'Clean' : `${status} (${Math.round(heat)}%)`;
   }
   const obj = getActiveObjectiveInfo();
   if (activeObjectiveBannerEl && objTagEl && objTitleEl) {
@@ -192,12 +223,13 @@ function syncEconomyHUD(): void {
       activeObjectiveBannerEl.classList.toggle('risky', obj.isRisky);
       objTagEl.textContent = obj.tag;
       objTitleEl.textContent = obj.title;
-      if (objDescEl) objDescEl.textContent = '';
+      if (objDescEl) objDescEl.textContent = obj.instruction;
     } else {
       activeObjectiveBannerEl.classList.remove('visible', 'risky');
     }
   }
   syncNeedsHUD();
+  syncWalletDiagnosticPanel();
   if (phase1SceneRef) {
     phase1SceneRef.interactionSystem.setObjectiveTarget(
       obj ? obj.targetInteractableId : null,
@@ -433,11 +465,32 @@ function renderModalTabContent(): void {
 
   if (currentModalTab === 'hustles') {
     const activeHustle = jobSystem.getActiveHustle();
-    for (const hustle of ACCRA_SIDE_HUSTLES) {
+    const activeIllegal = crimeSystem.getActiveIllegalHustle();
+    const hustles = jobSystem.getAvailableSideHustles(currentFocusedInteractableId);
+
+    for (const hustle of hustles) {
       const isThisActive = activeHustle?.hustle.id === hustle.id;
       const card = document.createElement('div');
       card.className = 'econ-card';
-      card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><strong class="econ-card-title">${hustle.title}</strong><span class="econ-pay-badge">+${formatGHS(hustle.grossPayoutGHS)}</span></div><p style="margin:4px 0 8px;font-size:0.65rem;color:#9a9a9a">${hustle.upfrontCapitalGHS > 0 ? `Need ${formatGHS(hustle.upfrontCapitalGHS)} first` : '₵0 start'} · ${hustle.steps.length} steps</p><button class="econ-action-btn" type="button">${isThisActive ? 'Active' : hustle.upfrontCapitalGHS > 0 ? `Start · ${formatGHS(hustle.upfrontCapitalGHS)}` : 'Start'}</button>`;
+      card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <strong class="econ-card-title">${hustle.title}</strong>
+          <span class="econ-pay-badge">+${formatGHS(hustle.grossPayoutGHS)}</span>
+        </div>
+        <p style="margin:2px 0 4px;font-size:0.68rem;color:#bdbdbd">${hustle.summary}</p>
+        <p style="margin:0 0 6px;font-size:0.63rem;color:#9a9a9a">${
+          hustle.upfrontCapitalGHS > 0
+            ? `Upfront Capital: ${formatGHS(hustle.upfrontCapitalGHS)}`
+            : '₵0 Upfront Capital'
+        } · ${hustle.steps.length} steps</p>
+        <button class="econ-action-btn" type="button">${
+          isThisActive
+            ? 'In Progress'
+            : hustle.upfrontCapitalGHS > 0
+              ? `Start Hustle (${formatGHS(hustle.upfrontCapitalGHS)})`
+              : 'Start Hustle'
+        }</button>
+      `;
       const btn = card.querySelector('button');
       if (btn) {
         if (isThisActive) btn.disabled = true;
@@ -459,11 +512,153 @@ function renderModalTabContent(): void {
       }
       modalBodyContent.appendChild(card);
     }
+
+    for (const illegal of ACCRA_ILLEGAL_HUSTLES) {
+      const isThisActive = activeIllegal?.hustle.id === illegal.id;
+      const card = document.createElement('div');
+      card.className = 'econ-card risky';
+      card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <strong class="econ-card-title" style="color:#ff8888">${illegal.title}</strong>
+          <span class="econ-pay-badge risky">+${formatGHS(illegal.payoutGHS)} (Dirty)</span>
+        </div>
+        <p style="margin:2px 0 4px;font-size:0.68rem;color:#bdbdbd">${illegal.summary}</p>
+        <p style="margin:0 0 6px;font-size:0.63rem;color:#ff9999">${illegal.riskLabel} · +${illegal.heatPerStep}% Heat/step</p>
+        <button class="econ-action-btn" type="button">${
+          isThisActive ? 'In Progress' : 'Start Risky Hustle'
+        }</button>
+      `;
+      const btn = card.querySelector('button');
+      if (btn) {
+        if (isThisActive) btn.disabled = true;
+        else
+          btn.addEventListener('click', () => {
+            const hasLegalWork = Boolean(jobSystem.getActiveJob() || jobSystem.getActiveHustle());
+            const res = crimeSystem.startIllegalHustle(illegal.id, hasLegalWork);
+            if (res.success) {
+              const ai = crimeSystem.getActiveIllegalHustle();
+              showInteractionFeedback(
+                `Risky hustle on · ${ai ? ai.currentStep.stepTitle : 'Go'}`,
+                true
+              );
+              closeEconomyModal();
+            } else {
+              showInteractionFeedback(res.message, true);
+            }
+            syncEconomyHUD();
+          });
+      }
+      modalBodyContent.appendChild(card);
+    }
     return;
   }
 
-  modalBodyContent.innerHTML =
-    '<p style="color:#9a9a9a;font-size:0.8rem;">Jobs · Hustles · Waakye · Compound</p>';
+  if (currentModalTab === 'spend') {
+    for (const item of Object.values(ACCRA_EVERYDAY_EXPENSES)) {
+      const card = document.createElement('div');
+      card.className = 'econ-card';
+      card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <strong class="econ-card-title">${item.title}</strong>
+          <span class="econ-pay-badge" style="color:var(--gta-yellow);border-color:rgba(255,204,0,.4)">-${formatGHS(item.costGHS)}</span>
+        </div>
+        <p style="margin:2px 0 6px;font-size:0.68rem;color:#bdbdbd">${item.description}</p>
+        <button class="econ-action-btn" type="button">Buy (${formatGHS(item.costGHS)})</button>
+      `;
+      const btn = card.querySelector('button');
+      btn?.addEventListener('click', () => {
+        const res = economyManager.purchaseEverydayExpense(item.id);
+        if (res.success) {
+          if (item.id === 'EXP_WAAKYE_MEAL') {
+            needsSystem.eatMeal('Waakye');
+          }
+          showInteractionFeedback(res.message);
+          renderModalTabContent();
+        } else {
+          showInteractionFeedback(res.message, true);
+        }
+        syncEconomyHUD();
+      });
+      modalBodyContent.appendChild(card);
+    }
+    return;
+  }
+
+  if (currentModalTab === 'wallet') {
+    const wallet = economyManager.wallet;
+    const txs = wallet.getTransactions().slice(0, 12);
+    const diagCard = document.createElement('div');
+    diagCard.className = 'econ-card';
+    diagCard.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong class="econ-card-title">Wallet & Firebase Store Diagnostic</strong>
+        <span class="econ-pay-badge">${formatGHS(wallet.getCashBalance())}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px;font-size:0.68rem;color:#ccc">
+        <div>Cash: <strong style="color:#fff">${formatGHS(wallet.getCashBalance())}</strong></div>
+        <div>MoMo: <strong style="color:#fff">${formatGHS(wallet.getMomoBalance())}</strong></div>
+        <div>Dirty Cash: <strong style="color:#ff8888">${formatGHS(wallet.getUnsecuredIllegalCash())}</strong></div>
+        <div>Lifetime Earned: <strong style="color:var(--gta-green)">${formatGHS(wallet.getLifetimeEarned())}</strong></div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+        <button id="diagSyncFirestoreBtn" class="econ-action-btn" type="button">Sync to Firebase</button>
+        <button id="diagReloadStoreBtn" class="econ-action-btn" style="background:#222;color:#fff;border-color:#555" type="button">Reload from Store</button>
+      </div>
+    `;
+    modalBodyContent.appendChild(diagCard);
+
+    diagCard.querySelector('#diagSyncFirestoreBtn')?.addEventListener('click', async () => {
+      economyManager.saveSnapshot();
+      const ok = await wallet.saveToFirebase();
+      showInteractionFeedback(
+        ok ? 'Synced wallet to Firebase store.' : 'Saved locally (sign in for cloud sync).'
+      );
+      renderModalTabContent();
+      syncEconomyHUD();
+    });
+
+    diagCard.querySelector('#diagReloadStoreBtn')?.addEventListener('click', async () => {
+      const loadedCloud = await wallet.loadFromFirebase();
+      if (!loadedCloud) {
+        const local = economyManager.loadFromPersistence();
+        if (local.jobs) jobSystem.hydrate(local.jobs);
+        if (local.crime) crimeSystem.hydrate(local.crime);
+      }
+      showInteractionFeedback(
+        loadedCloud ? 'Reloaded wallet from Firebase store.' : 'Reloaded wallet from local persistence.'
+      );
+      renderModalTabContent();
+      syncEconomyHUD();
+    });
+
+    const txCard = document.createElement('div');
+    txCard.className = 'econ-card';
+    txCard.innerHTML = `
+      <strong class="econ-card-title">Recent Transactions (${txs.length})</strong>
+      <div style="display:flex;flex-direction:column;gap:5px;margin-top:4px">
+        ${
+          txs.length === 0
+            ? '<p style="margin:0;font-size:0.68rem;color:#888">No transactions recorded yet.</p>'
+            : txs
+                .map(
+                  (t) => `
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.68rem;border-bottom:1px solid rgba(255,255,255,.07);padding-bottom:3px">
+              <div>
+                <div style="color:#fff;font-weight:700">${t.description}</div>
+                <div style="color:#888;font-size:0.6rem">${t.category} · ${new Date(t.timestamp).toLocaleTimeString()}</div>
+              </div>
+              <strong style="color:${t.type === 'INCOME' ? 'var(--gta-green)' : 'var(--gta-red)'}">
+                ${formatSignedGHS(t.type === 'INCOME' ? t.amount : -t.amount)}
+              </strong>
+            </div>`
+                )
+                .join('')
+        }
+      </div>
+    `;
+    modalBodyContent.appendChild(txCard);
+    return;
+  }
 }
 
 function openHomeSheet(): void {
@@ -518,7 +713,14 @@ function closeHomeSheet(): void {
 }
 
 function handleWorldTargetInteracted(target: InteractableTarget): void {
-  const advance = jobSystem.tryAdvanceAtInteractable(target.id);
+  const illegalAdvance = crimeSystem.tryAdvanceAtInteractable(target.id, target.assetId);
+  if (illegalAdvance.handled) {
+    showInteractionFeedback(illegalAdvance.message, illegalAdvance.arrested);
+    syncEconomyHUD();
+    return;
+  }
+
+  const advance = jobSystem.tryAdvanceAtInteractable(target.id, target.assetId);
   if (advance.handled) {
     if (advance.completedWork) {
       needsSystem.onWorkCompleted();
@@ -526,6 +728,12 @@ function handleWorldTargetInteracted(target: InteractableTarget): void {
       showInteractionFeedback(`Paid${pay}`);
     } else showInteractionFeedback(advance.message);
     syncEconomyHUD();
+    return;
+  }
+
+  const activeIllegal = crimeSystem.getActiveIllegalHustle();
+  if (activeIllegal) {
+    showInteractionFeedback(`Go: ${activeIllegal.currentStep.targetLocationName}`, true);
     return;
   }
 
@@ -537,19 +745,20 @@ function handleWorldTargetInteracted(target: InteractableTarget): void {
 
   if (target.id === 'food_vendor') {
     if (!economyManager.canAfford(12, 'CASH')) {
-      showInteractionFeedback('Need ₵12', true);
+      showInteractionFeedback('Need ₵12 for Waakye (open Jobs to earn)', true);
+      openEconomyModal('jobs', target.id);
       return;
     }
     const buy = economyManager.purchaseEverydayExpense('EXP_WAAKYE_MEAL');
     if (buy.success) {
       needsSystem.eatMeal('Waakye');
-      showInteractionFeedback('+Hunger');
+      showInteractionFeedback('+Hunger (Waakye)');
     } else showInteractionFeedback(buy.message || 'No', true);
     syncEconomyHUD();
     return;
   }
 
-  if (target.id === 'npc_older_001') {
+  if (target.id === 'npc_older_001' || target.id === 'npc_male_001') {
     openEconomyModal('hustles', target.id);
     return;
   }
@@ -636,6 +845,12 @@ function startGame(profile: OnboardingResult): void {
 
     walletOpenBtn?.addEventListener('click', () => openEconomyModal('wallet'));
     workMenuOpenBtn?.addEventListener('click', () => openEconomyModal('jobs'));
+    document.getElementById('walletDiagToggle')?.addEventListener('click', () => {
+      document.getElementById('walletDiagnosticPanel')?.classList.toggle('expanded');
+    });
+    document.getElementById('walletDiagOpenFullBtn')?.addEventListener('click', () => {
+      openEconomyModal('wallet');
+    });
     modalCloseBtn?.addEventListener('click', () => closeEconomyModal());
     economyModalBackdrop?.addEventListener('click', (e) => {
       if (e.target === economyModalBackdrop) closeEconomyModal();
@@ -654,7 +869,11 @@ function startGame(profile: OnboardingResult): void {
       });
     }
     cancelObjectiveBtn?.addEventListener('click', () => {
-      showInteractionFeedback(jobSystem.cancelActiveWork());
+      if (crimeSystem.getActiveIllegalHustle()) {
+        showInteractionFeedback(crimeSystem.cancelActiveIllegalHustle());
+      } else {
+        showInteractionFeedback(jobSystem.cancelActiveWork());
+      }
       syncEconomyHUD();
     });
     resetCameraBtn?.addEventListener('click', () => {

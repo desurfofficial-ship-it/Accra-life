@@ -293,23 +293,29 @@ export function startOnboarding(
   });
 
   document.getElementById('obBtnLookNext')?.addEventListener('click', () => {
-    selectChip('obTraitGrid', pendingTrait, 'trait');
+    const traitContainerId = document.getElementById('obTraitGrid') ? 'obTraitGrid' : 'obTraitRow';
+    selectChip(traitContainerId, pendingTrait, 'trait');
     const blurb = document.getElementById('obTraitBlurb');
     if (blurb) blurb.textContent = TRAIT_DEFS[pendingTrait].blurb;
     showScreen('trait');
   });
 
-  document.getElementById('obTraitGrid')?.addEventListener('click', (e) => {
+  const handleTraitClick = (e: Event) => {
     const t = (e.target as HTMLElement).closest('[data-trait]') as HTMLElement | null;
     if (!t) return;
     pendingTrait = t.getAttribute('data-trait') as TraitId;
-    selectChip('obTraitGrid', pendingTrait, 'trait');
+    const traitContainerId = document.getElementById('obTraitGrid') ? 'obTraitGrid' : 'obTraitRow';
+    selectChip(traitContainerId, pendingTrait, 'trait');
     const blurb = document.getElementById('obTraitBlurb');
     if (blurb) blurb.textContent = TRAIT_DEFS[pendingTrait].blurb;
-  });
+  };
+  document.getElementById('obTraitGrid')?.addEventListener('click', handleTraitClick);
+  document.getElementById('obTraitRow')?.addEventListener('click', handleTraitClick);
 
   document.getElementById('obBtnTraitNext')?.addEventListener('click', () => {
     selectChip('obOriginRow', pendingOrigin, 'origin');
+    const originBlurb = document.getElementById('obOriginBlurb');
+    if (originBlurb) originBlurb.textContent = ORIGIN_DEFS[pendingOrigin].blurb;
     showScreen('origin');
   });
 
@@ -318,9 +324,11 @@ export function startOnboarding(
     if (!t) return;
     pendingOrigin = t.getAttribute('data-origin') as OriginId;
     selectChip('obOriginRow', pendingOrigin, 'origin');
+    const originBlurb = document.getElementById('obOriginBlurb');
+    if (originBlurb) originBlurb.textContent = ORIGIN_DEFS[pendingOrigin].blurb;
   });
 
-  document.getElementById('obBtnEnter')?.addEventListener('click', () => {
+  const handleEnterClick = () => {
     finish({
       mode: pendingMode,
       displayName: pendingName,
@@ -330,7 +338,9 @@ export function startOnboarding(
       trait: pendingTrait,
       origin: pendingOrigin
     });
-  });
+  };
+  document.getElementById('obBtnEnter')?.addEventListener('click', handleEnterClick);
+  document.getElementById('obBtnOriginGo')?.addEventListener('click', handleEnterClick);
 
   document.getElementById('obBackFromAuth')?.addEventListener('click', () => showScreen('welcome'));
   document.getElementById('obBackFromName')?.addEventListener('click', () => {
