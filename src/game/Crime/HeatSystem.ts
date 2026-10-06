@@ -2,7 +2,7 @@ import { EconomyManager } from '../Economy/EconomyManager';
 import { PersistedCrimeState } from '../Economy/EconomyPersistence';
 import { WorkStepDefinition } from '../Jobs/JobRegistry';
 
-export type PoliceStatus = 'NORMAL' | 'SUSPICIOUS' | 'WANTED' | 'ARRESTED';
+export type PoliceStatus = 'NORMAL' | 'CLEAN' | 'SUSPICIOUS' | 'WANTED' | 'ARRESTED';
 
 export interface IllegalHustleDefinition {
   readonly id: string;

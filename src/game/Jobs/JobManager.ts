@@ -100,6 +100,40 @@ export class JobManager {
     return this.completedJobCounts[id] ?? 0;
   }
 
+  /**
+   * Returns all legal jobs registered in JobRegistry, prioritizing jobs anchored
+   * at the currently focused neighborhood entity if provided.
+   */
+  public getAvailableJobs(
+    focusedInteractableId?: string | null
+  ): ReadonlyArray<LegalJobDefinition> {
+    if (!focusedInteractableId) {
+      return ACCRA_LEGAL_JOBS;
+    }
+    return [...ACCRA_LEGAL_JOBS].sort((a, b) => {
+      const aMatch = a.startInteractableId === focusedInteractableId ? 0 : 1;
+      const bMatch = b.startInteractableId === focusedInteractableId ? 0 : 1;
+      return aMatch - bMatch;
+    });
+  }
+
+  /**
+   * Returns all side hustles registered in JobRegistry, prioritizing hustles anchored
+   * at the currently focused neighborhood entity if provided.
+   */
+  public getAvailableSideHustles(
+    focusedInteractableId?: string | null
+  ): ReadonlyArray<SideHustleDefinition> {
+    if (!focusedInteractableId) {
+      return ACCRA_SIDE_HUSTLES;
+    }
+    return [...ACCRA_SIDE_HUSTLES].sort((a, b) => {
+      const aMatch = a.startInteractableId === focusedInteractableId ? 0 : 1;
+      const bMatch = b.startInteractableId === focusedInteractableId ? 0 : 1;
+      return aMatch - bMatch;
+    });
+  }
+
   public getActiveTargetInteractableId(): string | null {
     const activeJob = this.getActiveJob();
     if (activeJob) {

@@ -16,7 +16,7 @@ export interface PersistedJobState {
 
 export interface PersistedCrimeState {
   heatLevel: number;
-  policeStatus: 'NORMAL' | 'SUSPICIOUS' | 'WANTED' | 'ARRESTED';
+  policeStatus: 'NORMAL' | 'CLEAN' | 'SUSPICIOUS' | 'WANTED' | 'ARRESTED';
   activeIllegalId: string | null;
   activeIllegalStepIndex: number;
   arrestCount: number;

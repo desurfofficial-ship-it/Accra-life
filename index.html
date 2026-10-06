@@ -64,6 +64,15 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;overscroll-b
 .obj-header{display:flex;justify-content:space-between;align-items:center;gap:6px}
 .obj-tag{font-size:.5rem;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:var(--gta-green)}
 .objective-banner.risky .obj-tag{color:var(--gta-red)}
+.wallet-diag-panel{background:var(--gta-panel);border:1px solid rgba(102,255,102,.32);padding:5px 8px;pointer-events:auto;box-shadow:2px 2px 0 rgba(0,0,0,.4);font-size:.6rem;color:var(--gta-white);max-width:220px}
+.wallet-diag-head{display:flex;justify-content:space-between;align-items:center;gap:6px;cursor:pointer}
+.wallet-diag-title{font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:var(--gta-yellow);font-size:.55rem}
+.wallet-diag-bal{font-weight:900;color:var(--gta-green);font-variant-numeric:tabular-nums;font-size:.68rem}
+.wallet-diag-body{margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column;gap:3px}
+.wallet-diag-body.collapsed{display:none}
+.wallet-diag-tx{display:flex;justify-content:space-between;gap:6px;font-size:.56rem;color:#d0d0d0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wallet-diag-actions{display:flex;gap:4px;margin-top:3px}
+.wallet-diag-btn{background:rgba(255,204,0,.15);color:var(--gta-yellow);border:1px solid rgba(255,204,0,.45);padding:2px 5px;font-size:.52rem;font-weight:900;text-transform:uppercase;cursor:pointer;font-family:inherit}
 .obj-cancel-btn{background:transparent;color:var(--gta-muted);border:1px solid rgba(255,255,255,.2);padding:1px 5px;font-size:.5rem;font-weight:800;cursor:pointer;text-transform:uppercase;font-family:inherit}
 .obj-title{font-size:.72rem;font-weight:900;color:var(--gta-white);margin:2px 0 0}
 .obj-desc{display:none}
@@ -232,6 +241,20 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;overscroll-b
 <div class="obj-header"><span id="objTag" class="obj-tag">Job</span><button id="cancelObjectiveBtn" class="obj-cancel-btn" type="button">X</button></div>
 <div id="objTitle" class="obj-title">Job</div>
 <div id="objDesc" class="obj-desc"></div>
+</div>
+<div id="walletDiagnosticPanel" class="wallet-diag-panel">
+<div id="walletDiagToggle" class="wallet-diag-head" title="Toggle Firebase Wallet Store Diagnostic">
+<span class="wallet-diag-title">Store Diag</span>
+<span id="walletDiagBalance" class="wallet-diag-bal">₵0.00</span>
+</div>
+<div id="walletDiagBody" class="wallet-diag-body">
+<div id="walletDiagSource" style="font-size:.52rem;color:#9a9a9a">Store: Ready</div>
+<div id="walletDiagTxList"></div>
+<div class="wallet-diag-actions">
+<button id="walletDiagReloadBtn" class="wallet-diag-btn" type="button">Reload Store</button>
+<button id="walletDiagOpenLedgerBtn" class="wallet-diag-btn" type="button">Full Ledger</button>
+</div>
+</div>
 </div>
 </div>
 <div class="hud-right-stack">
