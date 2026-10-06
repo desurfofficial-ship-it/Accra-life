@@ -429,10 +429,13 @@ export class Wallet {
       );
       return true;
     } catch (error) {
-      try {
-        handleFirestoreError(error, OperationType.WRITE, playerPath);
-      } catch {
-        // Logged structured FirestoreErrorInfo; continue offline gracefully
+      const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+      if (msg.includes('permission') || msg.includes('insufficient')) {
+        try {
+          handleFirestoreError(error, OperationType.WRITE, playerPath);
+        } catch {
+          // Structured error logged for permission diagnostics
+        }
       }
       return false;
     }
@@ -463,10 +466,13 @@ export class Wallet {
         }
       }
     } catch (error) {
-      try {
-        handleFirestoreError(error, OperationType.GET, playerPath);
-      } catch {
-        // Fall back to local cache if offline
+      const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+      if (msg.includes('permission') || msg.includes('insufficient')) {
+        try {
+          handleFirestoreError(error, OperationType.GET, playerPath);
+        } catch {
+          // Fall back to local cache if permission denied
+        }
       }
     }
 
