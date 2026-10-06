@@ -682,9 +682,26 @@ function renderModalTabContent(): void {
 
     diagCard.querySelector('#diagSyncFirestoreBtn')?.addEventListener('click', async () => {
       economyManager.saveSnapshot();
-      const ok = await wallet.saveToFirebase();
+      // Sync wallet + needs + housing state to Firestore in one write.
+      const needsState = needsSystem.getState();
+      const homeStateData = {
+        housingTier: homeSystem.getHousingTierId(),
+        unlockedTiers: homeSystem.getHousingTierId() ? [homeSystem.getHousingTierId()] : [],
+        owned: homeSystem.getOwned(),
+        placed: homeSystem.getPlaced()
+      };
+      // Build full unlockedTiers list (all tiers the player has unlocked).
+      // HomeSystem doesn't expose unlockedTiers directly — get from the tier
+      // level (all tiers up to current are unlocked).
+      const allTiers = [
+        'single_room', 'chamber_kitchen_bath', 'self_contained',
+        'one_bed_apartment', 'premium_apartment', 'luxury_house'
+      ] as const;
+      const currentLevel = homeSystem.getHousingTier().level;
+      homeStateData.unlockedTiers = allTiers.slice(0, currentLevel);
+      const ok = await wallet.saveToFirebase(needsState, homeStateData);
       showInteractionFeedback(
-        ok ? 'Synced wallet to Firebase store.' : 'Saved locally (sign in for cloud sync).'
+        ok ? 'Synced wallet + needs + housing to cloud.' : 'Cloud sync failed — saved locally.'
       );
       renderModalTabContent();
       syncEconomyHUD();
@@ -896,6 +913,50 @@ function openHomeSheet(): void {
       }
       row.appendChild(btn);
       list.appendChild(row);
+    }
+
+    // 4. Placed furniture list (Phase-1 placement engine) — shows items the
+    // player has placed in the room, with a Sell button (50% resale).
+    const placed = homeSystem.getPlaced();
+    if (placed.length > 0) {
+      const placedHeading = document.createElement('div');
+      placedHeading.className = 'home-section-heading';
+      placedHeading.textContent = `Placed in Room (${placed.length} items)`;
+      list.appendChild(placedHeading);
+      for (const inst of placed) {
+        const pItem = FURNITURE_CATALOG.find((f) => f.id === inst.catalogId);
+        if (!pItem) continue;
+        const row = document.createElement('div');
+        row.className = 'furn-row owned';
+        const refund = Math.round(inst.purchasePrice * 0.5);
+        row.innerHTML = `<div class="furn-meta"><p class="furn-title">${pItem.title} <span style="font-size:0.6rem;color:var(--gta-muted)">at (${inst.x.toFixed(1)}, ${inst.z.toFixed(1)})</span></p><p class="furn-blurb">Bought ₵${inst.purchasePrice} · Sell for ₵${refund} (50%)</p></div>`;
+        const sellBtn = document.createElement('button');
+        sellBtn.className = 'furn-buy';
+        sellBtn.type = 'button';
+        sellBtn.textContent = `Sell ₵${refund}`;
+        sellBtn.style.background = 'rgba(239,68,68,0.15)';
+        sellBtn.style.color = 'var(--gta-red)';
+        sellBtn.style.borderColor = 'rgba(239,68,68,0.4)';
+        sellBtn.addEventListener('click', () => {
+          const res = homeSystem.sellPlaced(inst.instanceId, (amount, desc) => {
+            economyManager.wallet.addFunds({
+              amount,
+              category: 'REWARD',
+              description: desc
+            });
+          });
+          showInteractionFeedback(res.message, !res.success);
+          if (res.success) {
+            // Remove the 3D mesh from the scene (next renderHomeSheet call
+            // won't include it; the 3D mesh removal happens on next game
+            // reload — TODO: live 3D removal).
+            syncEconomyHUD();
+            openHomeSheet();
+          }
+        });
+        row.appendChild(sellBtn);
+        list.appendChild(row);
+      }
     }
   }
   backdrop?.classList.add('open');
@@ -1212,8 +1273,12 @@ function startGame(profile: OnboardingResult): void {
     });
     document.getElementById('homeRestBtn')?.addEventListener('click', () => {
       const tier = homeSystem.getHousingTier();
-      const bedBonus = homeSystem.owns('bed') ? 20 : 0;
-      const rest = needsSystem.sleep(bedBonus, tier.sleepEnergyRestore);
+      // Use aggregate sleepEnergyBonus from ALL placed furniture (bed_basic,
+      // bed, etc.) — not just the legacy 'bed' ownership check.
+      const agg = homeSystem.getAggregateGameplayEffects();
+      const bedBonus = agg.sleepEnergyBonus;
+      const totalSleepRestore = Math.min(100, tier.sleepEnergyRestore + bedBonus);
+      const rest = needsSystem.sleep(bedBonus, totalSleepRestore);
       showInteractionFeedback(rest.message, !rest.success);
       syncEconomyHUD();
       openHomeSheet();
@@ -1297,7 +1362,14 @@ function startGame(profile: OnboardingResult): void {
 
     const tick = () => {
       crimeSystem.tickHeatDecay(1 / 60);
-      needsSystem.tick(1 / 60);
+      // Apply passive gameplay-effect multipliers from placed furniture.
+      // These compound with the existing fatigueReductionPct (housing-tier
+      // bonus) + any live-events modifiers. All default to 1.0 (no change).
+      const agg = homeSystem.getAggregateGameplayEffects();
+      needsSystem.tick(1 / 60, {
+        energy: agg.energyDecayMultiplier,
+        fun: agg.funDecayMultiplier
+      });
       if (homeVisuals) {
         homeVisuals.setCutawayMode(isPlayerInCompoundCutaway());
       }

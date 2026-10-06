@@ -1,5 +1,5 @@
 import { onAuthStateChanged, sendEmailVerification } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../../firebase';
 
 export type CloudSaveAuthStatus =
@@ -475,31 +475,58 @@ export class Wallet {
    * For unverified email/password accounts, saves are kept in local storage until the
    * user completes email verification.
    */
-  public async saveToFirebase(): Promise<boolean> {
+  /**
+   * Saves wallet + needs + housing state to Firestore.
+   *
+   * @param needs Optional needs snapshot (hunger/energy/fun/social/hygiene/bladder)
+   * @param homeState Optional housing snapshot (housingTier/unlockedTiers/owned/placedFurniture)
+   */
+  public async saveToFirebase(
+    needs?: {
+      hunger: number; energy: number; fun: number;
+      social: number; hygiene: number; bladder: number;
+    },
+    homeState?: {
+      housingTier: string;
+      unlockedTiers: string[];
+      owned: string[];
+      placed: unknown[];
+    }
+  ): Promise<boolean> {
     const user = auth.currentUser;
     if (!user) return false;
     if (!user.isAnonymous && user.email && !user.emailVerified) {
-      // Gate cloud save for unverified email users until they verify their email
       return false;
     }
 
     const playerPath = `players/${user.uid}`;
     const serialized = this.serialize();
-    const isoNow = new Date().toISOString();
+
+    // Build the player payload — server-set timestamp (blocks Payload 10
+    // forged-timestamp attack per the strict security rules).
+    const playerPayload: Record<string, unknown> = {
+      ownerId: user.uid,
+      displayName: user.displayName || 'Kwame (Accra Resident)',
+      state: { wallet: serialized },
+      updatedAt: serverTimestamp()
+    };
+    if (needs) {
+      playerPayload.hunger = Math.round(needs.hunger);
+      playerPayload.energy = Math.round(needs.energy);
+      playerPayload.fun = Math.round(needs.fun);
+      playerPayload.social = Math.round(needs.social);
+      playerPayload.hygiene = Math.round(needs.hygiene);
+      playerPayload.bladder = Math.round(needs.bladder);
+    }
+    if (homeState) {
+      playerPayload.housingTier = homeState.housingTier;
+      playerPayload.unlockedTiers = homeState.unlockedTiers;
+      playerPayload.owned = homeState.owned;
+      playerPayload.placedFurniture = homeState.placed;
+    }
 
     try {
-      await setDoc(
-        doc(db, 'players', user.uid),
-        {
-          ownerId: user.uid,
-          displayName: user.displayName || 'Kwame (Accra Resident)',
-          state: {
-            wallet: serialized
-          },
-          updatedAt: isoNow
-        },
-        { merge: true }
-      );
+      await setDoc(doc(db, 'players', user.uid), playerPayload, { merge: true });
 
       await setDoc(
         doc(db, 'profiles', user.uid),
@@ -510,7 +537,7 @@ export class Wallet {
           career: 'Adabraka Hustler',
           money: Math.floor(this.cashBalance),
           location: 'Adabraka Neighborhood',
-          updatedAt: isoNow
+          updatedAt: serverTimestamp()
         },
         { merge: true }
       );

@@ -829,6 +829,37 @@ export class HomeSystem {
   }
 
   /**
+   * Sell a placed furniture instance. Refunds 50% of the purchase price
+   * (standard resale per the economic balance sheet). Removes the instance
+   * from placed[]. Also removes the catalog item from owned[] (so the
+   * player can re-buy if they want). Returns the refund amount on success.
+   */
+  public sellPlaced(
+    instanceId: string,
+    addFunds: (amount: number, description: string) => void
+  ): { success: boolean; refundGHS: number; message: string } {
+    const idx = this.placed.findIndex((p) => p.instanceId === instanceId);
+    if (idx === -1) {
+      return { success: false, refundGHS: 0, message: 'Instance not found.' };
+    }
+    const inst = this.placed[idx];
+    const refund = Math.round(inst.purchasePrice * 0.5);
+    // Remove from placed.
+    this.placed.splice(idx, 1);
+    // Also remove from owned (so the player can re-buy).
+    this.owned.delete(inst.catalogId);
+    // Refund 50% of purchase price.
+    addFunds(refund, `Sold: ${inst.catalogId}`);
+    this.persist();
+    this.notify();
+    return {
+      success: true,
+      refundGHS: refund,
+      message: `Sold for ₵${refund} (50% of ₵${inst.purchasePrice}).`
+    };
+  }
+
+  /**
    * Aggregate gameplay effects from all placed furniture.
    * Used by NeedsSystem to apply passive bonuses (energy regen, fun decay, etc.)
    * and by main.ts to apply active bonuses when the player sleeps/showers/etc.

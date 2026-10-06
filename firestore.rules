@@ -98,7 +98,9 @@ service cloud.firestore {
           'hunger', 'energy', 'fun', 'social', 'hygiene', 'bladder',
           'amaAffinity', 'kofiAffinity', 'abenaAffinity', 'kwameAffinity', 'efuaAffinity',
           'amaMoney', 'kofiMoney', 'abenaMoney', 'kwameMoney', 'efuaMoney',
-          'recentLogs', 'phase3Economy', 'state'
+          'recentLogs', 'phase3Economy', 'state',
+          // Housing fields (Phase-1)
+          'housingTier', 'unlockedTiers', 'owned', 'placedFurniture'
         ])
         // Type + bounds validation on common fields (blocks Payloads 6, 7, 8).
         && (!('money' in request.resource.data) || (request.resource.data.money is int && request.resource.data.money >= 0))
@@ -130,7 +132,9 @@ service cloud.firestore {
           'hunger', 'energy', 'fun', 'social', 'hygiene', 'bladder',
           'amaAffinity', 'kofiAffinity', 'abenaAffinity', 'kwameAffinity', 'efuaAffinity',
           'amaMoney', 'kofiMoney', 'abenaMoney', 'kwameMoney', 'efuaMoney',
-          'recentLogs', 'phase3Economy', 'state'
+          'recentLogs', 'phase3Economy', 'state',
+          // Housing fields (Phase-1)
+          'housingTier', 'unlockedTiers', 'owned', 'placedFurniture'
         ])
         // Type + bounds on changed keys (blocks Payloads 6, 7, 8).
         && (!('money' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.money is int && request.resource.data.money >= 0))
