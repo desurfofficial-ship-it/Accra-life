@@ -1,1 +1,0 @@
-console.error('BUNDLE_PENDING');
