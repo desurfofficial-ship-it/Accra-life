@@ -27,6 +27,9 @@ import { InteractableTarget } from './game/Player/InteractionSystem';
 import { NeedsSystem } from './game/Needs/NeedsSystem';
 import { FURNITURE_CATALOG, HomeSystem } from './game/Home/HomeSystem';
 import { HomeFurnitureVisuals } from './game/Home/HomeFurnitureVisuals';
+import { PresenceManager, type PresenceStatus } from './game/Multiplayer/PresenceManager';
+import { LocationChatManager } from './game/Multiplayer/LocationChatManager';
+import type { NearbyPlayer, ChatMessageView } from './game/Multiplayer/types';
 
 const container = document.getElementById('viewportContainer');
 const promptEl = document.getElementById('interactionPrompt');
@@ -70,6 +73,26 @@ let sprintToggled = false;
 let currentModalTab: ModalTabId = 'jobs';
 let currentFocusedInteractableId: string | null = null;
 let phase1SceneRef: Phase1Scene | null = null;
+
+// ---- Multiplayer (presence + chat) module refs ----
+let presenceManager: PresenceManager | null = null;
+let chatManager: LocationChatManager | null = null;
+let chatSheetOpen = false;
+let chatUnreadCount = 0;
+let chatLastSeenAtMs = 0;
+let isAccountMode = false;
+
+const chatOpenBtn = document.getElementById('chatOpenBtn');
+const chatBadge = document.getElementById('chatBadge');
+const chatModalBackdrop = document.getElementById('chatModalBackdrop');
+const chatSheetTitle = document.getElementById('chatSheetTitle');
+const chatSheetSub = document.getElementById('chatSheetSub');
+const chatSheetNearby = document.getElementById('chatSheetNearby');
+const chatStatusPill = document.getElementById('chatStatusPill');
+const chatMessagesEl = document.getElementById('chatMessages');
+const chatInput = document.getElementById('chatInput') as HTMLInputElement | null;
+const chatSendBtn = document.getElementById('chatSendBtn') as HTMLButtonElement | null;
+const nearbyStrip = document.getElementById('nearbyStrip');
 
 const economyManager = new EconomyManager();
 const jobSystem = new JobManager(economyManager);
@@ -930,7 +953,217 @@ function startGame(profile: OnboardingResult): void {
       });
       joystickZone.addEventListener('pointercancel', () => reset());
     }
+
+    initMultiplayer(profile, phase1);
   }
+}
+
+/**
+ * Boot multiplayer presence + location chat for this player.
+ *
+ * Guests (no uid) get read-only chat: they can see what's happening but
+ * cannot post until they sign in. Accounts get full presence (write their
+ * own doc + subscribe to nearby) and chat.
+ */
+function initMultiplayer(profile: OnboardingResult, phase1: Phase1Scene): void {
+  const LOCATION_ID = 'accra_neighborhood';
+  isAccountMode = profile.mode === 'account' && !!profile.userId;
+
+  presenceManager = new PresenceManager({
+    uid: profile.userId ?? '',
+    displayName: profile.displayName || 'Chale',
+    currentLocation: LOCATION_ID,
+    origin: profile.origin,
+    look: { skin: profile.skin, hair: profile.hair }
+  });
+  chatManager = new LocationChatManager({
+    uid: profile.userId,
+    displayName: profile.displayName || 'Chale',
+    locationId: LOCATION_ID,
+    origin: profile.origin
+  });
+
+  // Chat: always start (guests can read). Presence: only for accounts.
+  chatManager.enter();
+  if (isAccountMode) {
+    void presenceManager.enter().catch((err) => {
+      console.warn('[presence] enter failed:', err);
+    });
+    if (chatSheetSub) chatSheetSub.textContent = 'Local chat — everyone here can see this.';
+    setStatusPill('online');
+    setNearbyStrip([], true);
+  } else {
+    // Guest: read-only chat, no presence writes.
+    if (chatSheetSub) chatSheetSub.textContent = 'Sign in to send messages & be seen.';
+    setStatusPill('guest');
+    setNearbyStrip([], false);
+  }
+
+  // Hook disconnects (mobile best-effort).
+  const onDisconnect = () => {
+    if (presenceManager) void presenceManager.leave();
+  };
+  window.addEventListener('pagehide', onDisconnect);
+  window.addEventListener('beforeunload', onDisconnect);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') onDisconnect();
+  });
+
+  // Wire chat UI.
+  chatOpenBtn?.addEventListener('click', () => openChatSheet());
+  nearbyStrip?.addEventListener('click', () => openChatSheet());
+  chatModalBackdrop?.addEventListener('click', (e) => {
+    if (e.target === chatModalBackdrop) closeChatSheet();
+  });
+  chatSendBtn?.addEventListener('click', () => void sendChatMessage());
+  chatInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      void sendChatMessage();
+    }
+  });
+
+  // Render chat updates + track unread.
+  chatManager.onMessages((messages) => {
+    renderChatMessages(messages);
+    if (chatSheetOpen) {
+      chatUnreadCount = 0;
+      chatLastSeenAtMs = Date.now();
+      updateChatBadge();
+    } else {
+      const newOnes = messages.filter(
+        (m) => !m.isMine && m.createdAtMs !== null && m.createdAtMs > chatLastSeenAtMs
+      );
+      if (newOnes.length > 0) {
+        chatUnreadCount += newOnes.length;
+        chatLastSeenAtMs = Math.max(...newOnes.map((m) => m.createdAtMs ?? 0));
+        updateChatBadge();
+      }
+    }
+  });
+
+  // Render nearby updates + presence status.
+  presenceManager.onNearby((players) => {
+    setNearbyStrip(players, isAccountMode);
+    if (chatSheetOpen) renderChatSheetNearby(players);
+  });
+  presenceManager.onStatus((status) => {
+    if (isAccountMode) {
+      setStatusPill(status.kind === 'online' ? 'online' : 'offline');
+    }
+  });
+
+  // Periodic in-world position report (every 2s). The presence heartbeat
+  // already fires every 20s; this just feeds last-known coords to it.
+  setInterval(() => {
+    if (!phase1) return;
+    const p = phase1.player.position;
+    presenceManager?.reportPosition(p.x, p.z, phase1.player.rotationY);
+  }, 2_000);
+}
+
+function openChatSheet(): void {
+  chatSheetOpen = true;
+  chatUnreadCount = 0;
+  chatLastSeenAtMs = Date.now();
+  updateChatBadge();
+  chatModalBackdrop?.classList.add('open');
+  if (presenceManager && chatSheetNearby) {
+    renderChatSheetNearby(presenceManager.getNearby());
+  }
+  setTimeout(() => chatInput?.focus(), 50);
+}
+
+function closeChatSheet(): void {
+  chatSheetOpen = false;
+  chatModalBackdrop?.classList.remove('open');
+  chatInput?.blur();
+}
+
+async function sendChatMessage(): Promise<void> {
+  if (!chatManager || !chatInput) return;
+  const text = chatInput.value;
+  const result = await chatManager.sendMessage(text);
+  if (result.ok) {
+    chatInput.value = '';
+    return;
+  }
+  if (result.message) showInteractionFeedback(result.message, true);
+}
+
+function renderChatMessages(messages: ChatMessageView[]): void {
+  if (!chatMessagesEl) return;
+  if (messages.length === 0) {
+    chatMessagesEl.innerHTML = '<div class="chat-empty">No chatter yet. Be the first to say “Chale”.</div>';
+    return;
+  }
+  const html = messages.map((m) => {
+    const time = m.createdAtMs ? formatChatTime(m.createdAtMs) : '';
+    const cls = `chat-msg${m.isMine ? ' mine' : ''}`;
+    const safeName = escapeHtml(m.senderName);
+    const safeText = escapeHtml(m.text);
+    return `<div class="${cls}"><span class="name">${safeName}</span>${safeText}<span class="time">${time}</span></div>`;
+  }).join('');
+  chatMessagesEl.innerHTML = html;
+  chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+}
+
+function renderChatSheetNearby(players: NearbyPlayer[]): void {
+  if (!chatSheetNearby) return;
+  const n = players.length;
+  if (n === 0) {
+    chatSheetNearby.textContent = 'You are alone here. For now.';
+    return;
+  }
+  const preview = players.slice(0, 5).map((p) => p.displayName).join(', ');
+  const extra = n > 5 ? ` +${n - 5} more` : '';
+  chatSheetNearby.textContent = `${n} here: ${preview}${extra}`;
+}
+
+function setNearbyStrip(players: NearbyPlayer[], isAccount: boolean): void {
+  if (!nearbyStrip) return;
+  const countEl = nearbyStrip.querySelector('.count');
+  const namesEl = nearbyStrip.querySelector('.names');
+  if (countEl) countEl.textContent = String(players.length);
+  if (namesEl) {
+    if (!isAccount) {
+      namesEl.textContent = 'guest mode';
+    } else if (players.length === 0) {
+      namesEl.textContent = 'you are alone here';
+    } else {
+      namesEl.textContent = players.slice(0, 3).map((p) => p.displayName).join(', ');
+    }
+  }
+  nearbyStrip.classList.toggle('guest', !isAccount);
+  nearbyStrip.classList.toggle('offline', isAccount && players.length === 0);
+}
+
+function setStatusPill(kind: 'online' | 'guest' | 'offline'): void {
+  if (!chatStatusPill) return;
+  chatStatusPill.classList.remove('online', 'guest', 'offline');
+  chatStatusPill.classList.add(kind);
+  chatStatusPill.textContent = kind === 'online' ? 'online · Accra' : kind === 'guest' ? 'guest mode' : 'offline';
+}
+
+function updateChatBadge(): void {
+  if (!chatBadge) return;
+  if (chatUnreadCount > 0) {
+    chatBadge.textContent = chatUnreadCount > 99 ? '99+' : String(chatUnreadCount);
+    chatBadge.classList.remove('zero');
+  } else {
+    chatBadge.classList.add('zero');
+  }
+}
+
+function formatChatTime(unixMs: number): string {
+  const d = new Date(unixMs);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 startOnboarding((profile) => startGame(profile));

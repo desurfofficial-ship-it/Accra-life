@@ -2,45 +2,120 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ---------- helpers ----------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    function isValidId(s) {
+      return s is string && s.size() >= 1 && s.size() <= 128 && s.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    function isValidDisplayName(s) {
+      return s is string && s.size() >= 1 && s.size() <= 24;
+    }
+    function isValidLocationId(s) {
+      return s is string && s.size() >= 1 && s.size() <= 64 && s.matches('^[a-z0-9_]+$');
+    }
+    function isValidChatText(s) {
+      return s is string && s.size() >= 1 && s.size() <= 500;
+    }
+
+    // ---------- private player save ----------
     match /players/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if isOwner(userId);
 
       match /friends/{friendId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isOwner(userId);
       }
 
       match /inbox/{msgId} {
-        allow read, delete: if request.auth != null && request.auth.uid == userId;
-        allow create: if request.auth != null;
+        allow read, delete: if isOwner(userId);
+        allow create: if isSignedIn();
       }
     }
 
+    // ---------- public profile ----------
+    match /profiles/{userId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isOwner(userId);
+    }
+
+    // ---------- presence (multiplayer: who is online + where) ----------
+    // A presence doc is intentionally PII-free: displayName, currentLocation,
+    // lastSeenAt, optional look stub, optional in-world coordinates. Anyone
+    // signed in can list with a sane limit so they can see who's nearby.
+    match /presence/{userId} {
+      // Owner can read/write/delete their own presence.
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && isValidId(userId)
+        && request.resource.data.uid is string
+        && request.resource.data.uid == userId
+        && isValidDisplayName(request.resource.data.displayName)
+        && isValidLocationId(request.resource.data.currentLocation)
+        && request.resource.data.lastSeenAt == request.time
+        && (!('posX' in request.resource.data) || request.resource.data.posX is float)
+        && (!('posZ' in request.resource.data) || request.resource.data.posZ is float)
+        && (!('rotY' in request.resource.data) || request.resource.data.rotY is float)
+        && (!('skin' in request.resource.data) || request.resource.data.skin is string)
+        && (!('hair' in request.resource.data) || request.resource.data.hair is string);
+
+      // Anyone signed in can list (so they can see who is at a location).
+      // Cap the page size to prevent scraping.
+      allow list: if isSignedIn() && request.query.limit <= 50;
+      // Individual gets fall through to the doc-level `read` above.
+    }
+
+    // ---------- location chat (broadcast chat for everyone at a place) ----------
+    // chatId == locationId (e.g. "accra_neighborhood"). Messages are
+    // append-only: clients can create (with validation) but never edit/delete.
+    match /location_chats/{locationId}/messages/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.senderId is string
+        && request.resource.data.senderId == request.auth.uid
+        && isValidDisplayName(request.resource.data.senderName)
+        && isValidChatText(request.resource.data.text)
+        && request.resource.data.createdAt == request.time
+        && (!('origin' in request.resource.data) || request.resource.data.origin is string);
+      allow update, delete: if false;
+    }
+    // Top-level location_chats doc (parent) — create-if-missing by any signed-in
+    // user. Allows Firestore to lazily create the parent doc when the first
+    // message is written. Field validation keeps it minimal.
+    match /location_chats/{locationId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && isValidLocationId(locationId)
+        && request.resource.data.id is string
+        && request.resource.data.id == locationId;
+      allow update, delete: if false;
+    }
+
+    // ---------- legacy DM chat (kept for compatibility; no client uses it yet) ----------
     match /chats/{chatId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isSignedIn();
 
       match /messages/{messageId} {
-        allow read: if request.auth != null;
-        allow create: if request.auth != null &&
-          request.resource.data.senderId == request.auth.uid &&
-          request.resource.data.text is string &&
-          request.resource.data.text.size() >= 1 &&
-          request.resource.data.text.size() <= 500 &&
-          (!('read' in request.resource.data) || request.resource.data.read is bool);
-        allow update: if request.auth != null &&
-          resource.data.recipientId == request.auth.uid &&
-          request.resource.data.read is bool &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt']);
-        allow delete: if request.auth != null &&
-          resource.data.senderId == request.auth.uid;
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() >= 1
+          && request.resource.data.text.size() <= 500
+          && (!('read' in request.resource.data) || request.resource.data.read is bool);
+        allow update: if isSignedIn()
+          && resource.data.recipientId == request.auth.uid
+          && request.resource.data.read is bool
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt']);
+        allow delete: if isSignedIn()
+          && resource.data.senderId == request.auth.uid;
       }
     }
 
-    match /profiles/{userId} {
-      allow read: if request.auth != null;
-      allow create, update: if request.auth != null && request.auth.uid == userId;
-      allow delete: if request.auth != null && request.auth.uid == userId;
-    }
-
+    // ---------- catch-all deny ----------
     match /{document=**} {
       allow read, write: if false;
     }
