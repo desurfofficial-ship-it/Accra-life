@@ -1530,6 +1530,7 @@ body.hud-minimal-mode .identity-card {
 
       <div class="hud-loc-nearby-row">
         <div id="currentLocationPill" title="Current Location"><span class="ico">🛣️</span><span class="nm">Osu Oxford Street</span></div>
+        <div id="housingTierPill" title="Housing Tier" style="cursor:pointer"><span class="ico">🛏️</span><span class="nm">Single Room</span><span class="sub" style="font-size:.55rem;color:var(--gta-green);margin-left:2px">-0%</span></div>
         <div id="nearbyStrip" class="guest" role="button" aria-label="Nearby Players in Accra" title="Nearby Players">
           <span class="dot"></span>
           <span class="count">0</span>
@@ -1665,6 +1666,20 @@ body.hud-minimal-mode .identity-card {
     <button id="placementCancelBtn" class="econ-action-btn" type="button" style="background:rgba(239,68,68,0.2);color:var(--gta-red);border-color:rgba(239,68,68,0.5)">✕ Cancel</button>
   </div>
 </div>
+
+<!-- Travel Modal — trotro destinations across Accra -->
+<div id="travelBackdrop" class="economy-modal-backdrop" role="dialog" aria-modal="true">
+  <div class="economy-modal" style="max-width:460px">
+    <div class="modal-header">
+      <h2 style="margin:0;font-family:var(--font-display);font-size:1.1rem">🚐 Trotro — Where to?</h2>
+      <button id="travelCloseBtn" class="modal-close-btn" type="button" aria-label="Close Travel">×</button>
+    </div>
+    <div id="travelBody" class="modal-body" style="max-height:60vh;overflow-y:auto"></div>
+  </div>
+</div>
+
+<!-- Dumsor overlay — darkens the screen when power is out -->
+<div id="dumsorOverlay" style="z-index:5;position:fixed;inset:0;background:rgba(0,0,0,0);pointer-events:none;transition:background 0.5s"></div>
 
 <!-- Location Chat Sheet -->
 <div id="chatModalBackdrop" class="chat-modal-backdrop" role="dialog" aria-modal="true">

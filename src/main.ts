@@ -1359,6 +1359,11 @@ function handleWorldTargetInteracted(target: InteractableTarget): void {
     return;
   }
 
+  if (target.id === 'trotro_stop') {
+    openTravelModal();
+    return;
+  }
+
   openEconomyModal('jobs', target.id);
 }
 
@@ -1474,6 +1479,14 @@ function startGame(profile: OnboardingResult): void {
     // ── Phase-1 housing engine: Home Store + PlacementEngine ────────────────
     initHousingEngine(phase1);
 
+    // ── New HUD pills + travel modal wiring ─────────────────────────────────
+    updateHousingTierPill();
+    updateDumsorVisuals();
+    document.getElementById('travelCloseBtn')?.addEventListener('click', () => closeTravelModal());
+    document.getElementById('travelBackdrop')?.addEventListener('click', (e) => {
+      if (e.target === document.getElementById('travelBackdrop')) closeTravelModal();
+    });
+
     syncEconomyHUD();
 
     const resumedJob = jobSystem.getActiveJob();
@@ -1504,6 +1517,9 @@ function startGame(profile: OnboardingResult): void {
       if (homeVisuals) {
         homeVisuals.setCutawayMode(isPlayerInCompoundCutaway());
       }
+      // Dumsor visual effects — check state change + flicker lights.
+      updateDumsorVisuals();
+      flickerLights();
       const now = performance.now();
       if (now - lastCooldownUiTickMs >= 500) {
         lastCooldownUiTickMs = now;
@@ -1720,6 +1736,10 @@ function initMultiplayer(profile: OnboardingResult, phase1: Phase1Scene): void {
     if (!phase1) return;
     const p = phase1.player.position;
     presenceManager?.reportPosition(p.x, p.z, phase1.player.rotationY);
+    // Travel override: skip bounds-based location detection for 10s after
+    // a travel action (prevents the 2s interval from overriding the
+    // travel-set locationId before the player has "arrived").
+    if (performance.now() < travelOverrideUntilMs) return;
     const newLoc = getLocationAt(p.x, p.z);
     if (newLoc.id !== currentLocationId) {
       currentLocationId = newLoc.id;
@@ -1835,13 +1855,153 @@ function setCurrentLocationPill(locId: LocationId, flash: boolean): void {
   const nmEl = currentLocationPill.querySelector('.nm');
   if (icoEl) icoEl.textContent = def.icon;
   if (nmEl) nmEl.textContent = def.displayName;
-  // Title attr for accessibility / hover tooltip.
   currentLocationPill.setAttribute('title', `${def.displayName} — ${def.flavor}`);
   if (flash) {
     currentLocationPill.classList.remove('flash');
-    // Force reflow so the animation restarts.
     void currentLocationPill.offsetWidth;
     currentLocationPill.classList.add('flash');
+  }
+}
+
+// ── Housing tier HUD pill ────────────────────────────────────────────────────
+function updateHousingTierPill(): void {
+  const pill = document.getElementById('housingTierPill');
+  if (!pill) return;
+  const tier = homeSystem.getHousingTier();
+  const icoEl = pill.querySelector('.ico');
+  const nmEl = pill.querySelector('.nm');
+  const subEl = pill.querySelector('.sub');
+  if (icoEl) icoEl.textContent = tier.icon;
+  if (nmEl) nmEl.textContent = tier.shortLabel.split('·')[0].trim();
+  if (subEl) subEl.textContent = tier.fatigueReductionPct > 0 ? `-${tier.fatigueReductionPct}%` : '';
+  pill.setAttribute('title', `${tier.title} · ${tier.dimensionsLabel} · Fatigue -${tier.fatigueReductionPct}% · Comfort ${homeSystem.getComfortScore()}%`);
+  pill.onclick = () => openHomeSheet();
+}
+
+// ── Travel system ────────────────────────────────────────────────────────────
+interface TravelDestination {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  fare: number;
+  locationId: string;
+  spawnX: number;
+  spawnZ: number;
+}
+
+const TRAVEL_DESTINATIONS: TravelDestination[] = [
+  { id: 'adabraka', name: 'Adabraka', icon: '🏘️', description: 'Your home neighborhood.', fare: 0, locationId: 'adabraka_neighborhood', spawnX: 0, spawnZ: 5.8 },
+  { id: 'makola', name: 'Makola Market', icon: '🏪', description: 'Central market — fresh produce, fabrics, everything.', fare: 6, locationId: 'makola_market', spawnX: -9.5, spawnZ: -9.0 },
+  { id: 'osu', name: 'Osu Oxford Street', icon: '🛣️', description: 'Nightlife, food joints, bars.', fare: 4, locationId: 'osu_oxford_street', spawnX: 8.5, spawnZ: -9.0 },
+  { id: 'labadi', name: 'Labadi Beach', icon: '🏖️', description: 'Relax by the sea. Fresh coconut.', fare: 8, locationId: 'labadi_beach', spawnX: 0, spawnZ: 15.0 },
+  { id: 'circle', name: 'Circle (Kwame Nkrumah)', icon: '🚐', description: 'Transport hub. Hustle central.', fare: 5, locationId: 'circle_trotro_stop', spawnX: 9.0, spawnZ: 7.5 }
+];
+
+let travelOverrideUntilMs = 0;
+
+function openTravelModal(): void {
+  const backdrop = document.getElementById('travelBackdrop');
+  const body = document.getElementById('travelBody');
+  if (!backdrop || !body) return;
+  const fareMult = liveEvents.getModifier('fareMultiplier', 1);
+  const cash = economyManager.wallet.getCashBalance();
+  body.innerHTML = TRAVEL_DESTINATIONS.map((dest) => {
+    const fare = Math.round(dest.fare * fareMult);
+    const canAfford = cash >= fare || dest.fare === 0;
+    const isCurrent = dest.locationId === currentLocationId;
+    return `
+      <div class="furn-row" style="${isCurrent ? 'border-color:var(--gta-yellow);background:rgba(250,204,21,0.06)' : ''}">
+        <div class="furn-meta">
+          <p class="furn-title">${dest.icon} ${dest.name} ${isCurrent ? '<span style="font-size:.6rem;color:var(--gta-yellow);font-weight:800">HERE</span>' : ''}</p>
+          <p class="furn-blurb">${dest.description}</p>
+        </div>
+        <div style="text-align:right">
+          ${dest.fare === 0
+            ? '<span style="font-size:.7rem;color:var(--gta-muted)">Free</span>'
+            : `<span style="font-weight:900;color:${canAfford ? 'var(--gta-green)' : 'var(--gta-red)'}">₵${fare}</span>${fareMult > 1 ? '<span style="font-size:.5rem;color:var(--gta-red)">surge</span>' : ''}<br/><button class="econ-action-btn travel-go-btn" data-dest-id="${dest.id}" ${canAfford && !isCurrent ? '' : 'disabled'} style="font-size:.7rem;padding:4px 10px;${canAfford && !isCurrent ? '' : 'opacity:.4;cursor:not-allowed'}">${isCurrent ? 'Here' : 'Go'}</button>`
+          }
+        </div>
+      </div>
+    `;
+  }).join('');
+  body.querySelectorAll<HTMLButtonElement>('.travel-go-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const destId = btn.dataset.destId!;
+      void travelToDestination(destId);
+    });
+  });
+  backdrop.classList.add('open');
+}
+
+function closeTravelModal(): void {
+  document.getElementById('travelBackdrop')?.classList.remove('open');
+}
+
+async function travelToDestination(destId: string): Promise<void> {
+  const dest = TRAVEL_DESTINATIONS.find((d) => d.id === destId);
+  if (!dest || !phase1SceneRef) return;
+  const fareMult = liveEvents.getModifier('fareMultiplier', 1);
+  const fare = Math.round(dest.fare * fareMult);
+  if (fare > 0) {
+    if (!economyManager.canAfford(fare, 'CASH')) {
+      showInteractionFeedback(`Need ₵${fare} for trotro fare.`, true);
+      return;
+    }
+    economyManager.wallet.spendMoney({
+      amount: fare, category: 'TRANSPORT', description: `Trotro to ${dest.name}`, channel: 'CASH'
+    });
+  }
+  closeTravelModal();
+  // Brief loading overlay
+  showInteractionFeedback(`🚐 Travelling to ${dest.name}...`);
+  // Teleport the player
+  const surfaceY = getSurfaceHeightAt(dest.spawnX, dest.spawnZ);
+  phase1SceneRef.player.position.set(dest.spawnX, surfaceY, dest.spawnZ);
+  phase1SceneRef.player.rotationY = Math.PI;
+  phase1SceneRef.thirdPersonCamera.resetBehindPlayer(Math.PI);
+  // Update location (presence + chat switch)
+  currentLocationId = dest.locationId as LocationId;
+  travelOverrideUntilMs = performance.now() + 10_000; // prevent bounds-override for 10s
+  presenceManager?.updateLocation(dest.locationId);
+  chatManager?.switchLocation(dest.locationId as LocationId);
+  setCurrentLocationPill(dest.locationId as LocationId, true);
+  if (chatSheetTitle) chatSheetTitle.textContent = `At ${dest.name}`;
+  updateHousingTierPill();
+  syncEconomyHUD();
+  setTimeout(() => showInteractionFeedback(`Arrived at ${dest.name}!`), 500);
+}
+
+// ── Dumsor visual effects ────────────────────────────────────────────────────
+let dumsorActive = false;
+let dumsorFlickerTimer = 0;
+
+function updateDumsorVisuals(): void {
+  const isDumsor = liveEvents.getModifier('funDecayMultiplier', 1) > 1;
+  if (isDumsor === dumsorActive) return;
+  dumsorActive = isDumsor;
+  const overlay = document.getElementById('dumsorOverlay');
+  if (overlay) {
+    overlay.style.background = isDumsor ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0)';
+  }
+  // Show/hide a dumsor toast on state change
+  if (isDumsor) {
+    showInteractionFeedback('⚡ DUMSOR! Power cut across Accra.');
+  } else {
+    showInteractionFeedback('⚡ Power restored.');
+  }
+}
+
+function flickerLights(): void {
+  if (!dumsorActive || !phase1SceneRef) return;
+  // Flicker the dumsor overlay (random darkening)
+  dumsorFlickerTimer++;
+  if (dumsorFlickerTimer % 4 === 0) { // every 4 frames (~15fps flicker)
+    const overlay = document.getElementById('dumsorOverlay');
+    if (overlay) {
+      const intensity = 0.2 + Math.random() * 0.15; // 0.2-0.35
+      overlay.style.background = `rgba(0,0,0,${intensity})`;
+    }
   }
 }
 

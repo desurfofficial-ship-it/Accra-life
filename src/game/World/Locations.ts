@@ -14,7 +14,10 @@ export type LocationId =
   | 'osu_waakye_joint'
   | 'circle_trotro_stop'
   | 'osu_oxford_street'
-  | 'adabraka_neighborhood';
+  | 'adabraka_neighborhood'
+  // Travel destinations (set directly by the travel system, not via bounds)
+  | 'makola_market'
+  | 'labadi_beach';
 
 export interface Bounds2D {
   minX: number;
