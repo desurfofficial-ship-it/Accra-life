@@ -108,13 +108,20 @@ export class EconomyPersistence {
     try {
       const { auth, db } = await import('../../firebase');
       if (!auth.currentUser) return;
-      const { doc, setDoc } = await import('firebase/firestore');
+      const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
       const playerRef = doc(db, 'players', auth.currentUser.uid);
+      // Strict security rules require:
+      //   - ownerId == auth.uid on every write (so create-rule identity check passes)
+      //   - updatedAt == serverTimestamp() (blocks forged-timestamp attack — Payload 10)
+      // playerId and createdAt are intentionally NOT included here; they are
+      // handled lazily by the rules (immutable on update, optional on create)
+      // so this merge works whether the doc already exists or not.
       await setDoc(
         playerRef,
         {
+          ownerId: auth.currentUser.uid,
           phase3Economy: snapshot,
-          updatedAt: Date.now()
+          updatedAt: serverTimestamp()
         },
         { merge: true }
       );

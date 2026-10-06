@@ -1,5 +1,5 @@
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../../firebase';
 import { PaymentChannel, TransactionCategory } from './EconomicTypes';
 import { createTransactionRecord, TransactionRecord } from './Transaction';
@@ -398,35 +398,30 @@ export class Wallet {
 
     const playerPath = `players/${user.uid}`;
     const serialized = this.serialize();
-    const isoNow = new Date().toISOString();
+    // Strict security rules require server-set timestamps (blocks Payload 10
+    // forged-timestamp attack). The rules also require ownerId == auth.uid
+    // on every write so the create-rule identity check passes.
+    const playerPayload: Record<string, unknown> = {
+      ownerId: user.uid,
+      displayName: user.displayName || 'Kwame (Accra Resident)',
+      state: {
+        wallet: serialized
+      },
+      updatedAt: serverTimestamp()
+    };
+    const profilePayload: Record<string, unknown> = {
+      ownerId: user.uid,
+      displayName: user.displayName || 'Kwame (Accra Resident)',
+      day: 1,
+      career: 'Adabraka Hustler',
+      money: Math.floor(this.cashBalance),
+      location: 'Adabraka Neighborhood',
+      updatedAt: serverTimestamp()
+    };
 
     try {
-      await setDoc(
-        doc(db, 'players', user.uid),
-        {
-          ownerId: user.uid,
-          displayName: user.displayName || 'Kwame (Accra Resident)',
-          state: {
-            wallet: serialized
-          },
-          updatedAt: isoNow
-        },
-        { merge: true }
-      );
-
-      await setDoc(
-        doc(db, 'profiles', user.uid),
-        {
-          ownerId: user.uid,
-          displayName: user.displayName || 'Kwame (Accra Resident)',
-          day: 1,
-          career: 'Adabraka Hustler',
-          money: Math.floor(this.cashBalance),
-          location: 'Adabraka Neighborhood',
-          updatedAt: isoNow
-        },
-        { merge: true }
-      );
+      await setDoc(doc(db, 'players', user.uid), playerPayload, { merge: true });
+      await setDoc(doc(db, 'profiles', user.uid), profilePayload, { merge: true });
       return true;
     } catch (error) {
       const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();

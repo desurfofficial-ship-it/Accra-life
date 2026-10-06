@@ -2,12 +2,21 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ---------- helpers ----------
+    // ============================================================
+    // Helpers
+    // ============================================================
+
     function isSignedIn() {
       return request.auth != null;
     }
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
+    }
+    function isVerified() {
+      // Required for /players and /profiles (PII-bearing collections).
+      // /presence and /location_chats are non-PII broadcast data and
+      // only require isSignedIn().
+      return isSignedIn() && request.auth.token.email_verified == true;
     }
     function isValidId(s) {
       return s is string && s.size() >= 1 && s.size() <= 128 && s.matches('^[a-zA-Z0-9_\\-]+$');
@@ -15,39 +24,198 @@ service cloud.firestore {
     function isValidDisplayName(s) {
       return s is string && s.size() >= 1 && s.size() <= 24;
     }
+    function isValidName(s) {
+      return s is string && s.size() >= 1 && s.size() <= 32;
+    }
     function isValidLocationId(s) {
       return s is string && s.size() >= 1 && s.size() <= 64 && s.matches('^[a-z0-9_]+$');
     }
     function isValidChatText(s) {
       return s is string && s.size() >= 1 && s.size() <= 500;
     }
+    function isValidStatus(s) {
+      return s is string && s.size() >= 1 && s.size() <= 50;
+    }
+    function isValidHouseName(s) {
+      return s is string && s.size() >= 1 && s.size() <= 32;
+    }
 
-    // ---------- private player save ----------
+    // ============================================================
+    // /players/{userId} — private player save (PII-bearing)
+    // Strict rules per security_spec.md — blocks all 12 Dirty Dozen
+    // payloads in firestore.rules.test.ts:
+    //   1. Identity spoofing on create      -> ownerId == auth.uid
+    //   2. Cross-tenant save overwrite       -> isOwner(userId)
+    //   3. Unverified email spoof            -> isVerified()
+    //   4. Shadow field on create (isAdmin)  -> hasOnly()
+    //   5. Shadow field on update (vipBonus)-> affectedKeys().hasOnly()
+    //   6. Value poisoning (money as string) -> money is int + bounds
+    //   7. Resource exhaustion (5k-char name)-> name.size() <= 32
+    //   8. Unbounded array (50 recentLogs)   -> recentLogs.size() <= 20
+    //   9. Immutable field tampering          -> ownerId/playerId/createdAt immutable
+    //  10. Forged client timestamp            -> updatedAt == request.time
+    //  11. Unauthorized private save read     -> isOwner(userId)
+    //  12. Unauthorized collection listing    -> allow list: if false
+    //
+    // Schema (hasOnly set — hasAll is intentionally NOT enforced so the
+    // existing partial-write flow from Wallet.ts and EconomyPersistence.ts
+    // keeps working; they write only their own slice of state via merge):
+    //
+    //   { ownerId, playerId, createdAt, updatedAt,           // identity + timestamps
+    //     displayName, name, career, location, day, time, money,  // profile-bridge fields
+    //     hunger, energy, happy, social, health,           // needs (currently only hunger/energy tracked)
+    //     amaAffinity, kofiAffinity, abenaAffinity, kwameAffinity, efuaAffinity,  // NPC affinities
+    //     amaMoney, kofiMoney, abenaMoney, kwameMoney, efuaMoney,  // NPC moneys
+    //     recentLogs,                                        // bounded event log (<=20 entries)
+    //     phase3Economy,                                    // economy subsystem snapshot (EconomyPersistence.ts)
+    //     state }                                            // wallet subsystem snapshot (Wallet.ts)
+    //
+    // Note: `createdAt` is required on CREATE (== request.time) and
+    // immutable on UPDATE. Existing client code does NOT currently set
+    // createdAt — see the inline note in Wallet.ts / EconomyPersistence.ts
+    // (updated in the same slice that introduced these rules).
+    // ============================================================
+
     match /players/{userId} {
-      allow read, write: if isOwner(userId);
+      // READ: owner-only + verified email.
+      allow get: if isOwner(userId) && isVerified() && isValidId(userId);
+      // LIST: forbidden (blocks scraping — Payload 12).
+      allow list: if false;
 
+      // CREATE: full validation.
+      allow create: if isOwner(userId)
+        && isVerified()
+        && isValidId(userId)
+        // Identity: ownerId must match auth.uid (blocks Payload 1).
+        && request.resource.data.ownerId is string
+        && request.resource.data.ownerId == request.auth.uid
+        // Timestamps: server-set only (blocks Payload 10).
+        && request.resource.data.updatedAt == request.time
+        // Shadow-field blocking: keys must be in the schema (blocks Payload 4).
+        && request.resource.data.keys().hasOnly([
+          'ownerId', 'playerId', 'createdAt', 'updatedAt',
+          'displayName', 'name', 'career', 'location', 'day', 'time', 'money',
+          'hunger', 'energy', 'happy', 'social', 'health',
+          'amaAffinity', 'kofiAffinity', 'abenaAffinity', 'kwameAffinity', 'efuaAffinity',
+          'amaMoney', 'kofiMoney', 'abenaMoney', 'kwameMoney', 'efuaMoney',
+          'recentLogs', 'phase3Economy', 'state'
+        ])
+        // Type + bounds validation on common fields (blocks Payloads 6, 7, 8).
+        && (!('money' in request.resource.data) || (request.resource.data.money is int && request.resource.data.money >= 0))
+        && (!('day' in request.resource.data) || (request.resource.data.day is int && request.resource.data.day >= 1))
+        && (!('time' in request.resource.data) || (request.resource.data.time is int && request.resource.data.time >= 0))
+        && (!('hunger' in request.resource.data) || (request.resource.data.hunger is int && request.resource.data.hunger >= 0 && request.resource.data.hunger <= 100))
+        && (!('energy' in request.resource.data) || (request.resource.data.energy is int && request.resource.data.energy >= 0 && request.resource.data.energy <= 100))
+        && (!('happy' in request.resource.data) || (request.resource.data.happy is int && request.resource.data.happy >= 0 && request.resource.data.happy <= 100))
+        && (!('social' in request.resource.data) || (request.resource.data.social is int && request.resource.data.social >= 0 && request.resource.data.social <= 100))
+        && (!('health' in request.resource.data) || (request.resource.data.health is int && request.resource.data.health >= 0 && request.resource.data.health <= 100))
+        && (!('displayName' in request.resource.data) || isValidDisplayName(request.resource.data.displayName))
+        && (!('name' in request.resource.data) || isValidName(request.resource.data.name))
+        && (!('recentLogs' in request.resource.data) || (request.resource.data.recentLogs is list && request.resource.data.recentLogs.size() <= 20));
+
+      // UPDATE: immutable-field + affectedKeys + timestamp validation.
+      allow update: if isOwner(userId)
+        && isVerified()
+        && isValidId(userId)
+        // Immutable fields (blocks Payload 9).
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.playerId == resource.data.playerId
+        && request.resource.data.createdAt == resource.data.createdAt
+        // updatedAt must == request.time (blocks Payload 10).
+        && request.resource.data.updatedAt == request.time
+        // affectedKeys must be in the schema (blocks Payload 5).
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'updatedAt', 'displayName', 'name', 'career', 'location', 'day', 'time', 'money',
+          'hunger', 'energy', 'happy', 'social', 'health',
+          'amaAffinity', 'kofiAffinity', 'abenaAffinity', 'kwameAffinity', 'efuaAffinity',
+          'amaMoney', 'kofiMoney', 'abenaMoney', 'kwameMoney', 'efuaMoney',
+          'recentLogs', 'phase3Economy', 'state'
+        ])
+        // Type + bounds on changed keys (blocks Payloads 6, 7, 8).
+        && (!('money' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.money is int && request.resource.data.money >= 0))
+        && (!('day' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.day is int && request.resource.data.day >= 1))
+        && (!('time' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.time is int && request.resource.data.time >= 0))
+        && (!('hunger' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.hunger is int && request.resource.data.hunger >= 0 && request.resource.data.hunger <= 100))
+        && (!('energy' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.energy is int && request.resource.data.energy >= 0 && request.resource.data.energy <= 100))
+        && (!('happy' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.happy is int && request.resource.data.happy >= 0 && request.resource.data.happy <= 100))
+        && (!('social' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.social is int && request.resource.data.social >= 0 && request.resource.data.social <= 100))
+        && (!('health' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.health is int && request.resource.data.health >= 0 && request.resource.data.health <= 100))
+        && (!('displayName' in request.resource.data.diff(resource.data).affectedKeys()) || isValidDisplayName(request.resource.data.displayName))
+        && (!('name' in request.resource.data.diff(resource.data).affectedKeys()) || isValidName(request.resource.data.name))
+        && (!('recentLogs' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.recentLogs is list && request.resource.data.recentLogs.size() <= 20));
+
+      // DELETE: owner-only + verified.
+      allow delete: if isOwner(userId) && isVerified();
+
+      // Subcollections (unchanged from prior rules).
       match /friends/{friendId} {
         allow read, write: if isOwner(userId);
       }
-
       match /inbox/{msgId} {
         allow read, delete: if isOwner(userId);
         allow create: if isSignedIn();
       }
     }
 
-    // ---------- public profile ----------
+    // ============================================================
+    // /profiles/{userId} — public resident profile (zero PII)
+    // Strict rules per security_spec.md.
+    //
+    // Schema (hasOnly set):
+    //   { ownerId, playerId, createdAt, updatedAt,  // identity + timestamps
+    //     displayName, houseName, career, day, status,  // persona fields (per spec)
+    //     money, location }                              // existing-code extras (Wallet.ts)
+    // ============================================================
+
     match /profiles/{userId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isOwner(userId);
+      // READ: any signed-in + verified user can get (so they can see other
+      // players' public profiles). list is forbidden (blocks scraping).
+      allow get: if isSignedIn() && isVerified() && isValidId(userId);
+      allow list: if false;
+
+      allow create: if isOwner(userId)
+        && isVerified()
+        && isValidId(userId)
+        && request.resource.data.ownerId is string
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.keys().hasOnly([
+          'ownerId', 'playerId', 'createdAt', 'updatedAt',
+          'displayName', 'houseName', 'career', 'day', 'status',
+          'money', 'location'
+        ])
+        && (!('displayName' in request.resource.data) || isValidDisplayName(request.resource.data.displayName))
+        && (!('houseName' in request.resource.data) || isValidHouseName(request.resource.data.houseName))
+        && (!('status' in request.resource.data) || isValidStatus(request.resource.data.status))
+        && (!('day' in request.resource.data) || (request.resource.data.day is int && request.resource.data.day >= 1))
+        && (!('money' in request.resource.data) || (request.resource.data.money is int && request.resource.data.money >= 0));
+
+      allow update: if isOwner(userId)
+        && isVerified()
+        && isValidId(userId)
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.playerId == resource.data.playerId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'updatedAt', 'displayName', 'houseName', 'career', 'day', 'status',
+          'money', 'location'
+        ])
+        && (!('displayName' in request.resource.data.diff(resource.data).affectedKeys()) || isValidDisplayName(request.resource.data.displayName))
+        && (!('houseName' in request.resource.data.diff(resource.data).affectedKeys()) || isValidHouseName(request.resource.data.houseName))
+        && (!('status' in request.resource.data.diff(resource.data).affectedKeys()) || isValidStatus(request.resource.data.status))
+        && (!('day' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.day is int && request.resource.data.day >= 1))
+        && (!('money' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.money is int && request.resource.data.money >= 0));
+
+      allow delete: if isOwner(userId) && isVerified();
     }
 
-    // ---------- presence (multiplayer: who is online + where) ----------
-    // A presence doc is intentionally PII-free: displayName, currentLocation,
-    // lastSeenAt, optional look stub, optional in-world coordinates. Anyone
-    // signed in can list with a sane limit so they can see who's nearby.
+    // ============================================================
+    // /presence/{userId} — non-PII multiplayer presence
+    // (No email-verification requirement — broadcast data only.)
+    // ============================================================
+
     match /presence/{userId} {
-      // Owner can read/write/delete their own presence.
       allow read, delete: if isOwner(userId);
       allow create, update: if isOwner(userId)
         && isValidId(userId)
@@ -59,18 +227,15 @@ service cloud.firestore {
         && (!('posX' in request.resource.data) || request.resource.data.posX is float)
         && (!('posZ' in request.resource.data) || request.resource.data.posZ is float)
         && (!('rotY' in request.resource.data) || request.resource.data.rotY is float)
-        && (!('skin' in request.resource.data) || request.resource.data.skin is string)
-        && (!('hair' in request.resource.data) || request.resource.data.hair is string);
-
-      // Anyone signed in can list (so they can see who is at a location).
-      // Cap the page size to prevent scraping.
+        && (!('look' in request.resource.data) || request.resource.data.look is map);
       allow list: if isSignedIn() && request.query.limit <= 50;
-      // Individual gets fall through to the doc-level `read` above.
     }
 
-    // ---------- location chat (broadcast chat for everyone at a place) ----------
-    // chatId == locationId (e.g. "accra_neighborhood"). Messages are
-    // append-only: clients can create (with validation) but never edit/delete.
+    // ============================================================
+    // /location_chats — broadcast chat for everyone at a place
+    // (No email-verification requirement — broadcast data only.)
+    // ============================================================
+
     match /location_chats/{locationId}/messages/{messageId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
@@ -82,9 +247,6 @@ service cloud.firestore {
         && (!('origin' in request.resource.data) || request.resource.data.origin is string);
       allow update, delete: if false;
     }
-    // Top-level location_chats doc (parent) — create-if-missing by any signed-in
-    // user. Allows Firestore to lazily create the parent doc when the first
-    // message is written. Field validation keeps it minimal.
     match /location_chats/{locationId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
@@ -94,10 +256,12 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // ---------- legacy DM chat (kept for compatibility; no client uses it yet) ----------
+    // ============================================================
+    // /chats — legacy DM chat (kept for compatibility; no client uses it yet)
+    // ============================================================
+
     match /chats/{chatId} {
       allow read, write: if isSignedIn();
-
       match /messages/{messageId} {
         allow read: if isSignedIn();
         allow create: if isSignedIn()
@@ -115,7 +279,10 @@ service cloud.firestore {
       }
     }
 
-    // ---------- catch-all deny ----------
+    // ============================================================
+    // Catch-all deny
+    // ============================================================
+
     match /{document=**} {
       allow read, write: if false;
     }

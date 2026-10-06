@@ -29,6 +29,7 @@ import { FURNITURE_CATALOG, HomeSystem } from './game/Home/HomeSystem';
 import { HomeFurnitureVisuals } from './game/Home/HomeFurnitureVisuals';
 import { PresenceManager, type PresenceStatus } from './game/Multiplayer/PresenceManager';
 import { LocationChatManager } from './game/Multiplayer/LocationChatManager';
+import { NearbyPlayerAvatars } from './game/Multiplayer/NearbyPlayerAvatars';
 import type { NearbyPlayer, ChatMessageView } from './game/Multiplayer/types';
 import { getLocationAt, getLocationDef, type LocationId } from './game/World/Locations';
 
@@ -96,6 +97,7 @@ const chatSendBtn = document.getElementById('chatSendBtn') as HTMLButtonElement 
 const nearbyStrip = document.getElementById('nearbyStrip');
 const currentLocationPill = document.getElementById('currentLocationPill');
 let currentLocationId: LocationId = 'adabraka_neighborhood';
+let nearbyAvatars: NearbyPlayerAvatars | null = null;
 
 const economyManager = new EconomyManager();
 const jobSystem = new JobManager(economyManager);
@@ -927,6 +929,7 @@ function startGame(profile: OnboardingResult): void {
     const tick = () => {
       crimeSystem.tickHeatDecay(1 / 60);
       needsSystem.tick(1 / 60);
+      nearbyAvatars?.update(1 / 60);
       if (homeVisuals) {
         const p = phase1.player.position;
         const isInsideCompound =
@@ -1069,6 +1072,9 @@ function initMultiplayer(profile: OnboardingResult, phase1: Phase1Scene): void {
   setCurrentLocationPill(spawnLoc.id, false);
   if (chatSheetTitle) chatSheetTitle.textContent = `At ${spawnLoc.displayName}`;
 
+  // Spawn the nearby-avatar renderer so other Accraians are visible in 3D.
+  nearbyAvatars = new NearbyPlayerAvatars(phase1.scene);
+
   // Chat: always start (guests can read). Presence: only for accounts.
   chatManager.enter();
   if (isAccountMode) {
@@ -1132,6 +1138,7 @@ function initMultiplayer(profile: OnboardingResult, phase1: Phase1Scene): void {
   presenceManager.onNearby((players) => {
     setNearbyStrip(players, isAccountMode);
     if (chatSheetOpen) renderChatSheetNearby(players);
+    nearbyAvatars?.syncFromNearby(players);
   });
   presenceManager.onStatus((status) => {
     if (isAccountMode) {
