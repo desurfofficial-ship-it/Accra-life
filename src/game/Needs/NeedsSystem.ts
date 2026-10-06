@@ -95,18 +95,21 @@ export class NeedsSystem {
     };
   }
 
-  /** Sleep / rest at compound */
-  public sleep(): { success: boolean; message: string } {
+  /** Sleep / rest at compound. Optional bonus (e.g. own a bed). */
+  public sleep(bonus = 0): { success: boolean; message: string } {
     if (this.energy >= 95) {
       return { success: false, message: 'Already rested.' };
     }
     const before = this.energy;
-    this.energy = Math.min(100, this.energy + SLEEP_ENERGY_RESTORE);
+    const restore = SLEEP_ENERGY_RESTORE + Math.max(0, bonus);
+    this.energy = Math.min(100, this.energy + restore);
     this.persist();
     this.notify();
     return {
       success: true,
-      message: `Rested at the compound. Energy ${Math.round(before)} → ${Math.round(this.energy)}.`
+      message: bonus > 0
+        ? `Slept on a real bed. Energy ${Math.round(before)} → ${Math.round(this.energy)}.`
+        : `Rested. Energy ${Math.round(before)} → ${Math.round(this.energy)}.`
     };
   }
 
