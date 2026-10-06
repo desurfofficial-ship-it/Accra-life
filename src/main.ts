@@ -26,12 +26,16 @@ import {
 } from './game/Jobs/JobRegistry';
 import { InteractableTarget } from './game/Player/InteractionSystem';
 import { NeedsSystem } from './game/Needs/NeedsSystem';
-import { FURNITURE_CATALOG, HOUSING_TIERS, HomeSystem, type FurnitureId } from './game/Home/HomeSystem';
+import { FURNITURE_CATALOG, HOUSING_TIERS, HomeSystem, type FurnitureId, type HomeState, type HousingTierId, type PlacedFurnitureInstance } from './game/Home/HomeSystem';
+import { LiveEventsSystem, type ActiveLiveEventState } from './game/Events/LiveEventsSystem';
+import { NearbyPlayerAvatars } from './game/Multiplayer/NearbyPlayerAvatars';
 import { PlacementEngine, buildPlacedFurnitureMesh } from './game/Housing/PlacementEngine';
 import { HomeFurnitureVisuals } from './game/Home/HomeFurnitureVisuals';
+import { fetchHomeShowcase, publishHomeShowcase, setDevShowcaseOverride } from './game/Home/HomeShowcase';
 import { rebuildPlayerCompoundForTier, isPlayerInCompoundCutaway } from './game/World/PlayerCompound';
 import { PresenceManager, type PresenceStatus } from './game/Multiplayer/PresenceManager';
 import { LocationChatManager } from './game/Multiplayer/LocationChatManager';
+import { FriendsSystem, type FriendEntry, type InboxMessageView } from './game/Multiplayer/FriendsSystem';
 import type { NearbyPlayer, ChatMessageView } from './game/Multiplayer/types';
 import { getLocationAt, getLocationDef, type LocationId } from './game/World/Locations';
 
@@ -98,7 +102,41 @@ const chatInput = document.getElementById('chatInput') as HTMLInputElement | nul
 const chatSendBtn = document.getElementById('chatSendBtn') as HTMLButtonElement | null;
 const nearbyStrip = document.getElementById('nearbyStrip');
 const currentLocationPill = document.getElementById('currentLocationPill');
+const liveEventPillEl = document.getElementById('liveEventPill');
+const liveEventTextEl = document.getElementById('liveEventText');
 let currentLocationId: LocationId = 'adabraka_neighborhood';
+
+// ---- Friends + home visiting module refs ----
+let friendsSystem: FriendsSystem | null = null;
+let friendsSheetOpen = false;
+const friendsOpenBtn = document.getElementById('friendsOpenBtn');
+const friendsBadge = document.getElementById('friendsBadge');
+const friendsModalBackdrop = document.getElementById('friendsModalBackdrop');
+const friendsCloseBtn = document.getElementById('friendsCloseBtn');
+const friendsRequestsEl = document.getElementById('friendsRequests');
+const friendsListEl = document.getElementById('friendsList');
+const friendsNearbyEl = document.getElementById('friendsNearby');
+const friendsActivityEl = document.getElementById('friendsActivity');
+const visitBannerEl = document.getElementById('visitBanner');
+const visitBannerTextEl = document.getElementById('visitBannerText');
+const visitLeaveBtn = document.getElementById('visitLeaveBtn');
+
+/**
+ * Active home visit session. While set, the world compound shows the
+ * HOST's tier + furniture; the local player's HomeSystem state is NEVER
+ * mutated (their own save is safe) and all home-editing entry points are
+ * blocked until leaveVisitMode() restores the player's own compound.
+ */
+interface VisitSession {
+  hostUid: string;
+  hostName: string;
+  savedTier: HousingTierId;
+  hostTier: HousingTierId;
+}
+let visitSession: VisitSession | null = null;
+const visitFurnitureMeshes: THREE.Object3D[] = [];
+/** Host uids we already sent a visit ping to this session (courtesy dedupe). */
+const visitPingSentFor = new Set<string>();
 
 const economyManager = new EconomyManager();
 const jobSystem = new JobManager(economyManager);
@@ -106,6 +144,18 @@ const crimeSystem = new HeatSystem(economyManager);
 const needsSystem = new NeedsSystem();
 const homeSystem = new HomeSystem();
 let homeVisuals: HomeFurnitureVisuals | null = null;
+// ---- Live events + 3D nearby avatars (Task: wire dormant systems) ----
+let nearbyAvatars: NearbyPlayerAvatars | null = null;
+let liveEvents: LiveEventsSystem | null = null;
+let lastLiveEventId: string | null = null;
+let lastLiveEventShownSeconds = -1;
+// ── Housing: 3D mesh registry + shared room origin ──────────────────────
+// instanceId → live mesh. Lets us add/remove meshes the moment furniture is
+// placed or sold, instead of waiting for the next game reload.
+// Shared room origin (compound interior floor center, per PlayerCompound).
+const ROOM_ORIGIN = new THREE.Vector3(-10.5, 0.24, 11.1);
+// Debounce handle for the housing → Firestore cloud sync.
+let housingCloudSyncTimer: ReturnType<typeof setTimeout> | null = null;
 let playerDisplayName = 'Chale';
 let playerTrait: TraitId = (loadSavedProfile()?.trait as TraitId) || 'hustler';
 let lastCooldownUiTickMs = 0;
@@ -751,7 +801,21 @@ function renderModalTabContent(): void {
   }
 }
 
+/** True while the local player is inside a friend's home (visit mode). */
+function isVisiting(): boolean {
+  return visitSession !== null;
+}
+
+/** Guard for home-editing entry points — blocked during a home visit. */
+function blockIfVisiting(actionLabel = 'that'): boolean {
+  if (!visitSession) return false;
+  showInteractionFeedback(`Not your crib while visiting ${visitSession.hostName} — leave first.`, true);
+  void actionLabel;
+  return true;
+}
+
 function openHomeSheet(): void {
+  if (blockIfVisiting('home sheet')) return;
   const backdrop = document.getElementById('homeModalBackdrop');
   const titleEl = document.getElementById('homeSheetTitle');
   const flexEl = document.getElementById('homeFlexScore');
@@ -888,6 +952,7 @@ function openHomeSheet(): void {
       const upgBtn = card.querySelector('button');
       if (upgBtn && !isCurrent) {
         upgBtn.addEventListener('click', () => {
+          if (blockIfVisiting('upgrade')) return;
           const res = homeSystem.upgradeHousing(
             tier.id,
             (c) => economyManager.canAfford(c, 'CASH'),
@@ -988,24 +1053,9 @@ function openHomeSheet(): void {
           });
           showInteractionFeedback(res.message, !res.success);
           if (res.success) {
-            // Remove the 3D mesh from the scene immediately (no reload needed).
-            const mesh = placedFurnitureMeshes.get(inst.instanceId);
-            if (mesh && phase1SceneRef) {
-              phase1SceneRef.scene.remove(mesh);
-              mesh.traverse((obj) => {
-                const m = obj as THREE.Mesh;
-                if (m.isMesh) {
-                  m.geometry?.dispose?.();
-                  const mat = m.material;
-                  if (Array.isArray(mat)) mat.forEach((mm) => mm.dispose?.());
-                  else mat?.dispose?.();
-                }
-              });
-              placedFurnitureMeshes.delete(inst.instanceId);
-            }
-            // Re-sync HomeFurnitureVisuals (the sold item is no longer in
-            // 'owned' so it won't render at a fixed slot either).
-            // Fixed-slot rendering disabled — PlacementEngine is the sole furniture renderer;
+            // Diff-based sync removes + disposes the sold mesh immediately.
+            if (phase1SceneRef) syncPlacedFurnitureMeshes(phase1SceneRef.scene);
+            homeVisuals?.sync(homeSystem.getOwned(), homeSystem.getPlaced());
             syncEconomyHUD();
             openHomeSheet();
           }
@@ -1018,7 +1068,9 @@ function openHomeSheet(): void {
     // 5. Furniture-gated action buttons (Phase-3 gameplay depth).
     // These appear ONLY when the relevant furniture is placed — making
     // furniture purchases meaningful for gameplay, not just decoration.
-    const placedItems = homeSystem.getPlaced();
+    // (placedItems/hasTV/hasSofa reuse the function-scope declarations above —
+    // a previous local re-declaration here shadowed them and crashed the
+    // welcome-banner path with a TDZ ReferenceError at runtime.)
     const hasTV = placedItems.some((p) => p.catalogId === 'tv_basic' || p.catalogId === 'tv');
     const hasSofa = placedItems.some((p) => p.catalogId === 'sofa_basic' || p.catalogId === 'sofa');
     if (hasTV || hasSofa) {
@@ -1087,11 +1139,6 @@ function initHousingEngine(phase1: Phase1Scene): void {
   // center (where the placement engine's origin sits) is at the interior
   // floor center, which is around (-10.5, 0.24, 11.1) — slightly south of
   // the compound group's position because the interior is offset.
-  const ROOM_ORIGIN_X = -10.5;
-  const ROOM_ORIGIN_Y = 0.24;
-  const ROOM_ORIGIN_Z = 11.1;
-  const ROOM_ORIGIN = new THREE.Vector3(ROOM_ORIGIN_X, ROOM_ORIGIN_Y, ROOM_ORIGIN_Z);
-
   placementEngine = new PlacementEngine(
     phase1.scene,
     phase1.thirdPersonCamera.camera,
@@ -1100,18 +1147,12 @@ function initHousingEngine(phase1: Phase1Scene): void {
     {
       onPlaced: (instanceId) => {
         hidePlacementHud();
-        // Build + add + register the placed furniture mesh so it renders
-        // immediately in the 3D scene (not just on reload).
-        const placed = homeSystem.getPlaced().find((p) => p.instanceId === instanceId);
-        if (placed) {
-          const mesh = buildPlacedFurnitureMesh(placed, ROOM_ORIGIN);
-          phase1.scene.add(mesh);
-          placedFurnitureMeshes.set(instanceId, mesh);
-        }
-        // Also re-sync HomeFurnitureVisuals so the fixed-slot copy (if any)
-        // is removed (prevents double-rendering).
-        // Fixed-slot rendering disabled — PlacementEngine is the sole furniture renderer;
         showInteractionFeedback('Placed! ✓', false);
+        // Render the confirmed furniture immediately + remove any legacy
+        // fixed-slot copy via the homeVisuals resync (prevents double-render).
+        if (phase1SceneRef) syncPlacedFurnitureMeshes(phase1SceneRef.scene);
+        homeVisuals?.sync(homeSystem.getOwned(), homeSystem.getPlaced());
+        void instanceId;
       },
       onCancelled: () => {
         hidePlacementHud();
@@ -1127,15 +1168,11 @@ function initHousingEngine(phase1: Phase1Scene): void {
       }
     }
   );
-  placementEngine.setRoomOrigin(ROOM_ORIGIN_X, ROOM_ORIGIN_Y, ROOM_ORIGIN_Z);
+  placementEngine.setRoomOrigin(-10.5, 0.24, 11.1);
 
-  // Render previously-placed furniture on game start (persistence).
-  placedFurnitureMeshes.clear();
-  for (const inst of homeSystem.getPlaced()) {
-    const mesh = buildPlacedFurnitureMesh(inst, ROOM_ORIGIN);
-    phase1.scene.add(mesh);
-    placedFurnitureMeshes.set(inst.instanceId, mesh);
-  }
+  // Render previously-placed furniture on game start (persistence) via the
+  // single diff-based sync (boot / place / sell / cloud restore all use it).
+  syncPlacedFurnitureMeshes(phase1.scene);
 
   // Wire Home Store button.
   document.getElementById('homeStoreBtn')?.addEventListener('click', () => {
@@ -1170,6 +1207,7 @@ function initHousingEngine(phase1: Phase1Scene): void {
 }
 
 function openHomeStore(): void {
+  if (blockIfVisiting('the Home Store')) return;
   document.getElementById('homeStoreBackdrop')?.classList.add('open');
   renderHomeStoreBody();
 }
@@ -1262,6 +1300,7 @@ function renderHomeStoreBody(): void {
 }
 
 function enterPlacementMode(catalogId: FurnitureId): void {
+  if (blockIfVisiting('placement')) return;
   if (!placementEngine) return;
   // Set room origin again in case the housing tier changed (room moves).
   const tier = homeSystem.getHousingTier();
@@ -1359,11 +1398,6 @@ function handleWorldTargetInteracted(target: InteractableTarget): void {
     return;
   }
 
-  if (target.id === 'trotro_stop') {
-    openTravelModal();
-    return;
-  }
-
   openEconomyModal('jobs', target.id);
 }
 
@@ -1404,7 +1438,14 @@ function startGame(profile: OnboardingResult): void {
       // bed, etc.) — not just the legacy 'bed' ownership check.
       const agg = homeSystem.getAggregateGameplayEffects();
       const bedBonus = agg.sleepEnergyBonus;
-      const totalSleepRestore = Math.min(100, tier.sleepEnergyRestore + bedBonus);
+      let totalSleepRestore = Math.min(100, tier.sleepEnergyRestore + bedBonus);
+      // ECG Dumsor: power outage makes sleep worse — unless a Backup
+      // Generator is placed in the compound (+15 instead of -15).
+      const dumsorEv = liveEvents?.getActiveEvent()?.event ?? null;
+      if (dumsorEv?.isDumsor) {
+        const hasGenerator = homeSystem.getPlaced().some((p) => p.catalogId === 'generator');
+        totalSleepRestore = Math.max(20, totalSleepRestore + (hasGenerator ? 15 : -15));
+      }
       const rest = needsSystem.sleep(bedBonus, totalSleepRestore);
       showInteractionFeedback(rest.message, !rest.success);
       syncEconomyHUD();
@@ -1435,8 +1476,8 @@ function startGame(profile: OnboardingResult): void {
       }
       const meal = needsSystem.eatMeal(
         `Home-cooked meal (${tier.shortLabel})`,
-        tier.cookHungerRestore,
-        tier.cookEnergyBonus
+        tier.cookHungerRestore + (liveEvents?.getActiveEvent()?.event.mealHungerBonus ?? 0),
+        tier.cookEnergyBonus + (liveEvents?.getActiveEvent()?.event.recoveryEnergyBonus ?? 0)
       );
       showInteractionFeedback(meal.message, !meal.success);
       syncEconomyHUD();
@@ -1450,17 +1491,23 @@ function startGame(profile: OnboardingResult): void {
       }
       const tier = homeSystem.getHousingTier();
       homeSystem.markSocialUsed();
-      const boost = needsSystem.boostEnergy(tier.socialEnergyBonus, tier.socialActionLabel);
-      if (tier.socialCashBonusGHS > 0) {
+      // Highlife Night doubles home hosting rewards (socialBonusMultiplier).
+      const socialMult = liveEvents?.getActiveEvent()?.event.socialBonusMultiplier ?? 1;
+      const boost = needsSystem.boostEnergy(
+        Math.round(tier.socialEnergyBonus * socialMult),
+        tier.socialActionLabel
+      );
+      const socialCash = Math.round(tier.socialCashBonusGHS * socialMult);
+      if (socialCash > 0) {
         economyManager.awardIncome({
-          amountGHS: tier.socialCashBonusGHS,
+          amountGHS: socialCash,
           category: 'REWARD',
           description: `Social Hosting (${tier.shortLabel})`
         });
       }
       showInteractionFeedback(
-        tier.socialCashBonusGHS > 0
-          ? `${tier.socialActionLabel} · +₵${tier.socialCashBonusGHS}`
+        socialCash > 0
+          ? `${tier.socialActionLabel} · +₵${socialCash}`
           : boost.message
       );
       syncEconomyHUD();
@@ -1479,13 +1526,20 @@ function startGame(profile: OnboardingResult): void {
     // ── Phase-1 housing engine: Home Store + PlacementEngine ────────────────
     initHousingEngine(phase1);
 
-    // ── New HUD pills + travel modal wiring ─────────────────────────────────
-    updateHousingTierPill();
-    updateDumsorVisuals();
-    document.getElementById('travelCloseBtn')?.addEventListener('click', () => closeTravelModal());
-    document.getElementById('travelBackdrop')?.addEventListener('click', (e) => {
-      if (e.target === document.getElementById('travelBackdrop')) closeTravelModal();
+    // ── Accra Live Events: cycle world events + drive the HUD pill ─────────
+    // tick() runs inside the RAF loop below (cheap Date.now check); the
+    // onUpdate listener updates the pill + toasts new events.
+    liveEvents = new LiveEventsSystem();
+    liveEvents.onUpdate((state) => updateLiveEventPill(state));
+    liveEventPillEl?.addEventListener('click', () => {
+      const ev = liveEvents?.getActiveEvent();
+      if (ev) {
+        showInteractionFeedback(`${ev.event.icon} ${ev.event.title} · ${ev.event.description}`);
+      }
     });
+
+    // ── Housing cloud sync: push home changes to Firestore (accounts) ──────
+    homeSystem.onUpdate((state) => scheduleHousingCloudSync(state));
 
     syncEconomyHUD();
 
@@ -1514,12 +1568,12 @@ function startGame(profile: OnboardingResult): void {
       needsSystem.tick(1 / 60, {
         energy: agg.energyDecayMultiplier
       });
+      // Live events cycle + 3D nearby-player avatar interpolation.
+      liveEvents?.tick();
+      nearbyAvatars?.update(1 / 60);
       if (homeVisuals) {
         homeVisuals.setCutawayMode(isPlayerInCompoundCutaway());
       }
-      // Dumsor visual effects — check state change + flicker lights.
-      updateDumsorVisuals();
-      flickerLights();
       const now = performance.now();
       if (now - lastCooldownUiTickMs >= 500) {
         lastCooldownUiTickMs = now;
@@ -1623,6 +1677,505 @@ function startGame(profile: OnboardingResult): void {
   }
 }
 
+// ════════════════════════════════════════════════════════════════════════
+// Friends + Home Visiting (Phase-6 social groundwork)
+//
+// - FriendsSystem owns the Firestore graph (friends + inbox).
+// - This block owns the HUD sheet + the visit-mode world swap.
+// - Visiting NEVER mutates the local player's HomeSystem: we rebuild the
+//   world compound for the host's tier, spawn the host's placed furniture
+//   from their validated /homes/{uid} showcase, and restore everything on
+//   leave. Home-editing entry points are blocked while visiting.
+// ════════════════════════════════════════════════════════════════════════
+
+/** Human label for a presence location id; falls back to the raw id. */
+function locationLabel(locId: string | undefined): string {
+  if (!locId) return 'somewhere in Accra';
+  try {
+    return getLocationDef(locId as LocationId).displayName;
+  } catch {
+    return locId;
+  }
+}
+
+/** Boot the friends layer. Any uid-bearing player gets the live layer —
+ * accounts AND anonymous-auth guests (rules allow both: inbox creates need
+ * isSignedIn, friends writes need isOwner). Only fully-offline guests
+ * (no uid at all) see the sign-in prompt inside the sheet. */
+function initFriends(profile: OnboardingResult): void {
+  friendsSystem = new FriendsSystem({
+    uid: profile.userId ?? null,
+    displayName: profile.displayName || 'Chale'
+  });
+  if (friendsSystem && !friendsSystem.isGuest) {
+    friendsSystem.enter();
+  }
+
+  // Live updates → re-render (when open) + badge.
+  friendsSystem.onFriends(() => {
+    if (friendsSheetOpen) renderFriendsSheet();
+    updateFriendsBadge();
+  });
+  friendsSystem.onInbox((messages) => {
+    if (friendsSheetOpen) {
+      renderFriendsSheet();
+      // Opening the sheet consumes transient notifications (visit pings +
+      // auto-processed accepts). Requests stay until answered.
+      void friendsSystem?.clearActivity();
+    }
+    void messages;
+    updateFriendsBadge();
+  });
+
+  // Sheet open/close + click delegation for all friend actions.
+  friendsOpenBtn?.addEventListener('click', () => openFriendsSheet());
+  friendsCloseBtn?.addEventListener('click', () => closeFriendsSheet());
+  friendsModalBackdrop?.addEventListener('click', (e) => {
+    if (e.target === friendsModalBackdrop) closeFriendsSheet();
+  });
+  friendsModalBackdrop?.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-action]');
+    if (!btn) return;
+    const d = btn.dataset;
+    switch (d.action) {
+      case 'add': {
+        if (!friendsSystem) return;
+        void friendsSystem.sendFriendRequest(d.uid ?? '', d.name ?? '').then((res) => {
+          showInteractionFeedback(res.ok ? `Friend request sent to ${d.name} 🤝` : res.message ?? 'Could not send request.', !res.ok);
+          if (res.ok) renderFriendsSheet();
+        });
+        break;
+      }
+      case 'accept': {
+        if (!friendsSystem) return;
+        void friendsSystem.acceptRequest(d.msg ?? '').then((res) => {
+          showInteractionFeedback(res.ok ? `You and ${d.name} are now friends 🤝` : res.message ?? 'Could not accept.', !res.ok);
+        });
+        break;
+      }
+      case 'decline': {
+        if (!friendsSystem) return;
+        void friendsSystem.declineRequest(d.msg ?? '').then((res) => {
+          if (!res.ok) showInteractionFeedback(res.message ?? 'Could not decline.', true);
+        });
+        break;
+      }
+      case 'remove': {
+        if (!friendsSystem) return;
+        void friendsSystem.removeFriend(d.uid ?? '').then((res) => {
+          showInteractionFeedback(res.ok ? `${d.name} removed from your friends.` : res.message ?? 'Could not remove.', !res.ok);
+        });
+        break;
+      }
+      case 'visit': {
+        closeFriendsSheet();
+        void enterVisitMode(d.uid ?? '', d.name ?? '');
+        break;
+      }
+      case 'dismiss': {
+        void friendsSystem?.deleteInboxMessage(d.msg ?? '');
+        break;
+      }
+      default:
+        break;
+    }
+  });
+
+  // Leave-visit button on the banner.
+  visitLeaveBtn?.addEventListener('click', () => leaveVisitMode());
+
+  // DEV-ONLY E2E hooks (inert in production builds — guarded by import.meta.env.DEV).
+  // Lets the headless test harness drive the social graph + visit machine
+  // without depending on presence discovery or verified-email rules.
+  if (import.meta.env.DEV) {
+    (window as unknown as Record<string, unknown>).__accraFriends = friendsSystem;
+    (window as unknown as Record<string, unknown>).__accraVisit = {
+      enter: enterVisitMode,
+      leave: leaveVisitMode,
+      state: () => ({ visiting: isVisiting(), session: visitSession })
+    };
+    (window as unknown as Record<string, unknown>).__accraShowcase = {
+      setOverride: setDevShowcaseOverride
+    };
+  }
+}
+
+function openFriendsSheet(): void {
+  friendsSheetOpen = true;
+  friendsModalBackdrop?.classList.add('open');
+  renderFriendsSheet();
+  updateFriendsBadge();
+}
+
+function closeFriendsSheet(): void {
+  friendsSheetOpen = false;
+  friendsModalBackdrop?.classList.remove('open');
+}
+
+/** Pending badge = unanswered requests + unseen visit pings. */
+function updateFriendsBadge(): void {
+  if (!friendsBadge) return;
+  const requests = friendsSystem?.getPendingRequestCount() ?? 0;
+  const pings = friendsSystem
+    ? friendsSystem.getInbox().filter((m) => m.type === 'home_visit').length
+    : 0;
+  const total = requests + pings;
+  if (total > 0) {
+    friendsBadge.textContent = total > 99 ? '99+' : String(total);
+    friendsBadge.classList.remove('zero');
+  } else {
+    friendsBadge.classList.add('zero');
+  }
+}
+
+/** Render every section of the friends sheet from live system state. */
+function renderFriendsSheet(): void {
+  if (!friendsRequestsEl || !friendsListEl || !friendsNearbyEl || !friendsActivityEl) return;
+
+  // ── 1. Pending friend requests ─────────────────────────────────────────
+  const requests: InboxMessageView[] = friendsSystem
+    ? friendsSystem.getInbox().filter((m) => m.type === 'friend_request')
+    : [];
+  if (!friendsSystem || friendsSystem.isGuest || requests.length === 0) {
+    friendsRequestsEl.innerHTML = '';
+    friendsRequestsEl.style.display = 'none';
+  } else {
+    friendsRequestsEl.style.display = 'block';
+    friendsRequestsEl.innerHTML = requests
+      .map(
+        (m) => `
+        <div class="friend-request-row">
+          <span class="fr-name">${escapeHtml(m.fromName)}</span>
+          <span class="fr-label">wants to be your chale</span>
+          <span class="fr-actions">
+            <button class="econ-action-btn accept" type="button" data-action="accept" data-msg="${escapeHtml(m.id)}" data-name="${escapeHtml(m.fromName)}">✓ Accept</button>
+            <button class="econ-action-btn decline" type="button" data-action="decline" data-msg="${escapeHtml(m.id)}" data-name="${escapeHtml(m.fromName)}">✕</button>
+          </span>
+        </div>`
+      )
+      .join('');
+  }
+
+  // ── 2. Friends list ─────────────────────────────────────────────────────
+  if (!friendsSystem || friendsSystem.isGuest) {
+    friendsListEl.innerHTML =
+      '<div class="friends-empty">Sign in with a verified email to make friends, visit homes & build your Accra crew.</div>';
+  } else {
+    const friends: FriendEntry[] = friendsSystem.getFriends();
+    if (friends.length === 0) {
+      friendsListEl.innerHTML =
+        '<div class="friends-empty">No friends yet. Meet players at any location — say hi in chat, then add them here.</div>';
+    } else {
+      friendsListEl.innerHTML = friends
+        .map((f) => {
+          const status = f.online
+            ? `<span class="friend-dot online"></span>${escapeHtml(locationLabel(f.currentLocation))}`
+            : '<span class="friend-dot"></span>offline';
+          return `
+          <div class="friend-row">
+            <div class="friend-main">
+              <strong class="friend-name">${escapeHtml(f.displayName)}</strong>
+              <span class="friend-sub">${status}</span>
+            </div>
+            <div class="friend-actions">
+              <button class="econ-action-btn visit" type="button" data-action="visit" data-uid="${escapeHtml(f.uid)}" data-name="${escapeHtml(f.displayName)}">🏠 Visit</button>
+              <button class="econ-action-btn decline" type="button" data-action="remove" data-uid="${escapeHtml(f.uid)}" data-name="${escapeHtml(f.displayName)}" title="Remove friend">✕</button>
+            </div>
+          </div>`;
+        })
+        .join('');
+    }
+  }
+
+  // ── 3. Players here (add-friend entry point) ───────────────────────────
+  const nearby: NearbyPlayer[] = presenceManager?.getNearby() ?? [];
+  if (!friendsSystem || friendsSystem.isGuest) {
+    friendsNearbyEl.innerHTML = '';
+    friendsNearbyEl.style.display = 'none';
+  } else {
+    const addable = nearby.filter(
+      (p) => !friendsSystem?.isFriend(p.uid) && !friendsSystem?.hasRequested(p.uid) && !isPendingRequestFrom(p.uid)
+    );
+    if (addable.length === 0) {
+      friendsNearbyEl.style.display = 'block';
+      friendsNearbyEl.innerHTML =
+        '<div class="friends-section-label">Players here</div><div class="friends-empty">Nobody new here right now — walk to another spot.</div>';
+    } else {
+      friendsNearbyEl.style.display = 'block';
+      friendsNearbyEl.innerHTML =
+        '<div class="friends-section-label">Players here</div>' +
+        addable
+          .map(
+            (p) => `
+          <div class="friend-row">
+            <div class="friend-main">
+              <strong class="friend-name">${escapeHtml(p.displayName)}</strong>
+              <span class="friend-sub"><span class="friend-dot online"></span>here with you</span>
+            </div>
+            <div class="friend-actions">
+              <button class="econ-action-btn visit" type="button" data-action="add" data-uid="${escapeHtml(p.uid)}" data-name="${escapeHtml(p.displayName)}">+ Add Chale</button>
+            </div>
+          </div>`
+          )
+          .join('');
+    }
+  }
+
+  // ── 4. Activity (visit pings + processed accepts) ──────────────────────
+  const activity: InboxMessageView[] = friendsSystem
+    ? friendsSystem.getInbox().filter((m) => m.type === 'home_visit' || m.type === 'friend_accept')
+    : [];
+  if (activity.length === 0) {
+    friendsActivityEl.innerHTML = '';
+    friendsActivityEl.style.display = 'none';
+  } else {
+    friendsActivityEl.style.display = 'block';
+    friendsActivityEl.innerHTML =
+      '<div class="friends-section-label">Activity</div>' +
+      activity
+        .map((m) => {
+          const line =
+            m.type === 'home_visit'
+              ? `🏠 ${escapeHtml(m.fromName)} stopped by your place`
+              : `🤝 You and ${escapeHtml(m.fromName)} are now friends`;
+          return `
+          <div class="friend-activity-row">
+            <span>${line}</span>
+            <button class="econ-action-btn decline" type="button" data-action="dismiss" data-msg="${escapeHtml(m.id)}" title="Dismiss">✕</button>
+          </div>`;
+        })
+        .join('');
+  }
+}
+
+function isPendingRequestFrom(uid: string): boolean {
+  return friendsSystem
+    ? friendsSystem.getInbox().some((m) => m.type === 'friend_request' && m.fromUid === uid)
+    : false;
+}
+
+// ── Visit mode: temporarily live inside a friend's home ────────────────────
+
+/**
+ * Swap the world compound to the host's home and teleport the player to
+ * the compound gate. The host's layout comes from their validated
+ * /homes/{uid} showcase — nothing foreign ever reaches the renderer raw.
+ * The local player's HomeSystem state is left completely untouched.
+ */
+async function enterVisitMode(hostUid: string, hostName: string): Promise<void> {
+  if (!phase1SceneRef) return;
+  if (!friendsSystem || friendsSystem.isGuest) {
+    showInteractionFeedback('Sign in to visit homes.', true);
+    return;
+  }
+  if (!isValidUidStr(hostUid)) {
+    showInteractionFeedback('Bad host id.', true);
+    return;
+  }
+  if (visitSession) leaveVisitMode();
+
+  showInteractionFeedback(`Knocking on ${hostName}'s door…`);
+  const showcase = await fetchHomeShowcase(hostUid);
+  if (!showcase) {
+    showInteractionFeedback(`${hostName}'s home isn't published yet — they need to play once on the new build.`, true);
+    return;
+  }
+  if (!phase1SceneRef) return; // scene can die while awaiting the fetch
+
+  const scene = phase1SceneRef.scene;
+  visitSession = {
+    hostUid,
+    hostName,
+    savedTier: homeSystem.getHousingTierId(),
+    hostTier: showcase.tier
+  };
+
+  // 1) Teardown OUR furniture meshes + legacy fixed-slot visuals.
+  for (const [, mesh] of placedFurnitureMeshes) {
+    scene.remove(mesh);
+    disposeObject3D(mesh);
+  }
+  placedFurnitureMeshes.clear();
+  homeVisuals?.sync([], []);
+
+  // 2) Host compound + furniture (validated catalog ids only).
+  rebuildPlayerCompoundForTier(showcase.tier);
+  for (const item of showcase.placed) {
+    const mesh = buildPlacedFurnitureMesh(
+      {
+        catalogId: item.catalogId as FurnitureId,
+        x: item.x,
+        z: item.z,
+        rotationY: item.rotationY
+      },
+      ROOM_ORIGIN
+    );
+    scene.add(mesh);
+    visitFurnitureMeshes.push(mesh);
+  }
+
+  // 3) Teleport to the compound gate (same respawn spot as arrests).
+  phase1SceneRef.player.position.set(-10.5, 0.08, 6.2);
+  phase1SceneRef.player.rotationY = Math.PI;
+
+  // 4) Banner + courtesy ping to the host (once per host per session).
+  updateVisitBanner();
+  visitBannerEl?.classList.add('visible');
+  if (!visitPingSentFor.has(hostUid)) {
+    visitPingSentFor.add(hostUid);
+    void friendsSystem.sendVisitPing(hostUid, hostName);
+  }
+  showInteractionFeedback(`Welcome to ${hostName}'s place — make yourself at home.`);
+}
+
+/** Restore the player's own compound, furniture, position and HUD. */
+function leaveVisitMode(): void {
+  if (!visitSession || !phase1SceneRef) return;
+  const scene = phase1SceneRef.scene;
+
+  for (const mesh of visitFurnitureMeshes) {
+    scene.remove(mesh);
+    disposeObject3D(mesh);
+  }
+  visitFurnitureMeshes.length = 0;
+
+  rebuildPlayerCompoundForTier(visitSession.savedTier);
+  homeVisuals?.sync(homeSystem.getOwned(), homeSystem.getPlaced());
+  syncPlacedFurnitureMeshes(scene);
+
+  phase1SceneRef.player.position.set(-10.5, 0.08, 6.2);
+  phase1SceneRef.player.rotationY = Math.PI;
+
+  const hostName = visitSession.hostName;
+  visitSession = null;
+  visitBannerEl?.classList.remove('visible');
+  showInteractionFeedback(`Back at your own crib. Thanks for visiting ${hostName}!`);
+}
+
+function updateVisitBanner(): void {
+  if (!visitBannerTextEl || !visitSession) return;
+  const tier = HOUSING_TIERS.find((t) => t.id === visitSession?.hostTier) ?? HOUSING_TIERS[0];
+  visitBannerTextEl.textContent = `🏠 Visiting ${visitSession.hostName} — ${tier.title}`;
+}
+
+/** Shared disposal for visit meshes (same hygiene as mesh sync). */
+function disposeObject3D(root: THREE.Object3D): void {
+  root.traverse((obj) => {
+    const m = obj as THREE.Mesh;
+    if (m.isMesh) {
+      m.geometry?.dispose?.();
+      const mat = m.material;
+      if (Array.isArray(mat)) mat.forEach((mm) => mm.dispose?.());
+      else mat?.dispose?.();
+    }
+  });
+}
+
+function isValidUidStr(s: string): boolean {
+  return typeof s === 'string' && s.length >= 1 && s.length <= 128;
+}
+
+// ── Task: wire dormant systems (live events pill + housing cloud sync) ─────
+
+/**
+ * Diff `homeSystem.getPlaced()` against the 3D mesh registry: spawns meshes
+ * for new instances, removes + disposes meshes for sold/replaced instances.
+ * Keeps the scene in sync with HomeSystem state WITHOUT a game reload —
+ * covers initial load, placement confirm, sell, and cloud restore.
+ */
+function syncPlacedFurnitureMeshes(scene: THREE.Scene): void {
+  const placed = homeSystem.getPlaced();
+  const liveIds = new Set(placed.map((p) => p.instanceId));
+  // Remove stale meshes (sold or replaced instances).
+  for (const [instanceId, mesh] of placedFurnitureMeshes) {
+    if (!liveIds.has(instanceId)) {
+      scene.remove(mesh);
+      disposeObject3D(mesh);
+      placedFurnitureMeshes.delete(instanceId);
+    }
+  }
+  // Spawn meshes for instances we haven't rendered yet.
+  for (const inst of placed) {
+    if (placedFurnitureMeshes.has(inst.instanceId)) continue;
+    const mesh = buildPlacedFurnitureMesh(inst, ROOM_ORIGIN);
+    scene.add(mesh);
+    placedFurnitureMeshes.set(inst.instanceId, mesh);
+  }
+}
+
+/**
+ * Drive the #liveEventPill HUD from the active Accra Live Event.
+ * Called on every LiveEventsSystem notify — caches by event id + shown
+ * second so the DOM is only touched when something actually changed.
+ * Fires a toast whenever a NEW event starts.
+ */
+function updateLiveEventPill(state: ActiveLiveEventState): void {
+  const secs = Math.max(0, Math.round(state.remainingSeconds));
+  if (state.event.id === lastLiveEventId && secs === lastLiveEventShownSeconds) return;
+  const isNewEvent = state.event.id !== lastLiveEventId;
+  lastLiveEventId = state.event.id;
+  lastLiveEventShownSeconds = secs;
+  if (liveEventTextEl) {
+    const mm = Math.floor(secs / 60);
+    const ss = String(secs % 60).padStart(2, '0');
+    liveEventTextEl.textContent = `${state.event.icon} ${state.event.shortBanner} · ${mm}:${ss}`;
+  }
+  liveEventPillEl?.setAttribute(
+    'title',
+    `${state.event.title} — ${state.event.description} (${state.event.effectSummary})`
+  );
+  if (isNewEvent) {
+    showInteractionFeedback(`${state.event.icon} ${state.event.title} — ${state.event.effectSummary}`);
+  }
+}
+
+/**
+ * Debounced housing → Firestore sync. Fires 4s after the last home change
+ * (buy / place / sell / upgrade) so rapid furniture shuffles coalesce into
+ * one write. Guests are localStorage-only and skip this entirely.
+ */
+function scheduleHousingCloudSync(state: HomeState): void {
+  if (!isAccountMode) return;
+  if (housingCloudSyncTimer) clearTimeout(housingCloudSyncTimer);
+  housingCloudSyncTimer = setTimeout(() => {
+    housingCloudSyncTimer = null;
+    void economyManager.wallet.syncHousingToFirebase({
+      housingTier: state.housingTier,
+      unlockedTiers: state.unlockedTiers,
+      owned: state.owned,
+      placed: state.placed
+    });
+    // Public showcase (visit-ready copy at /homes/{uid}) — same debounce
+    // cadence as the private save so friends always visit the real layout.
+    void publishHomeShowcase({
+      housingTier: state.housingTier,
+      placed: state.placed
+    });
+  }, 4000);
+}
+
+/**
+ * Restore housing state from the player's private /players/{uid} doc after
+ * sign-in, then rebuild the 3D compound + furniture meshes to match.
+ * No-ops for guests and for accounts with no cloud housing snapshot.
+ */
+async function restoreHousingFromCloud(): Promise<void> {
+  const cloud = await economyManager.wallet.loadHousingFromFirebase();
+  if (!cloud) return;
+  const changed = homeSystem.hydrateCloudState({
+    housingTier: cloud.housingTier as HousingTierId,
+    unlockedTiers: cloud.unlockedTiers as HousingTierId[],
+    owned: cloud.owned as FurnitureId[],
+    placed: cloud.placed as PlacedFurnitureInstance[]
+  });
+  if (changed && phase1SceneRef) {
+    rebuildPlayerCompoundForTier(homeSystem.getHousingTierId());
+    homeVisuals?.sync(homeSystem.getOwned(), homeSystem.getPlaced());
+    syncPlacedFurnitureMeshes(phase1SceneRef.scene);
+    showInteractionFeedback('🏠 Home restored from cloud save.');
+  }
+}
+
 /**
  * Boot multiplayer presence + location chat for this player.
  *
@@ -1652,6 +2205,12 @@ function initMultiplayer(profile: OnboardingResult, phase1: Phase1Scene): void {
     origin: profile.origin
   });
 
+  // 3D avatars: one character rig per nearby signed-in player. Presence
+  // snapshots (20s heartbeats) are smoothed by the avatar system's lerp.
+  // Guests never subscribe to presence, so they simply see nobody —
+  // consistent with the HUD's read-only guest mode.
+  nearbyAvatars = new NearbyPlayerAvatars(phase1.scene);
+
   // Initial UI: pill + chat sheet title reflect the spawn location.
   setCurrentLocationPill(spawnLoc.id, false);
   if (chatSheetTitle) chatSheetTitle.textContent = `At ${spawnLoc.displayName}`;
@@ -1665,6 +2224,9 @@ function initMultiplayer(profile: OnboardingResult, phase1: Phase1Scene): void {
     if (chatSheetSub) chatSheetSub.textContent = `${spawnLoc.displayName} — local chat, everyone here can see this.`;
     setStatusPill('online');
     setNearbyStrip([], true);
+    // Cloud save restore: pull the player's housing snapshot (tier + owned
+    // + placed furniture) once auth is known-good, then rebuild the world.
+    void restoreHousingFromCloud();
   } else {
     // Guest: read-only chat, no presence writes.
     if (chatSheetSub) chatSheetSub.textContent = `${spawnLoc.displayName} — sign in to send messages & be seen.`;
@@ -1681,6 +2243,10 @@ function initMultiplayer(profile: OnboardingResult, phase1: Phase1Scene): void {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') onDisconnect();
   });
+
+  // Friends + home visiting (accounts get the live layer; guests see a
+  // sign-in prompt inside the sheet).
+  initFriends(profile);
 
   // Wire chat UI.
   chatOpenBtn?.addEventListener('click', () => openChatSheet());
@@ -1718,6 +2284,8 @@ function initMultiplayer(profile: OnboardingResult, phase1: Phase1Scene): void {
   // Render nearby updates + presence status.
   presenceManager.onNearby((players) => {
     setNearbyStrip(players, isAccountMode);
+    // Spawn/despawn/update the 3D rigs for nearby players.
+    nearbyAvatars?.syncFromNearby(players);
     if (chatSheetOpen) renderChatSheetNearby(players);
   });
   presenceManager.onStatus((status) => {
@@ -1736,10 +2304,6 @@ function initMultiplayer(profile: OnboardingResult, phase1: Phase1Scene): void {
     if (!phase1) return;
     const p = phase1.player.position;
     presenceManager?.reportPosition(p.x, p.z, phase1.player.rotationY);
-    // Travel override: skip bounds-based location detection for 10s after
-    // a travel action (prevents the 2s interval from overriding the
-    // travel-set locationId before the player has "arrived").
-    if (performance.now() < travelOverrideUntilMs) return;
     const newLoc = getLocationAt(p.x, p.z);
     if (newLoc.id !== currentLocationId) {
       currentLocationId = newLoc.id;
@@ -1855,153 +2419,13 @@ function setCurrentLocationPill(locId: LocationId, flash: boolean): void {
   const nmEl = currentLocationPill.querySelector('.nm');
   if (icoEl) icoEl.textContent = def.icon;
   if (nmEl) nmEl.textContent = def.displayName;
+  // Title attr for accessibility / hover tooltip.
   currentLocationPill.setAttribute('title', `${def.displayName} — ${def.flavor}`);
   if (flash) {
     currentLocationPill.classList.remove('flash');
+    // Force reflow so the animation restarts.
     void currentLocationPill.offsetWidth;
     currentLocationPill.classList.add('flash');
-  }
-}
-
-// ── Housing tier HUD pill ────────────────────────────────────────────────────
-function updateHousingTierPill(): void {
-  const pill = document.getElementById('housingTierPill');
-  if (!pill) return;
-  const tier = homeSystem.getHousingTier();
-  const icoEl = pill.querySelector('.ico');
-  const nmEl = pill.querySelector('.nm');
-  const subEl = pill.querySelector('.sub');
-  if (icoEl) icoEl.textContent = tier.icon;
-  if (nmEl) nmEl.textContent = tier.shortLabel.split('·')[0].trim();
-  if (subEl) subEl.textContent = tier.fatigueReductionPct > 0 ? `-${tier.fatigueReductionPct}%` : '';
-  pill.setAttribute('title', `${tier.title} · ${tier.dimensionsLabel} · Fatigue -${tier.fatigueReductionPct}% · Comfort ${homeSystem.getComfortScore()}%`);
-  pill.onclick = () => openHomeSheet();
-}
-
-// ── Travel system ────────────────────────────────────────────────────────────
-interface TravelDestination {
-  id: string;
-  name: string;
-  icon: string;
-  description: string;
-  fare: number;
-  locationId: string;
-  spawnX: number;
-  spawnZ: number;
-}
-
-const TRAVEL_DESTINATIONS: TravelDestination[] = [
-  { id: 'adabraka', name: 'Adabraka', icon: '🏘️', description: 'Your home neighborhood.', fare: 0, locationId: 'adabraka_neighborhood', spawnX: 0, spawnZ: 5.8 },
-  { id: 'makola', name: 'Makola Market', icon: '🏪', description: 'Central market — fresh produce, fabrics, everything.', fare: 6, locationId: 'makola_market', spawnX: -9.5, spawnZ: -9.0 },
-  { id: 'osu', name: 'Osu Oxford Street', icon: '🛣️', description: 'Nightlife, food joints, bars.', fare: 4, locationId: 'osu_oxford_street', spawnX: 8.5, spawnZ: -9.0 },
-  { id: 'labadi', name: 'Labadi Beach', icon: '🏖️', description: 'Relax by the sea. Fresh coconut.', fare: 8, locationId: 'labadi_beach', spawnX: 0, spawnZ: 15.0 },
-  { id: 'circle', name: 'Circle (Kwame Nkrumah)', icon: '🚐', description: 'Transport hub. Hustle central.', fare: 5, locationId: 'circle_trotro_stop', spawnX: 9.0, spawnZ: 7.5 }
-];
-
-let travelOverrideUntilMs = 0;
-
-function openTravelModal(): void {
-  const backdrop = document.getElementById('travelBackdrop');
-  const body = document.getElementById('travelBody');
-  if (!backdrop || !body) return;
-  const fareMult = liveEvents.getModifier('fareMultiplier', 1);
-  const cash = economyManager.wallet.getCashBalance();
-  body.innerHTML = TRAVEL_DESTINATIONS.map((dest) => {
-    const fare = Math.round(dest.fare * fareMult);
-    const canAfford = cash >= fare || dest.fare === 0;
-    const isCurrent = dest.locationId === currentLocationId;
-    return `
-      <div class="furn-row" style="${isCurrent ? 'border-color:var(--gta-yellow);background:rgba(250,204,21,0.06)' : ''}">
-        <div class="furn-meta">
-          <p class="furn-title">${dest.icon} ${dest.name} ${isCurrent ? '<span style="font-size:.6rem;color:var(--gta-yellow);font-weight:800">HERE</span>' : ''}</p>
-          <p class="furn-blurb">${dest.description}</p>
-        </div>
-        <div style="text-align:right">
-          ${dest.fare === 0
-            ? '<span style="font-size:.7rem;color:var(--gta-muted)">Free</span>'
-            : `<span style="font-weight:900;color:${canAfford ? 'var(--gta-green)' : 'var(--gta-red)'}">₵${fare}</span>${fareMult > 1 ? '<span style="font-size:.5rem;color:var(--gta-red)">surge</span>' : ''}<br/><button class="econ-action-btn travel-go-btn" data-dest-id="${dest.id}" ${canAfford && !isCurrent ? '' : 'disabled'} style="font-size:.7rem;padding:4px 10px;${canAfford && !isCurrent ? '' : 'opacity:.4;cursor:not-allowed'}">${isCurrent ? 'Here' : 'Go'}</button>`
-          }
-        </div>
-      </div>
-    `;
-  }).join('');
-  body.querySelectorAll<HTMLButtonElement>('.travel-go-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const destId = btn.dataset.destId!;
-      void travelToDestination(destId);
-    });
-  });
-  backdrop.classList.add('open');
-}
-
-function closeTravelModal(): void {
-  document.getElementById('travelBackdrop')?.classList.remove('open');
-}
-
-async function travelToDestination(destId: string): Promise<void> {
-  const dest = TRAVEL_DESTINATIONS.find((d) => d.id === destId);
-  if (!dest || !phase1SceneRef) return;
-  const fareMult = liveEvents.getModifier('fareMultiplier', 1);
-  const fare = Math.round(dest.fare * fareMult);
-  if (fare > 0) {
-    if (!economyManager.canAfford(fare, 'CASH')) {
-      showInteractionFeedback(`Need ₵${fare} for trotro fare.`, true);
-      return;
-    }
-    economyManager.wallet.spendMoney({
-      amount: fare, category: 'TRANSPORT', description: `Trotro to ${dest.name}`, channel: 'CASH'
-    });
-  }
-  closeTravelModal();
-  // Brief loading overlay
-  showInteractionFeedback(`🚐 Travelling to ${dest.name}...`);
-  // Teleport the player
-  const surfaceY = getSurfaceHeightAt(dest.spawnX, dest.spawnZ);
-  phase1SceneRef.player.position.set(dest.spawnX, surfaceY, dest.spawnZ);
-  phase1SceneRef.player.rotationY = Math.PI;
-  phase1SceneRef.thirdPersonCamera.resetBehindPlayer(Math.PI);
-  // Update location (presence + chat switch)
-  currentLocationId = dest.locationId as LocationId;
-  travelOverrideUntilMs = performance.now() + 10_000; // prevent bounds-override for 10s
-  presenceManager?.updateLocation(dest.locationId);
-  chatManager?.switchLocation(dest.locationId as LocationId);
-  setCurrentLocationPill(dest.locationId as LocationId, true);
-  if (chatSheetTitle) chatSheetTitle.textContent = `At ${dest.name}`;
-  updateHousingTierPill();
-  syncEconomyHUD();
-  setTimeout(() => showInteractionFeedback(`Arrived at ${dest.name}!`), 500);
-}
-
-// ── Dumsor visual effects ────────────────────────────────────────────────────
-let dumsorActive = false;
-let dumsorFlickerTimer = 0;
-
-function updateDumsorVisuals(): void {
-  const isDumsor = liveEvents.getModifier('funDecayMultiplier', 1) > 1;
-  if (isDumsor === dumsorActive) return;
-  dumsorActive = isDumsor;
-  const overlay = document.getElementById('dumsorOverlay');
-  if (overlay) {
-    overlay.style.background = isDumsor ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0)';
-  }
-  // Show/hide a dumsor toast on state change
-  if (isDumsor) {
-    showInteractionFeedback('⚡ DUMSOR! Power cut across Accra.');
-  } else {
-    showInteractionFeedback('⚡ Power restored.');
-  }
-}
-
-function flickerLights(): void {
-  if (!dumsorActive || !phase1SceneRef) return;
-  // Flicker the dumsor overlay (random darkening)
-  dumsorFlickerTimer++;
-  if (dumsorFlickerTimer % 4 === 0) { // every 4 frames (~15fps flicker)
-    const overlay = document.getElementById('dumsorOverlay');
-    if (overlay) {
-      const intensity = 0.2 + Math.random() * 0.15; // 0.2-0.35
-      overlay.style.background = `rgba(0,0,0,${intensity})`;
-    }
   }
 }
 

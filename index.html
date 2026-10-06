@@ -1426,6 +1426,150 @@ body.hud-minimal-mode .identity-card {
     padding: 8px 10px 10px;
   }
 }
+
+/* ================= FRIENDS + HOME VISITING ================= */
+.friends-scroll {
+  overflow-y: auto;
+  min-height: 60px;
+  flex: 1;
+}
+.friends-section-label {
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gta-muted);
+  margin: 10px 0 4px;
+}
+.friend-row,
+.friend-request-row,
+.friend-activity-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 4px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.friend-request-row {
+  background: rgba(250, 204, 21, 0.08);
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  border-radius: 9px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+}
+.friend-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.friend-name {
+  color: var(--gta-white);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.friend-sub {
+  color: var(--gta-muted);
+  font-size: 0.62rem;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.friend-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.25);
+  display: inline-block;
+  flex-shrink: 0;
+}
+.friend-dot.online {
+  background: var(--gta-green);
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.8);
+}
+.friend-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.fr-name {
+  color: var(--gta-yellow);
+  font-weight: 900;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fr-label {
+  color: var(--gta-muted);
+  font-size: 0.62rem;
+  flex: 1;
+}
+.fr-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.friend-activity-row {
+  font-size: 0.68rem;
+  color: #cbd5e1;
+}
+.friends-empty {
+  font-size: 0.68rem;
+  color: var(--gta-muted);
+  padding: 8px 2px;
+  line-height: 1.5;
+}
+/* Visit-mode banner — top center under the toast */
+#visitBanner {
+  pointer-events: auto;
+  position: fixed;
+  top: 112px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 42;
+  display: none;
+  align-items: center;
+  gap: 10px;
+  background: rgba(9, 13, 22, 0.92);
+  border: 1.5px solid var(--gta-yellow);
+  border-radius: 999px;
+  padding: 6px 7px 6px 16px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.6);
+  max-width: min(92vw, 480px);
+}
+#visitBanner.visible {
+  display: flex;
+}
+#visitBannerText {
+  color: var(--gta-yellow);
+  font-family: var(--font-display);
+  font-size: 0.74rem;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#visitLeaveBtn {
+  cursor: pointer;
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--gta-red);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-family: var(--font-display);
+  font-size: 0.66rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
 </style>
 </head>
 <body>
@@ -1565,6 +1709,7 @@ body.hud-minimal-mode .identity-card {
         <button id="workMenuOpenBtn" class="jobs-btn" type="button" title="Jobs & Hustles">Jobs</button>
         <button id="homeOpenTopBtn" class="home-top-btn" type="button" title="Home & Compound">Home</button>
         <button id="chatOpenBtn" class="chat-top-btn" type="button" title="Accra Street Chat">Chat <span id="chatBadge" class="chat-badge zero">0</span></button>
+        <button id="friendsOpenBtn" class="chat-top-btn" type="button" title="Accra Friends & Home Visits">Friends <span id="friendsBadge" class="chat-badge zero">0</span></button>
         <button id="resetCameraBtn" class="cam-btn" type="button" aria-label="Reset Camera" title="Reset Camera">Cam</button>
         <button id="hudCleanToggleBtn" class="clean-toggle-btn" type="button" aria-label="Toggle Minimal Mode" title="Clean HUD / Toggle Details">👁️</button>
       </div>
@@ -1700,6 +1845,29 @@ body.hud-minimal-mode .identity-card {
       <input id="chatInput" class="ob-input" type="text" placeholder="Say something to Accra…" maxlength="240" style="max-width:none;flex:1"/>
       <button id="chatSendBtn" class="econ-action-btn" type="button" style="align-self:stretch">Send</button>
     </div>
+  </div>
+</div>
+
+<!-- Home Visit Banner — shown while visiting a friend's home -->
+<div id="visitBanner">
+  <span id="visitBannerText">🏠 Visiting…</span>
+  <button id="visitLeaveBtn" type="button">Leave</button>
+</div>
+
+<!-- Friends + Home Visiting Sheet -->
+<div id="friendsModalBackdrop" class="chat-modal-backdrop" role="dialog" aria-modal="true">
+  <div class="chat-sheet">
+    <div class="home-header-row">
+      <div>
+        <h2 style="margin:0;font-family:var(--font-display);font-size:1.1rem">👥 Accra Friends</h2>
+        <p style="margin:2px 0 0;font-size:.72rem;color:var(--gta-muted)">Your crew — add players you meet, visit their homes.</p>
+      </div>
+      <button id="friendsCloseBtn" class="modal-close-btn" type="button" aria-label="Close Friends Sheet">×</button>
+    </div>
+    <div id="friendsRequests"></div>
+    <div id="friendsList" class="friends-scroll"></div>
+    <div id="friendsNearby"></div>
+    <div id="friendsActivity"></div>
   </div>
 </div>
 
