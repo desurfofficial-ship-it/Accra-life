@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { InputManager } from './InputManager';
-import { buildStylizedGhanaianCharacter, CharacterRig } from '../Art/CharacterBuilder';
+import { buildStylizedGhanaianCharacter, CharacterRig, type PlayerLookOptions } from '../Art/CharacterBuilder';
 import { getSurfaceHeightAt } from '../World/WorldSurface';
 
 export interface ColliderBox {
@@ -32,12 +32,15 @@ export class PlayerController {
   private smoothedTurnRate = 0;
   private lastPivotSign = 1;
 
-  // Pre-allocated vector to avoid per-frame allocations in the animation loop
   private readonly forwardVec = new THREE.Vector3(0, 0, -1);
 
-  constructor(inputManager: InputManager, spawnPosition = new THREE.Vector3(0, 0, 5.8)) {
+  constructor(
+    inputManager: InputManager,
+    spawnPosition = new THREE.Vector3(0, 0, 5.8),
+    look?: PlayerLookOptions
+  ) {
     this.inputManager = inputManager;
-    this.characterRig = buildStylizedGhanaianCharacter('PLAYER_GHA_001');
+    this.characterRig = buildStylizedGhanaianCharacter('PLAYER_GHA_001', look);
     this.group = this.characterRig.root;
     this.group.position.copy(spawnPosition);
     this.position = this.group.position;
@@ -63,7 +66,6 @@ export class PlayerController {
     const baseSpeed = this.isSprinting ? this.sprintSpeed : this.walkSpeed;
 
     if (this.isMoving) {
-      // Camera-relative desired movement direction on the XZ plane
       const sinYaw = Math.sin(cameraYaw);
       const cosYaw = Math.cos(cameraYaw);
 
@@ -73,14 +75,12 @@ export class PlayerController {
       const targetAngle = Math.atan2(worldDirX, worldDirZ);
       let angleDiff = this.shortestAngleDiff(this.rotationY, targetAngle);
 
-      // Commit to a consistent pivot direction during near-180° reversals to prevent flip-flop jitter
       if (Math.abs(angleDiff) > 2.75) {
         angleDiff = Math.abs(angleDiff) * this.lastPivotSign;
       } else if (Math.abs(angleDiff) > 0.15) {
         this.lastPivotSign = Math.sign(angleDiff) || 1;
       }
 
-      // Dynamic turn responsiveness: faster pivot on sharp direction changes, smooth settle on small angles
       const absDiff = Math.abs(angleDiff);
       const turnResponsiveness = absDiff > 1.1 ? 16.5 : 12.5;
       const turnStep = angleDiff * (1 - Math.exp(-dt * turnResponsiveness));
@@ -88,7 +88,6 @@ export class PlayerController {
       this.rotationY = this.wrapAngle(this.rotationY + turnStep);
       this.group.rotation.y = this.rotationY;
 
-      // Normalized angular velocity for procedural body banking and head-turn lead
       const rawTurnRate = dt > 0.0001 ? THREE.MathUtils.clamp((turnStep / dt) / 9.0, -1, 1) : 0;
       this.smoothedTurnRate = THREE.MathUtils.lerp(
         this.smoothedTurnRate,
@@ -96,8 +95,6 @@ export class PlayerController {
         1 - Math.exp(-dt * 14)
       );
 
-      // Modulate forward speed during sharp pivots so the character pivots onto the new heading
-      // instead of moonwalking/skating backward while still facing the old direction
       const alignmentFactor = THREE.MathUtils.clamp(Math.cos(absDiff) * 0.45 + 0.58, 0.26, 1.0);
       const desiredSpeed = baseSpeed * input.magnitude * alignmentFactor;
       this.currentSpeed = THREE.MathUtils.lerp(
@@ -106,7 +103,6 @@ export class PlayerController {
         1 - Math.exp(-dt * 15)
       );
 
-      // Blend character facing direction with target input direction for natural curved turn arcs
       const facingX = Math.sin(this.rotationY);
       const facingZ = Math.cos(this.rotationY);
       const moveDirX = facingX * 0.68 + worldDirX * 0.32;
@@ -119,7 +115,6 @@ export class PlayerController {
         (moveDirZ / moveLen) * this.currentSpeed
       );
     } else {
-      // Smooth deceleration to rest
       this.currentSpeed = THREE.MathUtils.lerp(this.currentSpeed, 0, 1 - Math.exp(-dt * 18));
       this.smoothedTurnRate = THREE.MathUtils.lerp(
         this.smoothedTurnRate,
@@ -139,7 +134,6 @@ export class PlayerController {
     }
 
     if (this.currentSpeed > 0.01) {
-      // Substep movement to prevent tunneling through thin walls or poles at high dt
       const steps = 2;
       const stepDt = dt / steps;
       for (let s = 0; s < steps; s++) {
@@ -147,19 +141,16 @@ export class PlayerController {
         if (!this.checkCollision(nextX, this.position.z, colliders)) {
           this.position.x = nextX;
         }
-
         const nextZ = this.position.z + this.velocity.z * stepDt;
         if (!this.checkCollision(this.position.x, nextZ, colliders)) {
           this.position.z = nextZ;
         }
-
         this.resolvePenetration(colliders);
       }
     } else {
       this.resolvePenetration(colliders);
     }
 
-    // Clamp to neighborhood play area and smoothly ground feet on road/sidewalk/courtyard elevation
     this.position.x = THREE.MathUtils.clamp(this.position.x, -this.worldBoundsX, this.worldBoundsX);
     this.position.z = THREE.MathUtils.clamp(this.position.z, -this.worldBoundsZ, this.worldBoundsZ);
     const targetSurfaceY = getSurfaceHeightAt(this.position.x, this.position.z);
@@ -184,9 +175,7 @@ export class PlayerController {
       const closestZ = Math.max(box.minZ, Math.min(z, box.maxZ));
       const dx = x - closestX;
       const dz = z - closestZ;
-      if (dx * dx + dz * dz < r * r) {
-        return true;
-      }
+      if (dx * dx + dz * dz < r * r) return true;
     }
     return false;
   }
