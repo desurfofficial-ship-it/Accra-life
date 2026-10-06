@@ -33,11 +33,7 @@ export interface SideHustleDefinition {
   readonly steps: ReadonlyArray<WorkStepDefinition>;
 }
 
-/**
- * Registry of multi-entity Accra neighborhood jobs.
- * Every job requires sequential physical traversal across distinct entities in the 3D block
- * rather than pressing E at a single spot for instant money.
- */
+/** Core legal jobs — 3 steps each, multi-spot walk, clear pay. */
 export const ACCRA_LEGAL_JOBS: ReadonlyArray<LegalJobDefinition> = [
   {
     id: 'JOB_PROVISIONS_ASSISTANT',
@@ -46,188 +42,119 @@ export const ACCRA_LEGAL_JOBS: ReadonlyArray<LegalJobDefinition> = [
     startInteractableId: 'provision_shop',
     employerAssetId: 'ACC_SHOP_001',
     payGHS: 18.0,
-    summary:
-      'Assist the Adabraka Provision Store shopkeeper by offloading wholesale crates and delivering restock supplies to specific businesses and neighbors across the block.',
+    summary: 'Load stock, deliver to waakye joint, collect pay.',
     steps: [
       {
-        stepId: 'prov_step_1_pickup',
-        stepTitle: 'Collect Wholesale Supply Crate',
-        instruction:
-          'Report to the Adabraka Provision Store counter to load the wholesale carton of Peak Milk, Milo, and water.',
+        stepId: 'prov_1',
+        stepTitle: 'Load crate',
+        instruction: 'Load the wholesale crate at the provision store.',
         targetInteractableId: 'provision_shop',
         requiredAssetId: 'ACC_SHOP_001',
-        targetLocationName: 'Adabraka Provision Store',
-        actionVerb: 'Load Wholesale Crate',
-        completionMessage:
-          'Loaded the wholesale provision crate onto your shoulder. Next: deliver cooking stock to Sister Akosua.'
+        targetLocationName: 'Provision Store',
+        actionVerb: 'Load Crate',
+        completionMessage: 'Crate loaded. Deliver to waakye joint.'
       },
       {
-        stepId: 'prov_step_2_food_joint',
-        stepTitle: 'Deliver Cooking Stock to Sister Akosua',
-        instruction:
-          'Walk east along the North walkway to Sister Akosua’s Waakye & Jollof Joint and hand over her kitchen supplies.',
+        stepId: 'prov_2',
+        stepTitle: 'Deliver to waakye',
+        instruction: 'Deliver the crate to the waakye joint.',
         targetInteractableId: 'food_vendor',
         requiredAssetId: 'ACC_RESTAURANT_001',
-        targetLocationName: 'Sister Akosua’s Waakye Joint',
-        actionVerb: 'Deliver Kitchen Provisions',
-        completionMessage:
-          'Sister Akosua signed for the cooking oil, rice, and tin tomatoes. Next: deliver chilled water to the Trotro Station.'
+        targetLocationName: 'Waakye Joint',
+        actionVerb: 'Deliver',
+        completionMessage: 'Delivered. Return to the store for pay.'
       },
       {
-        stepId: 'prov_step_3_trotro_station',
-        stepTitle: 'Deliver Bottled Water to Trotro Station',
-        instruction:
-          'Cross the street to the Osu–Circle Trotro Station shelter and drop off the drivers’ water pack.',
-        targetInteractableId: 'trotro_stop',
-        requiredAssetId: 'ACC_PROP_001',
-        targetLocationName: 'Osu–Circle Trotro Station',
-        actionVerb: 'Drop Off Station Water Pack',
-        completionMessage:
-          'Station master received the chilled Voltic water pack. Next: deliver Kojo’s prepaid airtime & drink order.'
-      },
-      {
-        stepId: 'prov_step_4_kojo_order',
-        stepTitle: 'Hand Off Prepaid & Drink Order to Kojo',
-        instruction:
-          'Walk back across to the North walkway and deliver Kojo’s airtime voucher and cold malt.',
-        targetInteractableId: 'npc_male_001',
-        requiredAssetId: 'NPC_MALE_001',
-        targetLocationName: 'Kojo · Neighborhood Creative',
-        actionVerb: 'Deliver Kojo’s Order',
-        completionMessage:
-          'Kojo: "Chale, sharp delivery! Tell the shopkeeper everything is intact."'
-      },
-      {
-        stepId: 'prov_step_5_collect_wages',
-        stepTitle: 'Sign Ledger & Collect Shift Wages',
-        instruction:
-          'Return to the Adabraka Provision Store counter to return the signed delivery manifest and collect ₵18.00.',
+        stepId: 'prov_3',
+        stepTitle: 'Collect wages',
+        instruction: 'Return to the provision store and collect ₵18.',
         targetInteractableId: 'provision_shop',
         requiredAssetId: 'ACC_SHOP_001',
-        targetLocationName: 'Adabraka Provision Store',
-        actionVerb: 'Sign Off & Collect ₵18.00',
-        completionMessage:
-          'Provisions Shop Assistant shift complete! You earned ₵18.00 cash.'
+        targetLocationName: 'Provision Store',
+        actionVerb: 'Collect Pay',
+        completionMessage: 'Shift done.'
       }
     ]
   },
   {
     id: 'JOB_WAAKYE_DISPATCH',
-    title: 'Sister Akosua’s Waakye & Jollof Dispatch',
-    employerName: 'Sister Akosua’s Food Joint',
+    title: 'Waakye Dispatch',
+    employerName: 'Sister Akosua’s Waakye & Jollof',
     startInteractableId: 'food_vendor',
     employerAssetId: 'ACC_RESTAURANT_001',
     payGHS: 22.0,
-    summary:
-      'Help Sister Akosua during the busy Accra lunch rush by serving wrapped katemfe-leaf Waakye and shito orders to residents around the street.',
+    summary: 'Pick packs, drop at trotro, collect pay.',
     steps: [
       {
-        stepId: 'waakye_step_1_pickup',
-        stepTitle: 'Collect Hot Waakye Lunch Orders',
-        instruction:
-          'Report to Sister Akosua’s glass food showcase counter to pick up the freshly wrapped lunch packs.',
+        stepId: 'waa_1',
+        stepTitle: 'Pick packs',
+        instruction: 'Pick up dispatch packs at the waakye joint.',
         targetInteractableId: 'food_vendor',
         requiredAssetId: 'ACC_RESTAURANT_001',
-        targetLocationName: 'Sister Akosua’s Waakye Joint',
-        actionVerb: 'Pick Up Hot Waakye Packs',
-        completionMessage:
-          'Collected steaming Waakye, fried plantain, wele, and black shito orders.'
+        targetLocationName: 'Waakye Joint',
+        actionVerb: 'Pick Packs',
+        completionMessage: 'Packs ready. Take them to the trotro stop.'
       },
       {
-        stepId: 'waakye_step_2_ama',
-        stepTitle: 'Deliver Lunch Order to Ama',
-        instruction:
-          'Walk over to Ama on the North-East walkway and hand her the first hot Waakye pack.',
-        targetInteractableId: 'npc_female_001',
-        requiredAssetId: 'NPC_FEMALE_001',
-        targetLocationName: 'Ama · Young Professional',
-        actionVerb: 'Hand Waakye Order to Ama',
-        completionMessage:
-          'Ama: "Mmm, still steaming hot! Sister Akosua’s shito never disappoints."'
+        stepId: 'waa_2',
+        stepTitle: 'Drop at trotro',
+        instruction: 'Drop packs at the trotro stop.',
+        targetInteractableId: 'trotro_stop',
+        requiredAssetId: 'ACC_PROP_001',
+        targetLocationName: 'Trotro Stop',
+        actionVerb: 'Drop Packs',
+        completionMessage: 'Dropped. Return to Sister Akosua for pay.'
       },
       {
-        stepId: 'waakye_step_3_mensah',
-        stepTitle: 'Deliver Elder’s Meal to Uncle Mensah',
-        instruction:
-          'Cross to the South pedestrian walkway and deliver Uncle Mensah’s afternoon meal.',
-        targetInteractableId: 'npc_older_001',
-        requiredAssetId: 'NPC_OLDER_001',
-        targetLocationName: 'Uncle Mensah · Community Elder',
-        actionVerb: 'Deliver Meal to Uncle Mensah',
-        completionMessage:
-          'Uncle Mensah: "Medaase, my son! May your hustle prosper in Accra."'
-      },
-      {
-        stepId: 'waakye_step_4_payout',
-        stepTitle: 'Return Delivery Tray & Collect Wages',
-        instruction:
-          'Bring the insulated tray back to Sister Akosua’s counter to receive your ₵22.00 shift pay.',
+        stepId: 'waa_3',
+        stepTitle: 'Collect wages',
+        instruction: 'Return to the waakye joint and collect ₵22.',
         targetInteractableId: 'food_vendor',
         requiredAssetId: 'ACC_RESTAURANT_001',
-        targetLocationName: 'Sister Akosua’s Waakye Joint',
-        actionVerb: 'Return Tray & Collect ₵22.00',
-        completionMessage:
-          'Waakye dispatch shift completed! Sister Akosua paid you ₵22.00 cash.'
+        targetLocationName: 'Waakye Joint',
+        actionVerb: 'Collect Pay',
+        completionMessage: 'Shift done.'
       }
     ]
   },
   {
     id: 'JOB_TROTRO_MATE',
-    title: 'Osu–Circle Trotro Mate & Station Loader',
-    employerName: 'Osu–Circle Trotro Union',
+    title: 'Trotro Mate',
+    employerName: 'Osu–Circle Station',
     startInteractableId: 'trotro_stop',
     employerAssetId: 'ACC_PROP_001',
     payGHS: 15.0,
-    summary:
-      'Work as a trotro mate calling out the Osu–Circle–Lapaz route, escorting passengers with luggage, and loading waybill parcels onto the minibus.',
+    summary: 'Call passengers, fetch water, collect pay.',
     steps: [
       {
-        stepId: 'mate_step_1_call',
-        stepTitle: 'Call Passengers at Trotro Curb',
-        instruction:
-          'Go to the Osu–Circle Trotro Station signpost to open the boarding manifest and call "Osu! Circle! 37!"',
+        stepId: 'tro_1',
+        stepTitle: 'Call passengers',
+        instruction: 'At the trotro stop, call passengers for the next bus.',
         targetInteractableId: 'trotro_stop',
         requiredAssetId: 'ACC_PROP_001',
-        targetLocationName: 'Osu–Circle Trotro Station',
-        actionVerb: 'Call Osu–Circle Passengers',
-        completionMessage:
-          'Opened the sliding minibus door and called passengers along the curb.'
+        targetLocationName: 'Trotro Stop',
+        actionVerb: 'Call Passengers',
+        completionMessage: 'Bus filling. Get water from the provision store.'
       },
       {
-        stepId: 'mate_step_2_ama_parcel',
-        stepTitle: 'Collect Commuter Luggage from Ama',
-        instruction:
-          'Walk across to Ama on the North-East walkway to help carry her Osu parcel to the van.',
-        targetInteractableId: 'npc_female_001',
-        requiredAssetId: 'NPC_FEMALE_001',
-        targetLocationName: 'Ama · Young Professional',
-        actionVerb: 'Collect Ama’s Osu Parcel',
-        completionMessage:
-          'Ama: "Thank you chale! Please stow this carefully on the trotro."'
-      },
-      {
-        stepId: 'mate_step_3_shop_waybill',
-        stepTitle: 'Pick Up Circle Waybill Box at Provision Store',
-        instruction:
-          'Walk west to the Adabraka Provision Store counter to pick up the driver’s sealed Circle waybill carton.',
+        stepId: 'tro_2',
+        stepTitle: 'Fetch water',
+        instruction: 'Fetch driver water from the provision store.',
         targetInteractableId: 'provision_shop',
         requiredAssetId: 'ACC_SHOP_001',
-        targetLocationName: 'Adabraka Provision Store',
-        actionVerb: 'Pick Up Waybill Carton',
-        completionMessage:
-          'Collected the Circle waybill package from the shopkeeper.'
+        targetLocationName: 'Provision Store',
+        actionVerb: 'Fetch Water',
+        completionMessage: 'Water got. Back to the stop for pay.'
       },
       {
-        stepId: 'mate_step_4_load_and_pay',
-        stepTitle: 'Strap Luggage Rack & Collect Mate Pay',
-        instruction:
-          'Return to the Osu–Circle Trotro Station to tie down the roof cargo and collect your ₵15.00 commission.',
+        stepId: 'tro_3',
+        stepTitle: 'Collect wages',
+        instruction: 'Return to the trotro stop and collect ₵15.',
         targetInteractableId: 'trotro_stop',
         requiredAssetId: 'ACC_PROP_001',
-        targetLocationName: 'Osu–Circle Trotro Station',
-        actionVerb: 'Load Roof Rack & Collect ₵15.00',
-        completionMessage:
-          'Trotro roof rack secured! The driver paid you ₵15.00 cash.'
+        targetLocationName: 'Trotro Stop',
+        actionVerb: 'Collect Pay',
+        completionMessage: 'Shift done.'
       }
     ]
   }
@@ -237,96 +164,82 @@ export const ACCRA_SIDE_HUSTLES: ReadonlyArray<SideHustleDefinition> = [
   {
     id: 'HUSTLE_NEIGHBORHOOD_ERRAND',
     title: 'ECG Prepaid & MoMo Errand Runner',
-    categoryLabel: 'Informal Errand · ₵0 Capital Required',
+    categoryLabel: 'Informal Errand · ₵0 Capital',
     startInteractableId: 'npc_older_001',
-    upfrontCapitalGHS: 0,
+    upfrontCapitalGHS: 0.0,
     grossPayoutGHS: 10.0,
-    summary:
-      'Run an honest neighborhood errand for Uncle Mensah by taking his ECG prepaid electricity card to the MoMo agent booth and returning the printed token slip.',
+    summary: 'Run ECG prepaid errand for Uncle Mensah.',
     steps: [
       {
-        stepId: 'errand_step_1_card',
-        stepTitle: 'Collect Prepaid Meter Card from Uncle Mensah',
-        instruction:
-          'Speak with Uncle Mensah on the South walkway to pick up his prepaid meter card.',
+        stepId: 'errand_1',
+        stepTitle: 'Get card',
+        instruction: 'Collect prepaid card from Uncle Mensah.',
         targetInteractableId: 'npc_older_001',
         requiredAssetId: 'NPC_OLDER_001',
-        targetLocationName: 'Uncle Mensah · Community Elder',
-        actionVerb: 'Pick Up Prepaid Meter Card',
-        completionMessage:
-          'Uncle Mensah handed you his ECG meter card to top up at the MoMo booth.'
+        targetLocationName: 'Uncle Mensah',
+        actionVerb: 'Get Card',
+        completionMessage: 'Card in hand. Go to MoMo at the store.'
       },
       {
-        stepId: 'errand_step_2_momo',
-        stepTitle: 'Process Token at Adabraka MoMo Booth',
-        instruction:
-          'Cross the street to the Adabraka Provision Store & MoMo booth to purchase the electricity token.',
+        stepId: 'errand_2',
+        stepTitle: 'MoMo token',
+        instruction: 'Process token at the provision store MoMo booth.',
         targetInteractableId: 'provision_shop',
         requiredAssetId: 'ACC_SHOP_001',
-        targetLocationName: 'Adabraka Provision Store & MoMo',
-        actionVerb: 'Process ECG Prepaid Token',
-        completionMessage:
-          'The yellow MoMo booth agent printed the 20-digit ECG prepaid token receipt.'
+        targetLocationName: 'Provision Store',
+        actionVerb: 'Process Token',
+        completionMessage: 'Token ready. Return to Uncle Mensah.'
       },
       {
-        stepId: 'errand_step_3_return',
-        stepTitle: 'Return Token Slip to Uncle Mensah',
-        instruction:
-          'Walk back to Uncle Mensah on the South walkway to deliver his receipt and receive ₵10.00.',
+        stepId: 'errand_3',
+        stepTitle: 'Deliver & pay',
+        instruction: 'Return the slip to Uncle Mensah and collect ₵10.',
         targetInteractableId: 'npc_older_001',
         requiredAssetId: 'NPC_OLDER_001',
-        targetLocationName: 'Uncle Mensah · Community Elder',
-        actionVerb: 'Deliver Receipt & Collect ₵10.00',
-        completionMessage:
-          'Uncle Mensah: "God bless your hustle!" You received +₵10.00 cash.'
+        targetLocationName: 'Uncle Mensah',
+        actionVerb: 'Deliver',
+        completionMessage: 'Errand done.'
       }
     ]
   },
   {
     id: 'HUSTLE_WATER_HAWKING',
-    title: 'Roadside Cold Water & Beverage Trading',
-    categoryLabel: 'Small Trading · ₵5.00 Capital → ₵16.00 Return (+₵11.00 Profit)',
+    title: 'Cold Water Trading',
+    categoryLabel: 'Trading · ₵5 → ₵16',
     startInteractableId: 'provision_shop',
     upfrontCapitalGHS: 5.0,
     grossPayoutGHS: 16.0,
-    summary:
-      'Invest ₵5.00 of your earned cash in a wholesale pack of iced water at the provision store and hawk it to thirsty trotro commuters and neighbors for ₵16.00.',
+    summary: 'Buy iced water, sell at trotro and to Kojo.',
     steps: [
       {
-        stepId: 'hawk_step_1_wholesale',
-        stepTitle: 'Pick Up Wholesale Iced Water Bundle',
-        instruction:
-          'Visit Adabraka Provision Store to load your wholesale iced water pack into a head-pan cooler.',
+        stepId: 'hawk_1',
+        stepTitle: 'Buy water',
+        instruction: 'Load iced water at the provision store.',
         targetInteractableId: 'provision_shop',
         requiredAssetId: 'ACC_SHOP_001',
-        targetLocationName: 'Adabraka Provision Store',
-        actionVerb: 'Load Iced Water Cooler',
-        completionMessage:
-          'Packed ice-cold water bottles into your cooler. Head to the Trotro Station!'
+        targetLocationName: 'Provision Store',
+        actionVerb: 'Load Cooler',
+        completionMessage: 'Cooler loaded. Sell at trotro stop.'
       },
       {
-        stepId: 'hawk_step_2_commuters',
-        stepTitle: 'Sell Cold Water to Trotro Commuters',
-        instruction:
-          'Walk to the Osu–Circle Trotro Station and sell chilled water to waiting passengers.',
+        stepId: 'hawk_2',
+        stepTitle: 'Sell at trotro',
+        instruction: 'Sell water at the trotro stop.',
         targetInteractableId: 'trotro_stop',
         requiredAssetId: 'ACC_PROP_001',
-        targetLocationName: 'Osu–Circle Trotro Station',
-        actionVerb: 'Sell Water to Commuters',
-        completionMessage:
-          'Sold half your cooler to passengers boarding the Osu–Circle minibus!'
+        targetLocationName: 'Trotro Stop',
+        actionVerb: 'Sell',
+        completionMessage: 'Sold half. Finish with Kojo.'
       },
       {
-        stepId: 'hawk_step_3_kojo',
-        stepTitle: 'Sell Remaining Bottles on North Walkway',
-        instruction:
-          'Walk to Kojo on the North walkway to sell the rest of your cooler and collect ₵16.00.',
+        stepId: 'hawk_3',
+        stepTitle: 'Finish sales',
+        instruction: 'Sell the rest to Kojo and collect ₵16.',
         targetInteractableId: 'npc_male_001',
         requiredAssetId: 'NPC_MALE_001',
-        targetLocationName: 'Kojo · Neighborhood Creative',
-        actionVerb: 'Complete Sales & Collect ₵16.00',
-        completionMessage:
-          'Sold out the entire cooler! Collected ₵16.00 gross sales (+₵11.00 net profit).'
+        targetLocationName: 'Kojo',
+        actionVerb: 'Collect',
+        completionMessage: 'Sold out.'
       }
     ]
   }
