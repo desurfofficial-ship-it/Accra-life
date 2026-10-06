@@ -1,7 +1,7 @@
 /**
  * CHALÉ LIFE — Player compound home
  * Furniture ownership + flex score (screenshot / compete on social).
- * Ghana-flavoured pieces, fixed courtyard slots for now.
+ * Ghana-flavoured pieces: courtyard outdoors, interior inside the room.
  */
 
 export type FurnitureId =
@@ -23,8 +23,10 @@ export interface FurnitureItem {
   title: string;
   costGHS: number;
   flexPoints: number;
-  /** Courtyard slot index 0–5 for placement */
+  /** Slot index within zone */
   slot: number;
+  /** courtyard = outside; interior = inside the room */
+  zone: 'courtyard' | 'interior';
   blurb: string;
 }
 
@@ -35,6 +37,7 @@ export const FURNITURE_CATALOG: FurnitureItem[] = [
     costGHS: 25,
     flexPoints: 4,
     slot: 0,
+    zone: 'courtyard',
     blurb: 'Every compound starts here.'
   },
   {
@@ -43,6 +46,7 @@ export const FURNITURE_CATALOG: FurnitureItem[] = [
     costGHS: 40,
     flexPoints: 5,
     slot: 1,
+    zone: 'courtyard',
     blurb: 'Chop bar classic.'
   },
   {
@@ -51,6 +55,7 @@ export const FURNITURE_CATALOG: FurnitureItem[] = [
     costGHS: 80,
     flexPoints: 8,
     slot: 2,
+    zone: 'courtyard',
     blurb: 'Waakye on the veranda.'
   },
   {
@@ -59,15 +64,17 @@ export const FURNITURE_CATALOG: FurnitureItem[] = [
     costGHS: 35,
     flexPoints: 6,
     slot: 3,
+    zone: 'courtyard',
     blurb: 'Aunty will notice.'
   },
   {
     id: 'rug',
-    title: 'Courtyard Rug',
+    title: 'Floor Rug',
     costGHS: 120,
     flexPoints: 12,
     slot: 4,
-    blurb: 'Soft underfoot.'
+    zone: 'interior',
+    blurb: 'Soft underfoot inside.'
   },
   {
     id: 'kente_cloth',
@@ -75,6 +82,7 @@ export const FURNITURE_CATALOG: FurnitureItem[] = [
     costGHS: 150,
     flexPoints: 18,
     slot: 5,
+    zone: 'interior',
     blurb: 'Colour on the wall.'
   },
   {
@@ -83,6 +91,7 @@ export const FURNITURE_CATALOG: FurnitureItem[] = [
     costGHS: 350,
     flexPoints: 28,
     slot: 0,
+    zone: 'interior',
     blurb: 'Sit like someone.'
   },
   {
@@ -91,6 +100,7 @@ export const FURNITURE_CATALOG: FurnitureItem[] = [
     costGHS: 400,
     flexPoints: 30,
     slot: 1,
+    zone: 'interior',
     blurb: 'Real sleep.'
   },
   {
@@ -99,6 +109,7 @@ export const FURNITURE_CATALOG: FurnitureItem[] = [
     costGHS: 500,
     flexPoints: 35,
     slot: 2,
+    zone: 'interior',
     blurb: 'Match day ready.'
   },
   {
@@ -107,6 +118,7 @@ export const FURNITURE_CATALOG: FurnitureItem[] = [
     costGHS: 800,
     flexPoints: 42,
     slot: 3,
+    zone: 'interior',
     blurb: 'Cold water. Status.'
   },
   {
@@ -115,6 +127,7 @@ export const FURNITURE_CATALOG: FurnitureItem[] = [
     costGHS: 600,
     flexPoints: 38,
     slot: 4,
+    zone: 'interior',
     blurb: 'Neighbours will hear.'
   },
   {
@@ -123,6 +136,7 @@ export const FURNITURE_CATALOG: FurnitureItem[] = [
     costGHS: 1200,
     flexPoints: 55,
     slot: 5,
+    zone: 'courtyard',
     blurb: 'When ECG goes…'
   }
 ];
@@ -170,7 +184,6 @@ export class HomeSystem {
     return 'Empty Veranda';
   }
 
-  /** One-liner for screenshot / X share */
   public getFlexShareLine(displayName = 'Chale'): string {
     return `${displayName}'s Adabraka compound · Flex ${this.getFlexScore()} · ${this.getFlexLabel()} · #ChaleLife`;
   }
