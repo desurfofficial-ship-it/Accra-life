@@ -7,83 +7,163 @@
   <meta name="description" content="Your second life in Accra. Hustle, live, and find your people." />
   <style>
     :root {
-      --bg-dark: rgba(15, 23, 42, 0.88);
-      --bg-panel: rgba(15, 23, 42, 0.96);
-      --border-light: rgba(255, 255, 255, 0.16);
-      --accent-gold: #f59e0b;
-      --accent-gold-soft: #fde68a;
+      --bg-dark: rgba(28, 18, 12, 0.9);
+      --bg-panel: rgba(32, 20, 14, 0.96);
+      --border-light: rgba(255, 200, 120, 0.18);
+      --accent-gold: #e8a317;
+      --accent-gold-soft: #f5d78a;
       --accent-green: #10b981;
       --accent-red: #ef4444;
-      --text-main: #f8fafc;
-      --text-muted: #cbd5e1;
+      --text-main: #fff8ef;
+      --text-muted: #d4b896;
     }
     * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
     html, body {
       margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
       overscroll-behavior: none; touch-action: none;
-      background: #dfeffc;
+      background: #1a100c;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       color: var(--text-main);
     }
     #viewportContainer { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; }
 
-    /* Onboarding */
+    /* ===== ONBOARDING — Warm Accra Dusk ===== */
     #onboardingOverlay {
       position: fixed; inset: 0; z-index: 1000;
-      background: linear-gradient(160deg, #0f172a 0%, #1e293b 40%, #0c4a6e 100%);
-      display: flex; align-items: center; justify-content: center; padding: 24px;
-      opacity: 0; pointer-events: none; transition: opacity 0.35s ease;
+      background:
+        radial-gradient(ellipse 120% 80% at 50% 100%, rgba(232, 120, 40, 0.35) 0%, transparent 55%),
+        radial-gradient(ellipse 90% 60% at 80% 20%, rgba(255, 180, 60, 0.12) 0%, transparent 50%),
+        linear-gradient(180deg, #1a1410 0%, #2a1810 35%, #3d2214 70%, #5c3218 100%);
+      display: flex; align-items: center; justify-content: center; padding: 28px 20px;
+      opacity: 0; pointer-events: none; transition: opacity 0.4s ease;
     }
     #onboardingOverlay.visible { opacity: 1; pointer-events: auto; }
-    #onboardingOverlay.exit { opacity: 0; transition: opacity 0.4s ease; }
+    #onboardingOverlay.exit { opacity: 0; transition: opacity 0.45s ease; }
+
     .ob-card {
-      width: 100%; max-width: 400px;
-      background: rgba(15, 23, 42, 0.92);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      border-radius: 24px; padding: 32px 28px;
-      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45); text-align: center;
+      width: 100%; max-width: 380px;
+      background: rgba(22, 14, 10, 0.72);
+      border: 1px solid rgba(232, 163, 23, 0.22);
+      border-radius: 4px 4px 12px 12px;
+      padding: 36px 28px 28px;
+      box-shadow:
+        0 0 0 1px rgba(0,0,0,0.3),
+        0 20px 50px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 200, 120, 0.08);
+      text-align: center;
+      position: relative;
     }
-    .ob-screen { display: none; flex-direction: column; align-items: center; gap: 18px; }
+    /* thin gold top edge like a notice board */
+    .ob-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, #c47820, #e8a317, #f5d78a, #e8a317, #c47820);
+      border-radius: 4px 4px 0 0;
+    }
+
+    .ob-screen { display: none; flex-direction: column; align-items: center; gap: 16px; }
     .ob-screen.active { display: flex; }
-    .ob-flag { font-size: 2.4rem; line-height: 1; }
-    .ob-title { font-size: 1.85rem; font-weight: 900; color: #fff; letter-spacing: -0.03em; margin: 0; }
-    .ob-tagline { font-size: 0.95rem; color: #94a3b8; margin: 0; line-height: 1.45; }
-    .ob-tagline strong { color: #fde68a; }
+
+    .ob-place {
+      font-size: 0.7rem; font-weight: 700;
+      letter-spacing: 0.14em; text-transform: uppercase;
+      color: #c47820; margin: 0 0 4px;
+    }
+    .ob-title {
+      font-size: 2rem; font-weight: 900;
+      color: #fff8ef; letter-spacing: -0.02em; margin: 0;
+      text-shadow: 0 2px 12px rgba(0,0,0,0.35);
+    }
+    .ob-tagline {
+      font-size: 0.92rem; color: #d4b896; margin: 0;
+      line-height: 1.5; max-width: 280px;
+    }
+    .ob-tagline em {
+      color: #f5d78a; font-style: normal; font-weight: 700;
+    }
+
     .ob-btn {
-      width: 100%; border: none; border-radius: 14px; padding: 14px 20px;
-      font-size: 0.95rem; font-weight: 800; cursor: pointer;
-      transition: transform 0.12s ease;
+      width: 100%; border: none; border-radius: 8px;
+      padding: 15px 20px; font-size: 0.95rem; font-weight: 800;
+      cursor: pointer; transition: transform 0.1s ease, filter 0.15s ease;
+      letter-spacing: 0.01em;
     }
     .ob-btn:active { transform: scale(0.98); }
     .ob-btn-primary {
-      background: linear-gradient(135deg, #f59e0b, #d97706); color: #0f172a;
-      box-shadow: 0 8px 24px rgba(245, 158, 11, 0.35);
+      background: linear-gradient(180deg, #f0b429 0%, #d4890f 100%);
+      color: #1a1008;
+      box-shadow: 0 4px 0 #9a5f0a, 0 8px 20px rgba(180, 100, 20, 0.35);
+      margin-top: 8px;
+    }
+    .ob-btn-primary:active {
+      box-shadow: 0 2px 0 #9a5f0a, 0 4px 12px rgba(180, 100, 20, 0.3);
+      transform: translateY(2px);
     }
     .ob-btn-secondary {
-      background: rgba(255, 255, 255, 0.08); color: #f8fafc;
-      border: 1.5px solid rgba(255, 255, 255, 0.2);
+      background: transparent;
+      color: #e8c99a;
+      border: 1.5px solid rgba(232, 163, 23, 0.35);
+      box-shadow: none;
+      font-weight: 700;
+      font-size: 0.88rem;
+      padding: 12px 20px;
     }
-    .ob-btn-ghost { background: transparent; color: #94a3b8; font-size: 0.82rem; font-weight: 700; padding: 8px; }
+    .ob-btn-secondary:hover, .ob-btn-secondary:active {
+      border-color: rgba(232, 163, 23, 0.55);
+      background: rgba(232, 163, 23, 0.08);
+    }
+    .ob-btn-ghost {
+      background: transparent; color: #a89070;
+      font-size: 0.8rem; font-weight: 600; padding: 6px;
+      border: none; box-shadow: none;
+    }
+
     .ob-input {
-      width: 100%; background: rgba(30, 41, 59, 0.8);
-      border: 1.5px solid rgba(255, 255, 255, 0.16); border-radius: 12px;
-      padding: 13px 16px; font-size: 0.95rem; color: #fff; outline: none; font-family: inherit;
+      width: 100%;
+      background: rgba(12, 8, 6, 0.65);
+      border: 1.5px solid rgba(232, 163, 23, 0.25);
+      border-radius: 8px;
+      padding: 13px 16px; font-size: 0.95rem;
+      color: #fff8ef; outline: none; font-family: inherit;
     }
-    .ob-input:focus { border-color: #f59e0b; }
-    .ob-input::placeholder { color: #64748b; }
-    .ob-error { display: none; color: #fca5a5; font-size: 0.8rem; font-weight: 700; margin: 0; }
+    .ob-input:focus { border-color: #e8a317; background: rgba(12, 8, 6, 0.85); }
+    .ob-input::placeholder { color: #8a7050; }
+
+    .ob-error { display: none; color: #f0a0a0; font-size: 0.8rem; font-weight: 700; margin: 0; }
     .ob-error.visible { display: block; }
-    .ob-back { align-self: flex-start; background: none; border: none; color: #94a3b8; font-size: 0.82rem; font-weight: 700; cursor: pointer; padding: 0; }
-    .ob-loading-city { font-size: 1.1rem; color: #fde68a; font-weight: 800; margin: 0; }
-    .ob-loading-name { font-size: 0.9rem; color: #94a3b8; margin: 0; }
+
+    .ob-back {
+      align-self: flex-start; background: none; border: none;
+      color: #a89070; font-size: 0.8rem; font-weight: 700;
+      cursor: pointer; padding: 0;
+    }
+
+    .ob-divider {
+      width: 40px; height: 2px;
+      background: linear-gradient(90deg, transparent, #c47820, transparent);
+      margin: 4px 0;
+    }
+
+    .ob-loading-city { font-size: 1.15rem; color: #f5d78a; font-weight: 800; margin: 0; }
+    .ob-loading-name { font-size: 0.88rem; color: #a89070; margin: 0; }
     .ob-spinner {
-      width: 36px; height: 36px;
-      border: 3px solid rgba(245, 158, 11, 0.25); border-top-color: #f59e0b;
-      border-radius: 50%; animation: obspin 0.7s linear infinite;
+      width: 32px; height: 32px;
+      border: 3px solid rgba(232, 163, 23, 0.2);
+      border-top-color: #e8a317;
+      border-radius: 50%;
+      animation: obspin 0.75s linear infinite;
     }
     @keyframes obspin { to { transform: rotate(360deg); } }
 
-    /* HUD (existing) */
+    /* subtle ground glow at bottom of overlay */
+    #onboardingOverlay::after {
+      content: '';
+      position: absolute; bottom: 0; left: 0; right: 0; height: 30%;
+      background: linear-gradient(to top, rgba(232, 120, 40, 0.15), transparent);
+      pointer-events: none;
+    }
+
+    /* ===== HUD ===== */
     .phase1-hud-top {
       position: fixed; top: 14px; left: 14px; right: 14px;
       display: flex; justify-content: space-between; align-items: flex-start;
@@ -215,34 +295,42 @@
 <body>
   <div id="onboardingOverlay">
     <div class="ob-card">
+      <!-- WELCOME -->
       <div id="obScreenWelcome" class="ob-screen active">
-        <div class="ob-flag">🇬🇭</div>
+        <p class="ob-place">Accra · Ghana</p>
         <h1 class="ob-title">CHALÉ LIFE</h1>
-        <p class="ob-tagline">Your second life in <strong>Accra</strong>.<br>Hustle, live, and find your people.</p>
-        <button id="obBtnGuest" class="ob-btn ob-btn-primary" type="button">Play as Guest</button>
-        <button id="obBtnAccount" class="ob-btn ob-btn-secondary" type="button">Create Account / Sign In</button>
+        <div class="ob-divider"></div>
+        <p class="ob-tagline">Your second life in <em>Accra</em>.<br>Work, hustle, and find your people.</p>
+        <button id="obBtnGuest" class="ob-btn ob-btn-primary" type="button">Enter Accra</button>
+        <button id="obBtnAccount" class="ob-btn ob-btn-secondary" type="button">Save my progress</button>
       </div>
+
+      <!-- AUTH -->
       <div id="obScreenAuth" class="ob-screen">
         <button id="obBackFromAuth" class="ob-back" type="button">← Back</button>
-        <h2 id="obAuthTitle" class="ob-title" style="font-size:1.4rem;">Create your account</h2>
-        <p class="ob-tagline">Save your progress across devices.</p>
+        <h2 id="obAuthTitle" class="ob-title" style="font-size:1.35rem;">Keep your story</h2>
+        <p class="ob-tagline">So you can come back to Accra anytime.</p>
         <input id="obEmailInput" class="ob-input" type="email" placeholder="Email" autocomplete="email" />
         <input id="obPasswordInput" class="ob-input" type="password" placeholder="Password (min 6)" autocomplete="new-password" />
         <p id="obError" class="ob-error"></p>
         <button id="obAuthSubmit" class="ob-btn ob-btn-primary" type="button">Create Account</button>
         <button id="obAuthToggle" class="ob-btn ob-btn-ghost" type="button">Already have an account? Sign in</button>
       </div>
+
+      <!-- NAME -->
       <div id="obScreenName" class="ob-screen">
         <button id="obBackFromName" class="ob-back" type="button">← Back</button>
-        <h2 class="ob-title" style="font-size:1.4rem;">What should we call you?</h2>
-        <p class="ob-tagline">This is how you’ll appear in Accra.</p>
-        <input id="obNameInput" class="ob-input" type="text" placeholder="Your name" maxlength="24" autocomplete="nickname" />
+        <h2 class="ob-title" style="font-size:1.35rem;">Your name in Accra</h2>
+        <p class="ob-tagline">What should people call you?</p>
+        <input id="obNameInput" class="ob-input" type="text" placeholder="e.g. Kofi, Ama, Chale…" maxlength="24" autocomplete="nickname" />
         <p id="obNameError" class="ob-error"></p>
-        <button id="obBtnEnter" class="ob-btn ob-btn-primary" type="button">Enter Accra</button>
+        <button id="obBtnEnter" class="ob-btn ob-btn-primary" type="button">Step into the city</button>
       </div>
+
+      <!-- LOADING -->
       <div id="obScreenLoading" class="ob-screen">
         <div class="ob-spinner"></div>
-        <p class="ob-loading-city">Welcome to Adabraka…</p>
+        <p class="ob-loading-city">Adabraka is waiting…</p>
         <p id="obLoadingName" class="ob-loading-name">Chale</p>
       </div>
     </div>
