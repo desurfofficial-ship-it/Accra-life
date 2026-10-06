@@ -1,14 +1,17 @@
 /**
- * CHALÉ LIFE — First Screen Onboarding
+ * CHALÉ LIFE — First Screen Onboarding, Anonymous Guest Auth & Email Verification
  */
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  signInAnonymously,
+  signInWithPopup,
+  sendEmailVerification,
   updateProfile,
   onAuthStateChanged,
   type User
 } from 'firebase/auth';
-import { auth } from './firebase';
+import { auth, googleProvider } from './firebase';
 
 export type SkinPreset = 'deep' | 'rich' | 'warm' | 'light';
 export type HairPreset = 'fade' | 'twists' | 'bun' | 'short';
@@ -19,6 +22,9 @@ export type OnboardingResult = {
   mode: 'guest' | 'account';
   displayName: string;
   userId: string | null;
+  isAnonymous?: boolean;
+  email?: string | null;
+  emailVerified?: boolean;
   skin: SkinPreset;
   hair: HairPreset;
   trait: TraitId;
@@ -52,8 +58,44 @@ export function loadSavedProfile(): Partial<OnboardingResult> | null {
   }
 }
 
-function saveProfile(result: OnboardingResult): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(result));
+export function saveProfile(result: OnboardingResult): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(result));
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Attempts Firebase Anonymous Auth for guest players so they get a real UID
+ * for multiplayer presence, location chat, and guest session persistence.
+ * Gracefully falls back to null if Anonymous Auth is not enabled in Firebase Console.
+ */
+export async function ensureGuestAnonymousAuth(displayName: string): Promise<User | null> {
+  if (auth.currentUser) {
+    if (!auth.currentUser.displayName && displayName) {
+      try {
+        await updateProfile(auth.currentUser, { displayName });
+      } catch {
+        /* non-fatal */
+      }
+    }
+    return auth.currentUser;
+  }
+  try {
+    const cred = await signInAnonymously(auth);
+    if (cred.user && displayName) {
+      try {
+        await updateProfile(cred.user, { displayName });
+      } catch {
+        /* non-fatal */
+      }
+    }
+    return cred.user;
+  } catch {
+    // Anonymous provider may not be enabled in Firebase Console; fall back to local guest
+    return null;
+  }
 }
 
 export function startOnboarding(onComplete: (result: OnboardingResult) => void): void {
@@ -65,25 +107,40 @@ export function startOnboarding(onComplete: (result: OnboardingResult) => void):
       overlay.classList.remove('visible');
       overlay.style.display = 'none';
     }
-    const autoResult: OnboardingResult = {
-      mode: (savedProfile?.mode as 'guest' | 'account') || 'guest',
-      displayName: savedProfile?.displayName || 'Chale',
-      userId: savedProfile?.userId ?? null,
-      skin: (savedProfile?.skin as SkinPreset) || 'rich',
-      hair: (savedProfile?.hair as HairPreset) || 'fade',
-      trait: (savedProfile?.trait as TraitId) || 'hustler',
-      origin: (savedProfile?.origin as OriginId) || 'dbee'
-    };
-    saveProfile(autoResult);
-    onComplete(autoResult);
+    const name = savedProfile?.displayName || 'Chale';
+    void ensureGuestAnonymousAuth(name).then((anonUser) => {
+      const user = auth.currentUser ?? anonUser;
+      const autoResult: OnboardingResult = {
+        mode: user && !user.isAnonymous ? 'account' : (savedProfile?.mode as 'guest' | 'account') || 'guest',
+        displayName: name,
+        userId: user?.uid ?? savedProfile?.userId ?? null,
+        isAnonymous: user ? user.isAnonymous : true,
+        email: user?.email ?? savedProfile?.email ?? null,
+        emailVerified: user ? user.emailVerified : false,
+        skin: (savedProfile?.skin as SkinPreset) || 'rich',
+        hair: (savedProfile?.hair as HairPreset) || 'fade',
+        trait: (savedProfile?.trait as TraitId) || 'hustler',
+        origin: (savedProfile?.origin as OriginId) || 'dbee'
+      };
+      saveProfile(autoResult);
+      onComplete(autoResult);
+    });
     return;
   }
 
   const overlay = document.getElementById('onboardingOverlay');
   if (!overlay) {
     onComplete({
-      mode: 'guest', displayName: 'Chale', userId: null,
-      skin: 'rich', hair: 'fade', trait: 'hustler', origin: 'aunty_ba'
+      mode: 'guest',
+      displayName: 'Chale',
+      userId: null,
+      isAnonymous: true,
+      email: null,
+      emailVerified: false,
+      skin: 'rich',
+      hair: 'fade',
+      trait: 'hustler',
+      origin: 'aunty_ba'
     });
     return;
   }
@@ -105,6 +162,7 @@ export function startOnboarding(onComplete: (result: OnboardingResult) => void):
   const authTitle = document.getElementById('obAuthTitle');
   const authSubmitBtn = document.getElementById('obAuthSubmit') as HTMLButtonElement | null;
   const authToggleBtn = document.getElementById('obAuthToggle') as HTMLButtonElement | null;
+  const googleAuthBtn = document.getElementById('obGoogleSignInBtn') as HTMLButtonElement | null;
 
   let authMode: 'signup' | 'signin' = 'signup';
   let pendingMode: 'guest' | 'account' = 'guest';
@@ -119,12 +177,21 @@ export function startOnboarding(onComplete: (result: OnboardingResult) => void):
     for (const [key, el] of Object.entries(screens)) {
       if (el) el.classList.toggle('active', key === id);
     }
-    if (errorEl) { errorEl.textContent = ''; errorEl.classList.remove('visible'); }
-    if (nameErrorEl) { nameErrorEl.textContent = ''; nameErrorEl.classList.remove('visible'); }
+    if (errorEl) {
+      errorEl.textContent = '';
+      errorEl.classList.remove('visible');
+    }
+    if (nameErrorEl) {
+      nameErrorEl.textContent = '';
+      nameErrorEl.classList.remove('visible');
+    }
   }
 
   function showError(msg: string): void {
-    if (errorEl) { errorEl.textContent = msg; errorEl.classList.add('visible'); }
+    if (errorEl) {
+      errorEl.textContent = msg;
+      errorEl.classList.add('visible');
+    }
   }
 
   function selectChip(containerId: string, value: string, dataAttr: string): void {
@@ -154,30 +221,61 @@ export function startOnboarding(onComplete: (result: OnboardingResult) => void):
     }
   }
 
-  fillChips('obSkinRow', [
-    { id: 'deep', label: 'Deep' }, { id: 'rich', label: 'Rich' },
-    { id: 'warm', label: 'Warm' }, { id: 'light', label: 'Light' }
-  ], 'skin', pendingSkin);
-  fillChips('obHairRow', [
-    { id: 'fade', label: 'Fade' }, { id: 'twists', label: 'Twists' },
-    { id: 'bun', label: 'Bun' }, { id: 'short', label: 'Short' }
-  ], 'hair', pendingHair);
-  fillChips('obTraitRow', Object.entries(TRAIT_DEFS).map(([id, d]) => ({ id, label: d.label })), 'trait', pendingTrait);
-  fillChips('obTraitGrid', Object.entries(TRAIT_DEFS).map(([id, d]) => ({ id, label: d.label })), 'trait', pendingTrait);
-  fillChips('obOriginRow', Object.entries(ORIGIN_DEFS).map(([id, d]) => ({ id, label: d.label })), 'origin', pendingOrigin);
+  fillChips(
+    'obSkinRow',
+    [
+      { id: 'deep', label: 'Deep' },
+      { id: 'rich', label: 'Rich' },
+      { id: 'warm', label: 'Warm' },
+      { id: 'light', label: 'Light' }
+    ],
+    'skin',
+    pendingSkin
+  );
+  fillChips(
+    'obHairRow',
+    [
+      { id: 'fade', label: 'Fade' },
+      { id: 'twists', label: 'Twists' },
+      { id: 'bun', label: 'Bun' },
+      { id: 'short', label: 'Short' }
+    ],
+    'hair',
+    pendingHair
+  );
+  fillChips(
+    'obTraitRow',
+    Object.entries(TRAIT_DEFS).map(([id, d]) => ({ id, label: d.label })),
+    'trait',
+    pendingTrait
+  );
+  fillChips(
+    'obTraitGrid',
+    Object.entries(TRAIT_DEFS).map(([id, d]) => ({ id, label: d.label })),
+    'trait',
+    pendingTrait
+  );
+  fillChips(
+    'obOriginRow',
+    Object.entries(ORIGIN_DEFS).map(([id, d]) => ({ id, label: d.label })),
+    'origin',
+    pendingOrigin
+  );
 
   function finish(result: OnboardingResult): void {
     saveProfile(result);
     showScreen('loading');
     const loadingName = document.getElementById('obLoadingName');
-    if (loadingName) loadingName.textContent = `${result.displayName} · ${ORIGIN_DEFS[result.origin].label}`;
+    if (loadingName) {
+      loadingName.textContent = `${result.displayName} · ${ORIGIN_DEFS[result.origin].label}`;
+    }
     setTimeout(() => {
       overlayEl.classList.add('exit');
       setTimeout(() => {
         overlayEl.style.display = 'none';
         onComplete(result);
       }, 420);
-    }, 1200);
+    }, 800);
   }
 
   document.getElementById('obBtnGuest')?.addEventListener('click', () => {
@@ -202,23 +300,57 @@ export function startOnboarding(onComplete: (result: OnboardingResult) => void):
     if (authTitle) authTitle.textContent = authMode === 'signup' ? 'Keep Your Story' : 'Welcome Back';
     if (authSubmitBtn) authSubmitBtn.textContent = authMode === 'signup' ? 'Create Account' : 'Sign In';
     if (authToggleBtn) {
-      authToggleBtn.textContent = authMode === 'signup'
-        ? 'Already have an account? Sign in'
-        : 'New here? Create an account';
+      authToggleBtn.textContent =
+        authMode === 'signup'
+          ? 'Already have an account? Sign in'
+          : 'New here? Create an account';
+    }
+  });
+
+  googleAuthBtn?.addEventListener('click', async () => {
+    googleAuthBtn.disabled = true;
+    try {
+      const cred = await signInWithPopup(auth, googleProvider);
+      pendingUser = cred.user;
+      pendingMode = 'account';
+      if (nameInput) {
+        nameInput.value = cred.user.displayName || cred.user.email?.split('@')[0] || 'Chale';
+      }
+      showScreen('name');
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error
+          ? err.message.replace('Firebase: ', '').replace(/\(auth\/.*\)\.?/, '').trim()
+          : 'Google sign-in could not complete.';
+      showError(msg || 'Google sign-in failed.');
+    } finally {
+      googleAuthBtn.disabled = false;
     }
   });
 
   authSubmitBtn?.addEventListener('click', async () => {
     const email = emailInput?.value.trim() ?? '';
     const password = passwordInput?.value ?? '';
-    if (!email || !password) { showError('Enter email and password.'); return; }
-    if (password.length < 6) { showError('Password must be at least 6 characters.'); return; }
+    if (!email || !password) {
+      showError('Enter email and password.');
+      return;
+    }
+    if (password.length < 6) {
+      showError('Password must be at least 6 characters.');
+      return;
+    }
     authSubmitBtn.disabled = true;
     authSubmitBtn.textContent = 'One moment…';
     try {
       let user: User;
       if (authMode === 'signup') {
         user = (await createUserWithEmailAndPassword(auth, email, password)).user;
+        // Automatically trigger verification email for new email/password signups
+        try {
+          await sendEmailVerification(user);
+        } catch {
+          /* non-fatal */
+        }
       } else {
         user = (await signInWithEmailAndPassword(auth, email, password)).user;
       }
@@ -227,9 +359,10 @@ export function startOnboarding(onComplete: (result: OnboardingResult) => void):
       if (nameInput) nameInput.value = user.displayName || email.split('@')[0] || '';
       showScreen('name');
     } catch (err: unknown) {
-      const msg = err instanceof Error
-        ? err.message.replace('Firebase: ', '').replace(/\(auth\/.*\)\.?/, '').trim()
-        : 'Something went wrong.';
+      const msg =
+        err instanceof Error
+          ? err.message.replace('Firebase: ', '').replace(/\(auth\/.*\)\.?/, '').trim()
+          : 'Something went wrong.';
       showError(msg || 'Could not sign in.');
     } finally {
       authSubmitBtn.disabled = false;
@@ -248,7 +381,11 @@ export function startOnboarding(onComplete: (result: OnboardingResult) => void):
     }
     pendingName = name;
     if (pendingUser) {
-      try { await updateProfile(pendingUser, { displayName: name }); } catch { /* non-fatal */ }
+      try {
+        await updateProfile(pendingUser, { displayName: name });
+      } catch {
+        /* non-fatal */
+      }
     }
     selectChip('obSkinRow', pendingSkin, 'skin');
     selectChip('obHairRow', pendingHair, 'hair');
@@ -308,29 +445,40 @@ export function startOnboarding(onComplete: (result: OnboardingResult) => void):
     if (originBlurb) originBlurb.textContent = ORIGIN_DEFS[pendingOrigin].blurb;
   });
 
-  const onEnter = () => {
+  const onEnter = async () => {
+    if (pendingMode === 'guest' && !pendingUser) {
+      pendingUser = await ensureGuestAnonymousAuth(pendingName);
+    }
     finish({
       mode: pendingMode,
       displayName: pendingName,
       userId: pendingUser?.uid ?? null,
+      isAnonymous: pendingUser ? pendingUser.isAnonymous : pendingMode === 'guest',
+      email: pendingUser?.email ?? null,
+      emailVerified: pendingUser ? pendingUser.emailVerified : false,
       skin: pendingSkin,
       hair: pendingHair,
       trait: pendingTrait,
       origin: pendingOrigin
     });
   };
-  document.getElementById('obBtnEnter')?.addEventListener('click', onEnter);
-  document.getElementById('obBtnOriginGo')?.addEventListener('click', onEnter);
+  document.getElementById('obBtnEnter')?.addEventListener('click', () => void onEnter());
+  document.getElementById('obBtnOriginGo')?.addEventListener('click', () => void onEnter());
 
   const quickResumeBtn = document.getElementById('obBtnQuickResume');
   if (quickResumeBtn && savedProfile?.displayName) {
     quickResumeBtn.style.display = 'inline-flex';
     quickResumeBtn.textContent = `Continue as ${savedProfile.displayName}`;
-    quickResumeBtn.addEventListener('click', () => {
+    quickResumeBtn.addEventListener('click', async () => {
+      const name = savedProfile.displayName || 'Chale';
+      const user = auth.currentUser ?? (await ensureGuestAnonymousAuth(name));
       finish({
-        mode: (savedProfile.mode as 'guest' | 'account') || 'guest',
-        displayName: savedProfile.displayName || 'Chale',
-        userId: savedProfile.userId ?? null,
+        mode: user && !user.isAnonymous ? 'account' : (savedProfile.mode as 'guest' | 'account') || 'guest',
+        displayName: name,
+        userId: user?.uid ?? savedProfile.userId ?? null,
+        isAnonymous: user ? user.isAnonymous : savedProfile.mode !== 'account',
+        email: user?.email ?? savedProfile.email ?? null,
+        emailVerified: user ? user.emailVerified : Boolean(savedProfile.emailVerified),
         skin: (savedProfile.skin as SkinPreset) || 'rich',
         hair: (savedProfile.hair as HairPreset) || 'fade',
         trait: (savedProfile.trait as TraitId) || 'hustler',
@@ -350,8 +498,10 @@ export function startOnboarding(onComplete: (result: OnboardingResult) => void):
   onAuthStateChanged(auth, (user) => {
     if (user) {
       pendingUser = user;
-      pendingMode = 'account';
-      if (nameInput) nameInput.value = user.displayName || user.email?.split('@')[0] || '';
+      pendingMode = user.isAnonymous ? 'guest' : 'account';
+      if (nameInput && !nameInput.value) {
+        nameInput.value = user.displayName || user.email?.split('@')[0] || 'Chale';
+      }
     }
   });
 

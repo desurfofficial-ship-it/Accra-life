@@ -2,15 +2,28 @@ import * as THREE from 'three';
 import { ColliderBox } from '../Player/PlayerController';
 import { InteractableTarget } from '../Player/InteractionSystem';
 import { sharedArtLibrary } from '../Art/AssetRegistry';
+import { HOUSING_TIERS, type HousingTierId } from '../Home/HomeSystem';
 
+let compoundRootGroup: THREE.Group | null = null;
+let dynamicHouseShellGroup: THREE.Group | null = null;
 let compoundRoofCutawayGroup: THREE.Group | null = null;
 let compoundFrontFullWallsGroup: THREE.Group | null = null;
 let compoundFrontCutawayRimGroup: THREE.Group | null = null;
+let worldCollidersRef: ColliderBox[] | null = null;
+let currentBuiltTierId: HousingTierId = 'single_room';
+
+const HOUSE_WALL_COLLIDER_IDS = new Set([
+  'ACC_HOUSE_001_WALL_N',
+  'ACC_HOUSE_001_WALL_W_IN',
+  'ACC_HOUSE_001_WALL_E_IN',
+  'ACC_HOUSE_001_WALL_S_L',
+  'ACC_HOUSE_001_WALL_S_R'
+]);
 
 export function updatePlayerCompoundCutaway(playerPos: THREE.Vector3): boolean {
   const isInsideOrVeranda =
-    playerPos.x >= -14.5 &&
-    playerPos.x <= -6.5 &&
+    playerPos.x >= -14.95 &&
+    playerPos.x <= -6.05 &&
     playerPos.z >= 9.0 &&
     playerPos.z <= 15.95;
 
@@ -26,18 +39,56 @@ export function updatePlayerCompoundCutaway(playerPos: THREE.Vector3): boolean {
   return isInsideOrVeranda;
 }
 
-export function buildPlayerCompoundHouse(
-  scene: THREE.Scene,
-  colliders: ColliderBox[],
-  interactables: InteractableTarget[]
-): void {
-  const group = new THREE.Group();
-  group.name = 'ACC_HOUSE_001';
-  group.position.set(-10.5, 0, 12.2);
+export function rebuildPlayerCompoundForTier(tierId: HousingTierId): void {
+  currentBuiltTierId = tierId;
+  if (!compoundRootGroup || !worldCollidersRef) return;
 
-  const matWallCream = sharedArtLibrary.getMaterial('house_wall_cream', {
-    color: 0xfde68a,
-    roughness: 0.72
+  if (dynamicHouseShellGroup) {
+    compoundRootGroup.remove(dynamicHouseShellGroup);
+    dynamicHouseShellGroup = null;
+  }
+
+  // Remove old dynamic house wall colliders while preserving compound perimeter colliders
+  for (let i = worldCollidersRef.length - 1; i >= 0; i--) {
+    if (HOUSE_WALL_COLLIDER_IDS.has(worldCollidersRef[i].id)) {
+      worldCollidersRef.splice(i, 1);
+    }
+  }
+
+  const built = createDynamicHouseShell(tierId, worldCollidersRef);
+  dynamicHouseShellGroup = built.shellGroup;
+  compoundRoofCutawayGroup = built.roofGroup;
+  compoundFrontFullWallsGroup = built.frontFullGroup;
+  compoundFrontCutawayRimGroup = built.frontCutawayGroup;
+  compoundRootGroup.add(dynamicHouseShellGroup);
+}
+
+function createDynamicHouseShell(
+  tierId: HousingTierId,
+  colliders: ColliderBox[]
+): {
+  shellGroup: THREE.Group;
+  roofGroup: THREE.Group;
+  frontFullGroup: THREE.Group;
+  frontCutawayGroup: THREE.Group;
+} {
+  const tier =
+    HOUSING_TIERS.find((t) => t.id === tierId) ?? HOUSING_TIERS[0];
+
+  const shellGroup = new THREE.Group();
+  shellGroup.name = `ACC_HOUSE_SHELL_${tier.id}`;
+
+  const wallColors: Record<HousingTierId, number> = {
+    single_room: 0xfde68a,
+    chamber_kitchen_bath: 0xfef08a,
+    self_contained: 0xd9f99d,
+    one_bed_apartment: 0xbae6fd,
+    premium_apartment: 0xe2e8f0,
+    luxury_house: 0xfef9c3
+  };
+  const matWallExterior = sharedArtLibrary.getMaterial(`house_wall_ext_${tier.id}`, {
+    color: wallColors[tier.id],
+    roughness: 0.68
   });
   const matWallInterior = sharedArtLibrary.getMaterial('house_wall_interior_warm', {
     color: 0xfef3c7,
@@ -55,10 +106,455 @@ export function buildPlayerCompoundHouse(
     color: 0x78350f,
     roughness: 0.52
   });
+  const matWoodWarm = sharedArtLibrary.getMaterial('house_wood_warm', {
+    color: 0xb45309,
+    roughness: 0.6
+  });
   const matGlassWindow = sharedArtLibrary.getMaterial('house_window_glass', {
     color: 0x38bdf8,
     roughness: 0.22,
     metalness: 0.25
+  });
+  const matWhiteTrim = sharedArtLibrary.getMaterial('house_white_trim', {
+    color: 0xf8fafc,
+    roughness: 0.52
+  });
+  const matIronWork = sharedArtLibrary.getMaterial('house_ironwork', {
+    color: 0x1e293b,
+    roughness: 0.42,
+    metalness: 0.55
+  });
+
+  // Physical dimensions from HousingTierDef:
+  // Starter Single Room = 4.0m × 3.5m (14 m²)
+  // Upgrades expand up to 8.8m × 5.6m
+  const wallH = 3.25;
+  const wallT = 0.28;
+  const roomW = tier.roomWidthM;
+  const roomD = tier.roomDepthM;
+  const roomY = 0.24 + wallH / 2;
+  // Anchor front wall around local Z = -1.6 (world Z = 10.6) so doorway aligns with veranda
+  const southWallZ = -1.6 + wallT / 2;
+  const roomZ = -1.6 + roomD / 2;
+  const northWallZ = -1.6 + roomD - wallT / 2;
+
+  const interiorFloorMat = sharedArtLibrary.getMaterial('house_interior_tile_floor', {
+    map: sharedArtLibrary.getRoomTileFloorTexture(),
+    roughness: tier.level >= 4 ? 0.38 : 0.68
+  });
+  const interiorFloor = new THREE.Mesh(
+    new THREE.BoxGeometry(roomW - 0.08, 0.03, roomD - 0.08),
+    interiorFloorMat
+  );
+  // Top surface at 0.225 + 0.015 = 0.240 (flush with terrace deck so player shoes never clip)
+  interiorFloor.position.set(0, 0.225, roomZ);
+  interiorFloor.receiveShadow = true;
+  shellGroup.add(interiorFloor);
+
+  // Back (North), West, and East walls (always visible in 3-wall cutaway view)
+  const wallN = new THREE.Mesh(new THREE.BoxGeometry(roomW, wallH, wallT), matWallExterior);
+  wallN.position.set(0, roomY, northWallZ);
+  wallN.castShadow = true;
+  wallN.receiveShadow = true;
+
+  const wallW = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, roomD), matWallExterior);
+  wallW.position.set(-roomW / 2 + wallT / 2, roomY, roomZ);
+  wallW.castShadow = true;
+  wallW.receiveShadow = true;
+
+  const wallE = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, roomD), matWallExterior);
+  wallE.position.set(roomW / 2 - wallT / 2, roomY, roomZ);
+  wallE.castShadow = true;
+  wallE.receiveShadow = true;
+
+  const baseboardN = new THREE.Mesh(
+    new THREE.BoxGeometry(roomW - wallT * 2, 0.14, 0.04),
+    matTerracottaPlinth
+  );
+  baseboardN.position.set(0, 0.31, northWallZ - wallT / 2 - 0.02);
+  shellGroup.add(wallN, wallW, wallE, baseboardN);
+
+  // Wall poster & barred window on back wall for authentic Accra room feel
+  const poster = new THREE.Mesh(
+    new THREE.BoxGeometry(0.55, 0.68, 0.03),
+    matWhiteTrim
+  );
+  poster.position.set(-roomW * 0.22, 1.85, northWallZ - wallT / 2 - 0.02);
+  const posterHeader = new THREE.Mesh(
+    new THREE.BoxGeometry(0.48, 0.16, 0.04),
+    sharedArtLibrary.getMaterial('poster_red', { color: 0xdc2626, roughness: 0.6 })
+  );
+  posterHeader.position.set(-roomW * 0.22, 2.08, northWallZ - wallT / 2 - 0.025);
+  const backWinFrame = new THREE.Mesh(
+    new THREE.BoxGeometry(1.15, 0.95, 0.06),
+    matWhiteTrim
+  );
+  backWinFrame.position.set(roomW * 0.18, 1.9, northWallZ - wallT / 2 - 0.02);
+  const backWinGlass = new THREE.Mesh(
+    new THREE.BoxGeometry(0.98, 0.78, 0.07),
+    matGlassWindow
+  );
+  backWinGlass.position.set(roomW * 0.18, 1.9, northWallZ - wallT / 2 - 0.02);
+  shellGroup.add(poster, posterHeader, backWinFrame, backWinGlass);
+
+  // Built-in Starter & Tier-Specific Interior Fixtures so the 14 m² room and upgrades feel alive!
+  buildBuiltInTierInterior(shellGroup, tier.id, roomW, roomD, southWallZ, northWallZ, wallT);
+
+  // Doorway gap (1.42m on 14 m² starter room, 1.62m on larger tiers)
+  const doorGap = tier.level === 1 ? 1.42 : 1.62;
+  const southHalf = Math.max(0.6, (roomW - doorGap) / 2);
+
+  // Full front facade group (visible from outside; cuts away when inside)
+  const frontFullGroup = new THREE.Group();
+  frontFullGroup.name = 'ACC_HOUSE_001_FRONT_FULL';
+
+  const wallSL = new THREE.Mesh(new THREE.BoxGeometry(southHalf, wallH, wallT), matWallExterior);
+  wallSL.position.set(-roomW / 2 + southHalf / 2, roomY, southWallZ);
+  wallSL.castShadow = true;
+  wallSL.receiveShadow = true;
+
+  const wallSR = new THREE.Mesh(new THREE.BoxGeometry(southHalf, wallH, wallT), matWallExterior);
+  wallSR.position.set(roomW / 2 - southHalf / 2, roomY, southWallZ);
+  wallSR.castShadow = true;
+  wallSR.receiveShadow = true;
+
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(doorGap + 0.2, 0.68, wallT), matWallExterior);
+  lintel.position.set(0, 0.24 + wallH - 0.34, southWallZ);
+  frontFullGroup.add(wallSL, wallSR, lintel);
+
+  // Door frame & open mahogany door
+  const jambL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.45, 0.32), matWhiteTrim);
+  jambL.position.set(-doorGap / 2 + 0.04, 1.46, southWallZ);
+  const jambR = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.45, 0.32), matWhiteTrim);
+  jambR.position.set(doorGap / 2 - 0.04, 1.46, southWallZ);
+  const jambTop = new THREE.Mesh(new THREE.BoxGeometry(doorGap + 0.08, 0.1, 0.34), matWhiteTrim);
+  jambTop.position.set(0, 2.68, southWallZ);
+  const doorPanel = new THREE.Mesh(new THREE.BoxGeometry(0.92, 2.3, 0.06), matWoodDark);
+  doorPanel.position.set(doorGap / 2 + 0.38, 1.4, southWallZ + 0.26);
+  doorPanel.rotation.y = -0.35;
+  frontFullGroup.add(jambL, jambR, jambTop, doorPanel);
+
+  // Front windows scaled to room width
+  if (southHalf >= 1.15) {
+    const winOffset = -roomW / 2 + southHalf / 2;
+    for (const wx of [winOffset, -winOffset]) {
+      const winW = Math.min(1.25, southHalf - 0.36);
+      const winFrame = new THREE.Mesh(new THREE.BoxGeometry(winW, 1.15, 0.32), matWhiteTrim);
+      winFrame.position.set(wx, 1.88, southWallZ);
+      const winGlass = new THREE.Mesh(new THREE.BoxGeometry(winW - 0.16, 0.98, 0.34), matGlassWindow);
+      winGlass.position.set(wx, 1.88, southWallZ);
+      frontFullGroup.add(winFrame, winGlass);
+      for (const barY of [1.62, 1.88, 2.14]) {
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(winW - 0.12, 0.025, 0.36), matIronWork);
+        bar.position.set(wx, barY, southWallZ);
+        frontFullGroup.add(bar);
+      }
+    }
+  }
+
+  // Veranda pillars along front terrace
+  const pillarPositions =
+    roomW <= 4.4 ? [-1.85, 1.85] : [-roomW / 2 + 0.35, -1.25, 1.25, roomW / 2 - 0.35];
+  for (const px of pillarPositions) {
+    const colBase = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.38, 0.3), matTerracottaPlinth);
+    colBase.position.set(px, 0.41, -2.85);
+    const colShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 2.88, 14), matWhiteTrim);
+    colShaft.position.set(px, 1.98, -2.85);
+    colShaft.castShadow = true;
+    frontFullGroup.add(colBase, colShaft);
+  }
+  shellGroup.add(frontFullGroup);
+
+  // Low cutaway front rim group (visible when inside so player sees wall boundary & full legs)
+  const frontCutawayGroup = new THREE.Group();
+  frontCutawayGroup.name = 'ACC_HOUSE_001_FRONT_CUTAWAY';
+  frontCutawayGroup.visible = false;
+  const rimH = 0.28;
+  const rimSL = new THREE.Mesh(new THREE.BoxGeometry(southHalf, rimH, wallT), matWallInterior);
+  rimSL.position.set(-roomW / 2 + southHalf / 2, 0.24 + rimH / 2, southWallZ);
+  const rimSLCap = new THREE.Mesh(new THREE.BoxGeometry(southHalf, 0.04, wallT + 0.04), matWoodWarm);
+  rimSLCap.position.set(-roomW / 2 + southHalf / 2, 0.24 + rimH + 0.02, southWallZ);
+  const rimSR = new THREE.Mesh(new THREE.BoxGeometry(southHalf, rimH, wallT), matWallInterior);
+  rimSR.position.set(roomW / 2 - southHalf / 2, 0.24 + rimH / 2, southWallZ);
+  const rimSRCap = new THREE.Mesh(new THREE.BoxGeometry(southHalf, 0.04, wallT + 0.04), matWoodWarm);
+  rimSRCap.position.set(roomW / 2 - southHalf / 2, 0.24 + rimH + 0.02, southWallZ);
+  frontCutawayGroup.add(rimSL, rimSLCap, rimSR, rimSRCap);
+  shellGroup.add(frontCutawayGroup);
+
+  // Roof group (cuts away when player steps onto veranda/room)
+  const roofGroup = new THREE.Group();
+  roofGroup.name = 'ACC_HOUSE_001_ROOF';
+  const roofSpanW = Math.max(roomW + 0.8, 4.8);
+  const roofSpanD = roomD + 1.5;
+  const roofCenterZ = roomZ - 0.35;
+
+  const eaveSoffit = new THREE.Mesh(new THREE.BoxGeometry(roofSpanW, 0.14, roofSpanD), matWhiteTrim);
+  eaveSoffit.position.set(0, 3.55, roofCenterZ);
+  eaveSoffit.castShadow = true;
+  roofGroup.add(eaveSoffit);
+
+  const slopeDepth = roofSpanD * 0.56;
+  const frontRoofSlope = new THREE.Mesh(new THREE.BoxGeometry(roofSpanW, 0.13, slopeDepth), matRoofRust);
+  frontRoofSlope.position.set(0, 3.98, roofCenterZ - roofSpanD * 0.24);
+  frontRoofSlope.rotation.x = 0.28;
+  frontRoofSlope.castShadow = true;
+  const rearRoofSlope = new THREE.Mesh(new THREE.BoxGeometry(roofSpanW, 0.13, slopeDepth), matRoofRust);
+  rearRoofSlope.position.set(0, 3.98, roofCenterZ + roofSpanD * 0.24);
+  rearRoofSlope.rotation.x = -0.28;
+  rearRoofSlope.castShadow = true;
+  const ridgeBeam = new THREE.Mesh(new THREE.BoxGeometry(roofSpanW + 0.08, 0.16, 0.32), matTerracottaPlinth);
+  ridgeBeam.position.set(0, 4.42, roofCenterZ);
+  roofGroup.add(frontRoofSlope, rearRoofSlope, ridgeBeam);
+  shellGroup.add(roofGroup);
+
+  // Dynamic World-Space Wall Colliders (group offset is X = -10.5, Z = 12.2)
+  const gx = -10.5;
+  const gz = 12.2;
+  const minX = gx - roomW / 2 - 0.08;
+  const maxX = gx + roomW / 2 + 0.08;
+  const minZ = gz - 1.6 - 0.06;
+  const maxZ = gz - 1.6 + roomD + 0.08;
+  const doorMinX = gx - doorGap / 2;
+  const doorMaxX = gx + doorGap / 2;
+
+  colliders.push(
+    // North (back) wall of room
+    {
+      id: 'ACC_HOUSE_001_WALL_N',
+      minX,
+      maxX,
+      minZ: maxZ - wallT - 0.14,
+      maxZ: maxZ + 0.08,
+      height: 3.5
+    },
+    // West wall of room
+    {
+      id: 'ACC_HOUSE_001_WALL_W_IN',
+      minX: minX - 0.06,
+      maxX: minX + wallT + 0.14,
+      minZ,
+      maxZ,
+      height: 3.5
+    },
+    // East wall of room
+    {
+      id: 'ACC_HOUSE_001_WALL_E_IN',
+      minX: maxX - wallT - 0.14,
+      maxX: maxX + 0.06,
+      minZ,
+      maxZ,
+      height: 3.5
+    },
+    // Front-Left (South-West) wall segment
+    {
+      id: 'ACC_HOUSE_001_WALL_S_L',
+      minX,
+      maxX: doorMinX,
+      minZ: minZ - 0.05,
+      maxZ: minZ + wallT + 0.14,
+      height: 3.5
+    },
+    // Front-Right (South-East) wall segment
+    {
+      id: 'ACC_HOUSE_001_WALL_S_R',
+      minX: doorMaxX,
+      maxX,
+      minZ: minZ - 0.05,
+      maxZ: minZ + wallT + 0.14,
+      height: 3.5
+    }
+  );
+
+  return { shellGroup, roofGroup, frontFullGroup, frontCutawayGroup };
+}
+
+/**
+ * Populates the built-in fixtures for the active Housing Tier so:
+ * - Tier 1 (14 m² Single Room — 4.0m × 3.5m) has its humble, cozy starter setup:
+ *   Bed, Small wardrobe, Standing fan, Small table + radio, Basic camp stove & Kufuor gallon,
+ *   and an outdoor Shared Bathroom stall on the compound terrace.
+ * - Tier 2+ (25 m² Self-Contained, 38 m², 55 m² Apartment, 80 m² Premium, 140 m² Luxury)
+ *   visibly adds an indoor private bathroom partition (WC + washbasin), fitted kitchenette
+ *   (counter, stove, sink, fridge), upgraded bed, and multi-room living divisions!
+ */
+function buildBuiltInTierInterior(
+  shellGroup: THREE.Group,
+  tierId: HousingTierId,
+  roomW: number,
+  roomD: number,
+  southWallZ: number,
+  northWallZ: number,
+  wallT: number
+): void {
+  const floorY = 0.24;
+  const innerWestX = -roomW / 2 + wallT + 0.06;
+  const innerEastX = roomW / 2 - wallT - 0.06;
+  const innerNorthZ = northWallZ - wallT / 2 - 0.06;
+  const innerSouthZ = southWallZ + wallT / 2 + 0.06;
+
+  const matWood = sharedArtLibrary.getMaterial('starter_wood', { color: 0x92400e, roughness: 0.65 });
+  const matLightWood = sharedArtLibrary.getMaterial('starter_light_wood', { color: 0xd97706, roughness: 0.6 });
+  const matSheet = sharedArtLibrary.getMaterial('starter_sheet', { color: 0xf8fafc, roughness: 0.55 });
+  const matBlanket = sharedArtLibrary.getMaterial('starter_blanket', { color: 0xc2410c, roughness: 0.75 });
+  const matMetal = sharedArtLibrary.getMaterial('starter_metal', { color: 0x475569, roughness: 0.4, metalness: 0.45 });
+  const matGallonYellow = sharedArtLibrary.getMaterial('starter_kufuor_gallon', { color: 0xeab308, roughness: 0.45 });
+  const matCoolerBlue = sharedArtLibrary.getMaterial('starter_cooler_blue', { color: 0x1d4ed8, roughness: 0.45 });
+  const matCeramicWhite = sharedArtLibrary.getMaterial('starter_ceramic', { color: 0xffffff, roughness: 0.25 });
+  const matPartition = sharedArtLibrary.getMaterial('starter_partition', { color: 0xfef3c7, roughness: 0.7 });
+
+  // 1. BED (Starter Single Bed in 14 m², Queen/King Bed in 25 m²+)
+  const isUpgradedBed = tierId !== 'single_room';
+  const bedW = isUpgradedBed ? 1.25 : 0.92;
+  const bedD = isUpgradedBed ? 1.65 : 1.48;
+  const bedGroup = new THREE.Group();
+  const bedFrame = new THREE.Mesh(new THREE.BoxGeometry(bedW, 0.22, bedD), matWood);
+  bedFrame.position.y = 0.11;
+  const mattress = new THREE.Mesh(new THREE.BoxGeometry(bedW - 0.06, 0.12, bedD - 0.06), matSheet);
+  mattress.position.y = 0.26;
+  const blanket = new THREE.Mesh(new THREE.BoxGeometry(bedW - 0.04, 0.13, bedD * 0.62), matBlanket);
+  blanket.position.set(0, 0.265, bedD * 0.16);
+  const pillow = new THREE.Mesh(new THREE.BoxGeometry(bedW * 0.55, 0.08, 0.26), matSheet);
+  pillow.position.set(0, 0.34, -bedD * 0.32);
+  const headboard = new THREE.Mesh(new THREE.BoxGeometry(bedW, 0.52, 0.08), matWood);
+  headboard.position.set(0, 0.32, -bedD / 2 + 0.04);
+  bedGroup.add(bedFrame, mattress, blanket, pillow, headboard);
+  bedGroup.position.set(innerWestX + bedW / 2 + 0.06, floorY, innerNorthZ - bedD / 2 - 0.06);
+  shellGroup.add(bedGroup);
+
+  // 2. SMALL WARDROBE (next to the bed along the back wall)
+  const wardrobe = new THREE.Group();
+  const wardBody = new THREE.Mesh(new THREE.BoxGeometry(0.68, 1.38, 0.42), matWood);
+  wardBody.position.y = 0.69;
+  const wardLine = new THREE.Mesh(new THREE.BoxGeometry(0.02, 1.26, 0.44), matMetal);
+  wardLine.position.y = 0.69;
+  wardrobe.add(wardBody, wardLine);
+  wardrobe.position.set(innerWestX + bedW + 0.48, floorY, innerNorthZ - 0.24);
+  shellGroup.add(wardrobe);
+
+  // 3. SMALL TABLE & RADIO (back wall center)
+  const radioTable = new THREE.Group();
+  const rtTop = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.48, 0.42), matLightWood);
+  rtTop.position.y = 0.24;
+  const radioBox = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.18, 0.16), matMetal);
+  radioBox.position.set(0, 0.57, 0);
+  radioTable.add(rtTop, radioBox);
+  radioTable.position.set(0.1, floorY, innerNorthZ - 0.24);
+  shellGroup.add(radioTable);
+
+  // 4. STANDING FAN (front-west corner inside room)
+  const fan = new THREE.Group();
+  const fanBase = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.05, 12), matMetal);
+  fanBase.position.y = 0.025;
+  const fanPole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.92, 8), matMetal);
+  fanPole.position.y = 0.48;
+  const fanCage = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.08, 14), matGlassWindowMaterial());
+  fanCage.rotation.x = Math.PI / 2;
+  fanCage.position.set(0, 0.95, 0.04);
+  fan.add(fanBase, fanPole, fanCage);
+  fan.position.set(innerWestX + 0.28, floorY, innerSouthZ + 0.32);
+  shellGroup.add(fan);
+
+  if (tierId === 'single_room') {
+    // TIER 1 (14 m² Single Room):
+    // Basic cooking setup inside (small stove table + pot + blue cooler + yellow Kufuor water gallon)
+    const cookGroup = new THREE.Group();
+    const stoveTable = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.46, 0.44), matLightWood);
+    stoveTable.position.y = 0.23;
+    const burner = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.06, 0.26), matMetal);
+    burner.position.set(0, 0.49, 0);
+    const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.11, 0.14, 12), matMetal);
+    pot.position.set(0, 0.58, 0);
+    const cooler = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.34, 0.36), matCoolerBlue);
+    cooler.position.set(0, 0.17, 0.48);
+    const gallon = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.34, 0.22), matGallonYellow);
+    gallon.position.set(0.1, 0.17, 0.9);
+    cookGroup.add(stoveTable, burner, pot, cooler, gallon);
+    cookGroup.position.set(innerEastX - 0.36, floorY, innerNorthZ - 0.55);
+    shellGroup.add(cookGroup);
+
+    // Outdoor Shared Compound Bathroom Stall on the east terrace (since 14 m² starter uses shared bath!)
+    const sharedBath = new THREE.Group();
+    const bathWalls = new THREE.Mesh(new THREE.BoxGeometry(1.35, 1.85, 1.35), matPartition);
+    bathWalls.position.y = 0.925;
+    const bathDoor = new THREE.Mesh(new THREE.BoxGeometry(0.65, 1.65, 0.06), matWood);
+    bathDoor.position.set(0, 0.825, -0.68);
+    const outdoorGallon = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.36, 0.24), matGallonYellow);
+    outdoorGallon.position.set(-0.85, 0.18, -0.35);
+    sharedBath.add(bathWalls, bathDoor, outdoorGallon);
+    sharedBath.position.set(3.4, floorY, 2.1);
+    shellGroup.add(sharedBath);
+  } else {
+    // TIER 2+ (25 m² Self-Contained, 38 m², 55 m² Apartment, 80 m² Premium, 140 m² Luxury):
+    // 1. Indoor Kitchenette along Back-East wall (Counter + Sink + 2-Burner Stove + Fridge)
+    const kitchenGroup = new THREE.Group();
+    const counter = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.68, 0.5), matLightWood);
+    counter.position.y = 0.34;
+    const counterTop = new THREE.Mesh(new THREE.BoxGeometry(1.28, 0.05, 0.54), matCeramicWhite);
+    counterTop.position.y = 0.7;
+    const stove = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.05, 0.36), matMetal);
+    stove.position.set(-0.28, 0.74, 0);
+    const sink = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.04, 0.34), matMetal);
+    sink.position.set(0.3, 0.73, 0);
+    const fridge = new THREE.Mesh(new THREE.BoxGeometry(0.54, 1.32, 0.52), matCeramicWhite);
+    fridge.position.set(0.95, 0.66, 0);
+    kitchenGroup.add(counter, counterTop, stove, sink, fridge);
+    kitchenGroup.position.set(innerEastX - 1.35, floorY, innerNorthZ - 0.32);
+    shellGroup.add(kitchenGroup);
+
+    // 2. Indoor Private Bathroom in South-East corner (Low cutaway partition walls + WC + Washbasin)
+    const bathGroup = new THREE.Group();
+    const partW = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.95, 1.55), matPartition);
+    partW.position.set(-0.78, 0.475, 0);
+    const partN = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.95, 0.12), matPartition);
+    partN.position.set(0, 0.475, -0.78);
+    const wcTank = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.42, 0.22), matCeramicWhite);
+    wcTank.position.set(0.38, 0.45, 0.45);
+    const wcBowl = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.32, 0.46), matCeramicWhite);
+    wcBowl.position.set(0.38, 0.18, 0.25);
+    const basin = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.68, 0.34), matCeramicWhite);
+    basin.position.set(-0.32, 0.34, -0.45);
+    bathGroup.add(partW, partN, wcTank, wcBowl, basin);
+    bathGroup.position.set(innerEastX - 0.82, floorY, innerSouthZ + 0.82);
+    shellGroup.add(bathGroup);
+
+    // 3. Multi-room Living / Bedroom low cutaway divider for Tier 4+ (55 m² Apartment, 80 m², 140 m²)
+    if (
+      tierId === 'one_bed_apartment' ||
+      tierId === 'premium_apartment' ||
+      tierId === 'luxury_house'
+    ) {
+      const bedroomDivider = new THREE.Mesh(
+        new THREE.BoxGeometry(0.14, 0.85, roomD * 0.55),
+        matPartition
+      );
+      bedroomDivider.position.set(-roomW * 0.12, floorY + 0.425, innerNorthZ - roomD * 0.28);
+      shellGroup.add(bedroomDivider);
+    }
+  }
+}
+
+function matGlassWindowMaterial(): THREE.Material {
+  return sharedArtLibrary.getMaterial('fan_cage_blue', {
+    color: 0x38bdf8,
+    roughness: 0.35
+  });
+}
+
+export function buildPlayerCompoundHouse(
+  scene: THREE.Scene,
+  colliders: ColliderBox[],
+  interactables: InteractableTarget[]
+): void {
+  worldCollidersRef = colliders;
+
+  const group = new THREE.Group();
+  group.name = 'ACC_HOUSE_001';
+  group.position.set(-10.5, 0, 12.2);
+  compoundRootGroup = group;
+
+  const matTerracottaPlinth = sharedArtLibrary.getMaterial('house_plinth_terra', {
+    color: 0xb45309,
+    roughness: 0.78
   });
   const matWhiteTrim = sharedArtLibrary.getMaterial('house_white_trim', {
     color: 0xf8fafc,
@@ -90,175 +586,27 @@ export function buildPlayerCompoundHouse(
   gateApron.receiveShadow = true;
   group.add(courtyard, gateApron);
 
-  // Walkable hollow main house interior — floor top strictly at Y = 0.24 (flush with veranda deck)
-  const wallH = 3.35;
-  const wallT = 0.34;
-  const roomW = 7.4;
-  const roomD = 5.2;
-  const roomY = 0.24 + wallH / 2;
-  const roomZ = 0.9;
-
-  const interiorSubBase = new THREE.Mesh(
-    new THREE.BoxGeometry(roomW, 0.21, roomD),
+  // Full compound house terrace plinth (top strictly at Y = 0.24 so all 6 housing tiers rest flush at Y = 0.24)
+  const terracePlinth = new THREE.Mesh(
+    new THREE.BoxGeometry(8.8, 0.24, 6.7),
     matTerracottaPlinth
   );
-  interiorSubBase.position.set(0, 0.105, roomZ);
-  interiorSubBase.receiveShadow = true;
-  group.add(interiorSubBase);
-
-  const interiorFloorMat = sharedArtLibrary.getMaterial('house_interior_tile_floor', {
-    map: sharedArtLibrary.getRoomTileFloorTexture(),
-    roughness: 0.68
-  });
-  const interiorFloor = new THREE.Mesh(
-    new THREE.BoxGeometry(roomW - 0.12, 0.03, roomD - 0.12),
-    interiorFloorMat
-  );
-  // Top surface is at 0.225 + 0.015 = 0.240 (exact match to WorldSurface getSurfaceHeightAt = 0.24)
-  interiorFloor.position.set(0, 0.225, roomZ);
-  interiorFloor.receiveShadow = true;
-  group.add(interiorFloor);
-
-  // Back & side house walls (always visible, forming the 3-wall isometric cutaway shell when inside)
-  const wallN = new THREE.Mesh(new THREE.BoxGeometry(roomW, wallH, wallT), matWallCream);
-  wallN.position.set(0, roomY, roomZ + roomD / 2 - wallT / 2);
-  wallN.castShadow = true;
-  wallN.receiveShadow = true;
-
-  const wallW = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, roomD), matWallCream);
-  wallW.position.set(-roomW / 2 + wallT / 2, roomY, roomZ);
-  wallW.castShadow = true;
-  wallW.receiveShadow = true;
-
-  const wallE = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, roomD), matWallCream);
-  wallE.position.set(roomW / 2 - wallT / 2, roomY, roomZ);
-  wallE.castShadow = true;
-  wallE.receiveShadow = true;
-
-  // Interior warm wall wainscoting/baseboards on back and side walls
-  const baseboardN = new THREE.Mesh(
-    new THREE.BoxGeometry(roomW - 0.68, 0.16, 0.05),
-    matTerracottaPlinth
-  );
-  baseboardN.position.set(0, 0.32, roomZ + roomD / 2 - wallT - 0.02);
-  group.add(wallN, wallW, wallE, baseboardN);
-
-  const doorGap = 1.64;
-  const southHalf = (roomW - doorGap) / 2;
-  const southWallZ = roomZ - roomD / 2 + wallT / 2;
-
-  // Full front facade group (visible from outside; cuts away when player steps inside)
-  const frontFullGroup = new THREE.Group();
-  frontFullGroup.name = 'ACC_HOUSE_001_FRONT_FULL';
-
-  const wallSL = new THREE.Mesh(new THREE.BoxGeometry(southHalf, wallH, wallT), matWallCream);
-  wallSL.position.set(-roomW / 2 + southHalf / 2, roomY, southWallZ);
-  wallSL.castShadow = true;
-  wallSL.receiveShadow = true;
-
-  const wallSR = new THREE.Mesh(new THREE.BoxGeometry(southHalf, wallH, wallT), matWallCream);
-  wallSR.position.set(roomW / 2 - southHalf / 2, roomY, southWallZ);
-  wallSR.castShadow = true;
-  wallSR.receiveShadow = true;
-
-  const lintel = new THREE.Mesh(new THREE.BoxGeometry(doorGap + 0.24, 0.72, wallT), matWallCream);
-  lintel.position.set(0, 0.24 + wallH - 0.36, southWallZ);
-  frontFullGroup.add(wallSL, wallSR, lintel);
-
-  // Open doorway jambs and inward-swung mahogany door leaf
-  const jambL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.5, 0.38), matWhiteTrim);
-  jambL.position.set(-doorGap / 2 + 0.04, 1.49, southWallZ);
-  const jambR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.5, 0.38), matWhiteTrim);
-  jambR.position.set(doorGap / 2 - 0.04, 1.49, southWallZ);
-  const jambTop = new THREE.Mesh(new THREE.BoxGeometry(doorGap + 0.1, 0.12, 0.4), matWhiteTrim);
-  jambTop.position.set(0, 2.72, southWallZ);
-  const doorPanel = new THREE.Mesh(new THREE.BoxGeometry(1.08, 2.35, 0.07), matWoodDark);
-  doorPanel.position.set(doorGap / 2 + 0.48, 1.43, southWallZ + 0.32);
-  doorPanel.rotation.y = -0.32;
-  frontFullGroup.add(jambL, jambR, jambTop, doorPanel);
-
-  // Louvered front windows with white frames and security bars
-  for (const wx of [-2.35, 2.35]) {
-    const winFrame = new THREE.Mesh(new THREE.BoxGeometry(1.52, 1.32, 0.38), matWhiteTrim);
-    winFrame.position.set(wx, 1.95, southWallZ);
-    const winGlass = new THREE.Mesh(new THREE.BoxGeometry(1.32, 1.12, 0.4), matGlassWindow);
-    winGlass.position.set(wx, 1.95, southWallZ);
-    frontFullGroup.add(winFrame, winGlass);
-    for (const barY of [1.65, 1.95, 2.25]) {
-      const bar = new THREE.Mesh(new THREE.BoxGeometry(1.36, 0.03, 0.42), matIronWork);
-      bar.position.set(wx, barY, southWallZ);
-      frontFullGroup.add(bar);
-    }
-  }
-  group.add(frontFullGroup);
-  compoundFrontFullWallsGroup = frontFullGroup;
-
-  // Low cutaway front rim group (shown when player is inside the room so the wall boundary is clear without hiding player's legs)
-  const frontCutawayRim = new THREE.Group();
-  frontCutawayRim.name = 'ACC_HOUSE_001_FRONT_CUTAWAY';
-  frontCutawayRim.visible = false;
-  const rimH = 0.32;
-  const rimSL = new THREE.Mesh(new THREE.BoxGeometry(southHalf, rimH, wallT), matWallInterior);
-  rimSL.position.set(-roomW / 2 + southHalf / 2, 0.24 + rimH / 2, southWallZ);
-  const rimSLCap = new THREE.Mesh(new THREE.BoxGeometry(southHalf, 0.05, wallT + 0.04), matTerracottaPlinth);
-  rimSLCap.position.set(-roomW / 2 + southHalf / 2, 0.24 + rimH + 0.025, southWallZ);
-  const rimSR = new THREE.Mesh(new THREE.BoxGeometry(southHalf, rimH, wallT), matWallInterior);
-  rimSR.position.set(roomW / 2 - southHalf / 2, 0.24 + rimH / 2, southWallZ);
-  const rimSRCap = new THREE.Mesh(new THREE.BoxGeometry(southHalf, 0.05, wallT + 0.04), matTerracottaPlinth);
-  rimSRCap.position.set(roomW / 2 - southHalf / 2, 0.24 + rimH + 0.025, southWallZ);
-  frontCutawayRim.add(rimSL, rimSLCap, rimSR, rimSRCap);
-  group.add(frontCutawayRim);
-  compoundFrontCutawayRimGroup = frontCutawayRim;
-
-  // Roof group (cuts away when player enters the room so the interior & player legs are 100% visible)
-  const roofGroup = new THREE.Group();
-  roofGroup.name = 'ACC_HOUSE_001_ROOF';
-
-  const corniceBand = new THREE.Mesh(new THREE.BoxGeometry(7.64, 0.22, 5.44), matWhiteTrim);
-  corniceBand.position.set(0, 3.58, 0.9);
-  roofGroup.add(corniceBand);
-
-  const eaveSoffit = new THREE.Mesh(new THREE.BoxGeometry(8.3, 0.14, 6.8), matWhiteTrim);
-  eaveSoffit.position.set(0, 3.68, 0.35);
-  eaveSoffit.castShadow = true;
-  roofGroup.add(eaveSoffit);
-
-  const frontRoofSlope = new THREE.Mesh(new THREE.BoxGeometry(8.2, 0.14, 3.75), matRoofRust);
-  frontRoofSlope.position.set(0, 4.18, -1.25);
-  frontRoofSlope.rotation.x = 0.32;
-  frontRoofSlope.castShadow = true;
-  const rearRoofSlope = new THREE.Mesh(new THREE.BoxGeometry(8.2, 0.14, 3.75), matRoofRust);
-  rearRoofSlope.position.set(0, 4.18, 1.95);
-  rearRoofSlope.rotation.x = -0.32;
-  rearRoofSlope.castShadow = true;
-  const ridgeBeam = new THREE.Mesh(new THREE.BoxGeometry(8.28, 0.18, 0.36), matTerracottaPlinth);
-  ridgeBeam.position.set(0, 4.74, 0.35);
-  ridgeBeam.castShadow = true;
-  roofGroup.add(frontRoofSlope, rearRoofSlope, ridgeBeam);
-  group.add(roofGroup);
-  compoundRoofCutawayGroup = roofGroup;
-
-  // Veranda deck — top strictly at Y = 0.24 (flush with interior floor, no overlap)
-  const verandaDeck = new THREE.Mesh(new THREE.BoxGeometry(7.4, 0.24, 1.38), matTerracottaPlinth);
-  verandaDeck.position.set(0, 0.12, -2.39);
-  verandaDeck.receiveShadow = true;
-  group.add(verandaDeck);
+  terracePlinth.position.set(0, 0.12, 0.25);
+  terracePlinth.receiveShadow = true;
+  group.add(terracePlinth);
 
   const verandaStep = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.16, 0.52), matTerracottaPlinth);
   verandaStep.position.set(0, 0.08, -3.32);
   verandaStep.receiveShadow = true;
   group.add(verandaStep);
 
-  for (const px of [-3.3, -1.32, 1.32, 3.3]) {
-    const colBase = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.42, 0.34), matTerracottaPlinth);
-    colBase.position.set(px, 0.42, -2.92);
-    const colShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 2.98, 16), matWhiteTrim);
-    colShaft.position.set(px, 2.04, -2.92);
-    colShaft.castShadow = true;
-    const colCap = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.14, 0.32), matWhiteTrim);
-    colCap.position.set(px, 3.5, -2.92);
-    frontFullGroup.add(colBase, colShaft, colCap);
-  }
+  // Build initial dynamic house shell (defaults to 14 m² Single Room or synced tier)
+  const built = createDynamicHouseShell(currentBuiltTierId, colliders);
+  dynamicHouseShellGroup = built.shellGroup;
+  compoundRoofCutawayGroup = built.roofGroup;
+  compoundFrontFullWallsGroup = built.frontFullGroup;
+  compoundFrontCutawayRimGroup = built.frontCutawayGroup;
+  group.add(dynamicHouseShellGroup);
 
   // Compound perimeter walls & decorative iron gate pillars
   const leftFrontWall = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.55, 0.36), matCompoundWall);
@@ -299,38 +647,25 @@ export function buildPlayerCompoundHouse(
     [0.35, 0.35]
   ] as [number, number][]) {
     const leg = towerLeg.clone();
-    leg.position.set(4.05 + lx, 1.6, 2.7 + lz);
+    leg.position.set(4.15 + lx, 1.6, 3.1 + lz);
     group.add(leg);
   }
   const tankPlatform = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.1, 0.95), matIronWork);
-  tankPlatform.position.set(4.05, 3.2, 2.7);
+  tankPlatform.position.set(4.15, 3.2, 3.1);
   const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.5, 1.15, 16), matPolyTank);
-  tank.position.set(4.05, 3.82, 2.7);
+  tank.position.set(4.15, 3.82, 3.1);
   tank.castShadow = true;
   group.add(tankPlatform, tank);
 
   scene.add(group);
 
-  // Thick, overlapping, watertight colliders for house walls and compound perimeter walls
-  // Group world offset is (-10.5, 0, 12.2)
-  // Doorway passage is at X in [-11.32, -9.68] (1.64m wide)
-  // Compound front gate passage is at X in [-11.82, -9.18] (2.64m wide)
+  // Outer compound perimeter colliders (always active)
   colliders.push(
-    // Main house back (North) wall — overlaps West and East walls completely
-    { id: 'ACC_HOUSE_001_WALL_N', minX: -14.48, maxX: -6.52, minZ: 15.26, maxZ: 16.05, height: 3.6 },
-    // Main house West wall — extends from front wall to back wall
-    { id: 'ACC_HOUSE_001_WALL_W_IN', minX: -14.52, maxX: -13.78, minZ: 10.32, maxZ: 16.05, height: 3.6 },
-    // Main house East wall — extends from front wall to back wall
-    { id: 'ACC_HOUSE_001_WALL_E_IN', minX: -7.22, maxX: -6.48, minZ: 10.32, maxZ: 16.05, height: 3.6 },
-    // Main house Front (South) Left wall (west of open doorway)
-    { id: 'ACC_HOUSE_001_WALL_S_L', minX: -14.48, maxX: -11.32, minZ: 10.32, maxZ: 10.98, height: 3.6 },
-    // Main house Front (South) Right wall (east of open doorway)
-    { id: 'ACC_HOUSE_001_WALL_S_R', minX: -9.68, maxX: -6.52, minZ: 10.32, maxZ: 10.98, height: 3.6 },
     // Polytank tower in back-east corner
-    { id: 'ACC_HOUSE_001_POLYTANK', minX: -6.95, maxX: -5.95, minZ: 14.35, maxZ: 15.45, height: 4.4 },
-    // Compound front wall left of gate (overlaps outer West wall and left gate pillar)
+    { id: 'ACC_HOUSE_001_POLYTANK', minX: -6.85, maxX: -5.85, minZ: 14.75, maxZ: 15.85, height: 4.4 },
+    // Compound front wall left of gate
     { id: 'ACC_HOUSE_001_WALL_L', minX: -15.55, maxX: -11.82, minZ: 7.92, maxZ: 8.58, height: 1.8 },
-    // Compound front wall right of gate (overlaps right gate pillar and outer East wall)
+    // Compound front wall right of gate
     { id: 'ACC_HOUSE_001_WALL_R', minX: -9.18, maxX: -5.45, minZ: 7.92, maxZ: 8.58, height: 1.8 },
     // Compound outer West wall
     { id: 'ACC_HOUSE_001_WALL_W', minX: -15.58, maxX: -14.82, minZ: 7.92, maxZ: 16.55, height: 1.8 },
@@ -343,11 +678,11 @@ export function buildPlayerCompoundHouse(
   interactables.push({
     id: 'home_door',
     assetId: 'ACC_HOUSE_001',
-    title: 'Your Compound',
-    promptLabel: 'Compound',
-    interactionResponse: 'Your compound — walk inside, rest, decorate.',
+    title: 'Your Home',
+    promptLabel: 'Home · Rest & Upgrade',
+    interactionResponse: 'Your Accra home — rest, cook, host, or upgrade your room.',
     position: new THREE.Vector3(-10.5, 0.24, 10.6),
-    lookAtPosition: new THREE.Vector3(-10.5, 0.24, 12.5),
+    lookAtPosition: new THREE.Vector3(-10.5, 0.24, 12.2),
     radius: 3.8
   });
 }

@@ -2,24 +2,24 @@ import * as THREE from 'three';
 import { sharedArtLibrary } from '../Art/AssetRegistry';
 import { FURNITURE_CATALOG, type FurnitureId } from './HomeSystem';
 
-/** Courtyard slots — outside veranda */
+/** Courtyard slots — outside veranda terrace (top at Y = 0.24) */
 const COURTYARD_SLOTS: [number, number, number][] = [
-  [-12.4, 0.1, 9.6],
-  [-11.2, 0.1, 9.5],
-  [-9.6, 0.1, 9.6],
-  [-12.6, 0.24, 10.0],
-  [-8.8, 0.24, 10.0],
-  [-8.6, 0.1, 9.6]
+  [-12.2, 0.24, 9.7],
+  [-11.4, 0.24, 9.6],
+  [-9.3, 0.24, 9.7],
+  [-12.6, 0.24, 10.1],
+  [-8.6, 0.24, 10.1],
+  [-8.2, 0.24, 9.6]
 ];
 
-/** Interior slots — inside hollowed room (floor top at Y = 0.24) */
+/** Interior slots — inside room (floor top at Y = 0.24) */
 const INTERIOR_SLOTS: [number, number, number][] = [
-  [-12.8, 0.24, 13.2],
-  [-9.0, 0.24, 14.6],
-  [-9.2, 0.24, 12.4],
-  [-12.6, 0.24, 14.4],
-  [-10.5, 0.24, 13.5],
-  [-11.5, 0.24, 12.2]
+  [-11.55, 0.24, 11.75],
+  [-11.65, 0.24, 12.85],
+  [-9.35, 0.24, 11.45],
+  [-9.25, 0.24, 12.35],
+  [-10.5, 0.24, 12.15],
+  [-11.1, 0.24, 11.35]
 ];
 
 export class HomeFurnitureVisuals {
@@ -48,14 +48,6 @@ export class HomeFurnitureVisuals {
     const g = new THREE.Group();
     g.name = 'HOME_INTERIOR_SHELL';
 
-    const trim = sharedArtLibrary.getMaterial('home_baseboard', {
-      color: 0xf8fafc,
-      roughness: 0.6
-    });
-    const boardN = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.12, 0.06), trim);
-    boardN.position.set(-10.5, 0.3, 15.2);
-    g.add(boardN);
-
     const fanGroup = new THREE.Group();
     const metal = sharedArtLibrary.getMaterial('home_fan_metal', {
       color: 0x4b5563,
@@ -63,7 +55,7 @@ export class HomeFurnitureVisuals {
       metalness: 0.5
     });
     const fanHub = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.1, 12), metal);
-    fanHub.position.set(-10.5, 3.15, 13.1);
+    fanHub.position.set(-10.5, 3.15, 12.3);
     const bladeMat = sharedArtLibrary.getMaterial('home_fan_blade', {
       color: 0xe5e7eb,
       roughness: 0.55
@@ -71,7 +63,7 @@ export class HomeFurnitureVisuals {
     for (let i = 0; i < 3; i++) {
       const blade = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.04, 0.18), bladeMat);
       const a = (i / 3) * Math.PI * 2;
-      blade.position.set(-10.5 + Math.cos(a) * 0.35, 3.12, 13.1 + Math.sin(a) * 0.35);
+      blade.position.set(-10.5 + Math.cos(a) * 0.35, 3.12, 12.3 + Math.sin(a) * 0.35);
       blade.rotation.y = a;
       fanGroup.add(blade);
     }
@@ -83,8 +75,8 @@ export class HomeFurnitureVisuals {
       color: 0x7c2d12,
       roughness: 0.9
     });
-    const mat = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.006, 0.5), doorMat);
-    mat.position.set(-10.5, 0.243, 11.15);
+    const mat = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.006, 0.45), doorMat);
+    mat.position.set(-10.5, 0.243, 10.95);
     g.add(mat);
 
     return g;
@@ -109,11 +101,11 @@ export class HomeFurnitureVisuals {
       const pos = slots[item.slot % slots.length];
       mesh.position.set(pos[0], pos[1], pos[2]);
       if (id === 'kente_cloth') {
-        mesh.position.set(-13.9, 1.4, 13.5);
+        mesh.position.set(-12.2, 1.45, 12.3);
         mesh.rotation.y = Math.PI / 2;
       }
       if (id === 'generator') {
-        mesh.position.set(-8.4, 0.12, 14.8);
+        mesh.position.set(-7.6, 0.24, 14.2);
       }
       this.root.add(mesh);
       this.meshes.set(id, mesh);

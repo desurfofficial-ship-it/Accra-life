@@ -14,12 +14,12 @@
 export function getSurfaceHeightAt(x: number, z: number): number {
   // 1. Player Compound House Courtyard & Entrance Gate Apron (X in [-15.3, -5.7], Z in [7.7, 16.3])
   if (x >= -15.3 && x <= -5.7 && z >= 7.7 && z <= 16.3) {
-    // Raised Veranda Deck & Walkable Interior Room Floor (X in [-14.2, -6.8], Z in [9.08, 15.75])
-    if (x >= -14.2 && x <= -6.8 && z >= 9.08 && z <= 15.75) {
+    // Raised Veranda Terrace & Walkable Interior Room Floor (X in [-14.9, -6.1], Z in [9.08, 15.85])
+    if (x >= -14.9 && x <= -6.1 && z >= 9.08 && z <= 15.85) {
       return 0.24;
     }
-    // Center Veranda Entrance Step (X in [-11.55, -9.45], Z in [8.70, 9.08])
-    if (x >= -11.55 && x <= -9.45 && z >= 8.70 && z < 9.08) {
+    // Center Veranda Entrance Step (X in [-11.65, -9.35], Z in [8.65, 9.08])
+    if (x >= -11.65 && x <= -9.35 && z >= 8.65 && z < 9.08) {
       return 0.16;
     }
     return 0.10;

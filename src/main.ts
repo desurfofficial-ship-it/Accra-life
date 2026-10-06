@@ -25,11 +25,11 @@ import {
 } from './game/Jobs/JobRegistry';
 import { InteractableTarget } from './game/Player/InteractionSystem';
 import { NeedsSystem } from './game/Needs/NeedsSystem';
-import { FURNITURE_CATALOG, HomeSystem } from './game/Home/HomeSystem';
+import { FURNITURE_CATALOG, HOUSING_TIERS, HomeSystem } from './game/Home/HomeSystem';
 import { HomeFurnitureVisuals } from './game/Home/HomeFurnitureVisuals';
+import { rebuildPlayerCompoundForTier } from './game/World/PlayerCompound';
 import { PresenceManager, type PresenceStatus } from './game/Multiplayer/PresenceManager';
 import { LocationChatManager } from './game/Multiplayer/LocationChatManager';
-import { NearbyPlayerAvatars } from './game/Multiplayer/NearbyPlayerAvatars';
 import type { NearbyPlayer, ChatMessageView } from './game/Multiplayer/types';
 import { getLocationAt, getLocationDef, type LocationId } from './game/World/Locations';
 
@@ -97,7 +97,6 @@ const chatSendBtn = document.getElementById('chatSendBtn') as HTMLButtonElement 
 const nearbyStrip = document.getElementById('nearbyStrip');
 const currentLocationPill = document.getElementById('currentLocationPill');
 let currentLocationId: LocationId = 'adabraka_neighborhood';
-let nearbyAvatars: NearbyPlayerAvatars | null = null;
 
 const economyManager = new EconomyManager();
 const jobSystem = new JobManager(economyManager);
@@ -182,37 +181,25 @@ function getActiveObjectiveInfo(): {
 }
 
 function syncNeedsHUD(): void {
-  const s = needsSystem.getState();
-  setNeedMeter('needHungerBar', 'needHungerVal', 'hungerFill', 'hungerVal', s.hunger);
-  setNeedMeter('needEnergyBar', 'needEnergyVal', 'energyFill', 'energyVal', s.energy);
-  setNeedMeter('needFunBar', 'needFunVal', '', '', s.fun);
-  setNeedMeter('needSocialBar', 'needSocialVal', '', '', s.social);
-  setNeedMeter('needHygieneBar', 'needHygieneVal', '', '', s.hygiene);
-  setNeedMeter('needBladderBar', 'needBladderVal', '', '', s.bladder);
-}
-
-/**
- * Set a single need meter's bar width + numeric value + low-class.
- * Accepts both the new ID (e.g. `needHungerBar`) and the legacy fallback
- * ID (e.g. `hungerFill`) for backward-compat with any HTML that hasn't
- * migrated to the new IDs yet.
- */
-function setNeedMeter(
-  newBarId: string,
-  newValId: string,
-  legacyBarId: string,
-  legacyValId: string,
-  value: number
-): void {
-  const bar = document.getElementById(newBarId)
-    || (legacyBarId ? document.getElementById(legacyBarId) : null);
-  const val = document.getElementById(newValId)
-    || (legacyValId ? document.getElementById(legacyValId) : null);
-  if (bar) {
-    bar.style.width = `${Math.round(value)}%`;
-    bar.classList.toggle('low', value < 25);
+  const state = needsSystem.getState();
+  const hBar =
+    document.getElementById('needHungerBar') || document.getElementById('hungerFill');
+  const eBar =
+    document.getElementById('needEnergyBar') || document.getElementById('energyFill');
+  const hVal =
+    document.getElementById('needHungerVal') || document.getElementById('hungerVal');
+  const eVal =
+    document.getElementById('needEnergyVal') || document.getElementById('energyVal');
+  if (hBar) {
+    hBar.style.width = `${Math.round(state.hunger)}%`;
+    hBar.classList.toggle('low', state.hunger < 25);
   }
-  if (val) val.textContent = String(Math.round(value));
+  if (eBar) {
+    eBar.style.width = `${Math.round(state.energy)}%`;
+    eBar.classList.toggle('low', state.energy < 25);
+  }
+  if (hVal) hVal.textContent = String(Math.round(state.hunger));
+  if (eVal) eVal.textContent = String(Math.round(state.energy));
 }
 
 function syncWalletDiagnosticPanel(): void {
@@ -248,19 +235,24 @@ function syncEconomyHUD(): void {
   const cash = economyManager.wallet.getCashBalance();
   if (hudCashAmountEl) hudCashAmountEl.textContent = formatGHS(cash);
   const tier = economyManager.getProgressionInfo();
+  const housingTier = homeSystem.getHousingTier();
+  needsSystem.setFatigueReductionPct(housingTier.fatigueReductionPct);
   if (progressionTierBadgeEl) progressionTierBadgeEl.textContent = tier.title;
-  if (livingSituationSubEl) livingSituationSubEl.textContent = tier.description;
+  if (livingSituationSubEl) {
+    livingSituationSubEl.textContent = `${housingTier.icon} ${housingTier.shortLabel} · Comfort ${homeSystem.getComfortScore()}%`;
+  }
   const heat = crimeSystem.getHeatLevel();
   const status = crimeSystem.getPoliceStatus();
   if (heatStatusPillEl && heatStatusTextEl) {
+    const isClean = status === 'CLEAN' || status === 'NORMAL';
     heatStatusPillEl.classList.remove('suspicious', 'wanted', 'arrested');
+    heatStatusPillEl.classList.toggle('clean-hidden', isClean);
     if (status === 'SUSPICIOUS') heatStatusPillEl.classList.add('suspicious');
     else if (status === 'WANTED') heatStatusPillEl.classList.add('wanted');
     else if (status === 'ARRESTED') heatStatusPillEl.classList.add('arrested');
-    heatStatusTextEl.textContent =
-      status === 'CLEAN' || status === 'NORMAL'
-        ? '◆ CLEAN'
-        : `◆ ${status} (${Math.round(heat)}%)`;
+    heatStatusTextEl.textContent = isClean
+      ? '◆ CLEAN'
+      : `◆ ${status} (${Math.round(heat)}%)`;
   }
   const obj = getActiveObjectiveInfo();
   if (activeObjectiveBannerEl) {
@@ -688,9 +680,9 @@ function renderModalTabContent(): void {
 
     diagCard.querySelector('#diagSyncFirestoreBtn')?.addEventListener('click', async () => {
       economyManager.saveSnapshot();
-      const ok = await wallet.saveToFirebase(needsSystem.getState());
+      const ok = await wallet.saveToFirebase();
       showInteractionFeedback(
-        ok ? 'Synced wallet + needs to Firebase store.' : 'Saved locally (sign in for cloud sync).'
+        ok ? 'Synced wallet to Firebase store.' : 'Saved locally (sign in for cloud sync).'
       );
       renderModalTabContent();
       syncEconomyHUD();
@@ -742,62 +734,136 @@ function renderModalTabContent(): void {
 
 function openHomeSheet(): void {
   const backdrop = document.getElementById('homeModalBackdrop');
+  const titleEl = document.getElementById('homeSheetTitle');
   const flexEl = document.getElementById('homeFlexScore');
+  const restBtn = document.getElementById('homeRestBtn') as HTMLButtonElement | null;
+  const cookBtn = document.getElementById('homeCookBtn') as HTMLButtonElement | null;
+  const socialBtn = document.getElementById('homeSocialBtn') as HTMLButtonElement | null;
   const list =
     document.getElementById('homeFurnList') || document.getElementById('furnGrid');
-  if (flexEl) flexEl.textContent = `Flex ${homeSystem.getFlexScore()} · ${homeSystem.getFlexLabel()}`;
+
+  const currentTier = homeSystem.getHousingTier();
+  const bedBonus = homeSystem.owns('bed') ? 20 : 0;
+  const totalSleepRestore = Math.min(100, currentTier.sleepEnergyRestore + bedBonus);
+
+  if (titleEl) {
+    titleEl.textContent = `${currentTier.icon} ${currentTier.title} (${currentTier.sizeSqm} m²)`;
+  }
+  if (flexEl) {
+    flexEl.textContent = `${currentTier.dimensionsLabel} · Comfort ${homeSystem.getComfortScore()}% · Flex ${homeSystem.getFlexScore()} · Storage ${homeSystem.getUsedSlotsCount()}/${homeSystem.getMaxSlotsCount()}`;
+  }
+  if (restBtn) {
+    restBtn.textContent = `🛏️ Sleep (+${totalSleepRestore} Energy)`;
+  }
+  if (cookBtn) {
+    cookBtn.textContent = `🍳 ${currentTier.cookLabel}`;
+  }
+  if (socialBtn) {
+    const cd = homeSystem.getSocialCooldownSeconds();
+    socialBtn.textContent =
+      cd > 0 ? `⏳ Chill (${cd}s)` : `🎉 ${currentTier.socialActionLabel}`;
+  }
+
   if (list) {
     list.innerHTML = '';
-    if (!document.getElementById('homeRestBtn')) {
-      const actionsRow = document.createElement('div');
-      actionsRow.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap';
-      actionsRow.innerHTML = `
-        <button id="inlineHomeRestBtn" class="econ-action-btn" type="button" style="flex:1 1 45%;min-width:120px">Rest (+Energy)</button>
-        <button id="inlineHomeShowerBtn" class="econ-action-btn" type="button" style="flex:1 1 45%;min-width:120px">Shower (+Hygiene)</button>
-        <button id="inlineHomeToiletBtn" class="econ-action-btn" type="button" style="flex:1 1 45%;min-width:120px">Toilet (+Bladder)</button>
-        <button id="inlineHomeVibeBtn" class="econ-action-btn" type="button" style="flex:1 1 45%;min-width:120px">Vibe (+Fun)</button>
-        <button id="inlineHomeShareBtn" class="econ-action-btn" type="button" style="flex:1 1 45%;min-width:120px;background:#222;color:#fff;border-color:#555">Share Flex</button>
+
+    // 1. Current Room Features & Meaningful Gameplay Perks Banner
+    const currentBanner = document.createElement('div');
+    currentBanner.className = 'home-tier-banner';
+    const featureTagsHtml = currentTier.includedFeatures
+      .map((f) => `<span class="housing-feature-tag">✓ ${f}</span>`)
+      .join('');
+    currentBanner.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:4px">
+        <strong style="font-size:0.78rem;color:var(--gta-yellow)">Current Living Setup (${currentTier.sizeSqm} m²)</strong>
+        <span style="font-size:0.65rem;color:var(--gta-green);font-weight:800">${currentTier.comfortLabel} (${homeSystem.getComfortScore()}%)</span>
+      </div>
+      <p style="margin:0 0 6px;font-size:0.66rem;color:#cbd5e1">${currentTier.gameFeel}</p>
+      <div class="housing-feature-tags" style="margin-bottom:6px">${featureTagsHtml}</div>
+      <div style="font-size:0.62rem;color:#94a3b8;display:flex;flex-wrap:wrap;gap:8px">
+        <span>🛏️ Sleep: <strong style="color:#fff">+${totalSleepRestore} Eng</strong></span>
+        <span>🍳 Cook: <strong style="color:#fff">+${currentTier.cookHungerRestore} Hun</strong></span>
+        <span>⚡ Fatigue: <strong style="color:#fff">-${currentTier.fatigueReductionPct}%</strong></span>
+        <span>💼 Prestige Pay: <strong style="color:var(--gta-green)">+${currentTier.jobPayoutBonusPct}%</strong></span>
+      </div>
+    `;
+    list.appendChild(currentBanner);
+
+    // 2. Housing Progression Path (14 m² Starter -> 25 m² -> 38 m² -> 55 m² -> 80 m² -> 140 m²)
+    const housingHeading = document.createElement('div');
+    housingHeading.className = 'home-section-heading';
+    housingHeading.textContent = 'Housing Progression (Meaningful Upgrades)';
+    list.appendChild(housingHeading);
+
+    for (const tier of HOUSING_TIERS) {
+      const isCurrent = tier.id === currentTier.id;
+      const isUnlocked = homeSystem.isTierUnlocked(tier.id);
+      const card = document.createElement('div');
+      card.className = `housing-tier-card${isCurrent ? ' active-tier' : ''}`;
+      const tags = tier.includedFeatures
+        .map((f) => `<span class="housing-feature-tag">${f}</span>`)
+        .join('');
+      const btnText = isCurrent
+        ? 'Current Home'
+        : isUnlocked
+          ? 'Switch to Home'
+          : `Upgrade · ₵${tier.costGHS.toLocaleString()}`;
+
+      card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div>
+            <strong style="font-size:0.82rem;color:var(--gta-white)">${tier.icon} ${tier.title}</strong>
+            <span style="font-size:0.66rem;color:var(--gta-yellow);margin-left:6px;font-weight:800">${tier.sizeSqm} m²</span>
+          </div>
+          <span style="font-size:0.62rem;color:var(--gta-green);font-weight:700">${tier.comfortLabel}</span>
+        </div>
+        <p style="margin:0;font-size:0.65rem;color:#cbd5e1">${tier.gameFeel}</p>
+        <div class="housing-feature-tags">${tags}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:3px">
+          <span style="font-size:0.6rem;color:#94a3b8">Sleep +${tier.sleepEnergyRestore} · Cook +${tier.cookHungerRestore} · ${tier.maxFurnitureSlots} slots · +${tier.jobPayoutBonusPct}% pay</span>
+          <button class="furn-buy" type="button" ${isCurrent ? 'disabled' : ''}>${btnText}</button>
+        </div>
       `;
-      actionsRow.querySelector('#inlineHomeRestBtn')?.addEventListener('click', () => {
-        const bedBonus = homeSystem.owns('bed') ? 20 : 0;
-        const rest = needsSystem.sleep(bedBonus);
-        showInteractionFeedback(
-          rest.success ? (bedBonus ? '+Energy (bed)' : '+Energy') : rest.message,
-          !rest.success
-        );
-        syncEconomyHUD();
-      });
-      actionsRow.querySelector('#inlineHomeShowerBtn')?.addEventListener('click', () => {
-        const r = needsSystem.shower();
-        showInteractionFeedback(r.success ? '+Hygiene' : r.message, !r.success);
-        syncEconomyHUD();
-      });
-      actionsRow.querySelector('#inlineHomeToiletBtn')?.addEventListener('click', () => {
-        const r = needsSystem.useToilet();
-        showInteractionFeedback(r.success ? '+Bladder' : r.message, !r.success);
-        syncEconomyHUD();
-      });
-      actionsRow.querySelector('#inlineHomeVibeBtn')?.addEventListener('click', () => {
-        const r = needsSystem.haveFun(35, 'Vibing to Afrobeats');
-        showInteractionFeedback(r.success ? '+Fun' : r.message, !r.success);
-        syncEconomyHUD();
-      });
-      actionsRow.querySelector('#inlineHomeShareBtn')?.addEventListener('click', async () => {
-        const line = homeSystem.getFlexShareLine(playerDisplayName);
-        try {
-          await navigator.clipboard.writeText(line);
-          showInteractionFeedback('Copied');
-        } catch {
-          showInteractionFeedback(line);
-        }
-      });
-      list.appendChild(actionsRow);
+
+      const upgBtn = card.querySelector('button');
+      if (upgBtn && !isCurrent) {
+        upgBtn.addEventListener('click', () => {
+          const res = homeSystem.upgradeHousing(
+            tier.id,
+            (c) => economyManager.canAfford(c, 'CASH'),
+            (c, title) =>
+              Boolean(
+                economyManager.wallet.spendMoney({
+                  amount: c,
+                  category: 'PURCHASE',
+                  description: title,
+                  channel: 'CASH'
+                })
+              )
+          );
+          showInteractionFeedback(res.message, !res.success);
+          if (res.success) {
+            rebuildPlayerCompoundForTier(res.tier.id);
+            homeVisuals?.sync(homeSystem.getOwned());
+            syncEconomyHUD();
+            openHomeSheet();
+          }
+        });
+      }
+      list.appendChild(card);
     }
+
+    // 3. Extra Room Furniture & Appliances Catalog
+    const furnHeading = document.createElement('div');
+    furnHeading.className = 'home-section-heading';
+    furnHeading.textContent = `Furniture & Appliances (${homeSystem.getUsedSlotsCount()}/${homeSystem.getMaxSlotsCount()} Storage Slots)`;
+    list.appendChild(furnHeading);
+
     for (const item of FURNITURE_CATALOG) {
       const owned = homeSystem.owns(item.id);
       const row = document.createElement('div');
       row.className = 'furn-row' + (owned ? ' owned' : '');
-      row.innerHTML = `<div class="furn-meta"><p class="furn-title">${item.title}</p><p class="furn-blurb">${item.blurb}</p></div>`;
+      row.innerHTML = `<div class="furn-meta"><p class="furn-title">${item.title} <span style="font-size:0.62rem;color:var(--gta-green);font-weight:700">+${item.comfortBonus}% Comfort</span></p><p class="furn-blurb">${item.blurb}</p></div>`;
       const btn = document.createElement('button');
       btn.className = 'furn-buy';
       btn.type = 'button';
@@ -849,8 +915,23 @@ function handleWorldTargetInteracted(target: InteractableTarget): void {
   if (advance.handled) {
     if (advance.completedWork) {
       needsSystem.onWorkCompleted();
-      const pay = advance.earnedGHS > 0 ? ` +₵${advance.earnedGHS.toFixed(0)}` : '';
-      showInteractionFeedback(`Paid${pay}`);
+      const prestigeBonusPct = homeSystem.getHousingTier().jobPayoutBonusPct;
+      let bonusGHS = 0;
+      if (prestigeBonusPct > 0 && advance.earnedGHS > 0) {
+        bonusGHS = Math.round((advance.earnedGHS * prestigeBonusPct) / 100);
+        if (bonusGHS > 0) {
+          economyManager.awardIncome({
+            amountGHS: bonusGHS,
+            category: 'REWARD',
+            description: `${homeSystem.getHousingTier().shortLabel} Prestige Bonus`
+          });
+        }
+      }
+      const totalEarned = advance.earnedGHS + bonusGHS;
+      const pay = totalEarned > 0 ? ` +₵${totalEarned.toFixed(0)}` : '';
+      showInteractionFeedback(
+        bonusGHS > 0 ? `Paid${pay} (incl. +₵${bonusGHS} home prestige)` : `Paid${pay}`
+      );
     } else showInteractionFeedback(advance.message);
     syncEconomyHUD();
     return;
@@ -883,11 +964,7 @@ function handleWorldTargetInteracted(target: InteractableTarget): void {
     return;
   }
 
-  if (target.id === 'npc_older_001' || target.id === 'npc_male_001' || target.id === 'npc_female_001') {
-    // Talking to an Accraian restores Social — even if you immediately open
-    // the hustles modal, the conversation itself is the social recovery.
-    const r = needsSystem.socialize(8, 'Talked');
-    if (!r.success) showInteractionFeedback(r.message, true);
+  if (target.id === 'npc_older_001' || target.id === 'npc_male_001') {
     openEconomyModal('hustles', target.id);
     return;
   }
@@ -910,6 +987,7 @@ function startGame(profile: OnboardingResult): void {
   }
 
   if (container) {
+    container.innerHTML = '';
     const phase1 = new Phase1Scene(
       container,
       {
@@ -919,19 +997,71 @@ function startGame(profile: OnboardingResult): void {
       { look: { skin: profile.skin, hair: profile.hair } }
     );
     phase1SceneRef = phase1;
+    rebuildPlayerCompoundForTier(homeSystem.getHousingTierId());
     homeVisuals = new HomeFurnitureVisuals(phase1.scene);
     homeVisuals.sync(homeSystem.getOwned());
     playerDisplayName = profile.displayName || 'Chale';
     playerTrait = profile.trait || 'hustler';
 
+    document.getElementById('identityHomeCard')?.addEventListener('click', () => openHomeSheet());
     document.getElementById('homeModalClose')?.addEventListener('click', () => closeHomeSheet());
     document.getElementById('homeModalBackdrop')?.addEventListener('click', (e) => {
       if (e.target === document.getElementById('homeModalBackdrop')) closeHomeSheet();
     });
     document.getElementById('homeRestBtn')?.addEventListener('click', () => {
+      const tier = homeSystem.getHousingTier();
       const bedBonus = homeSystem.owns('bed') ? 20 : 0;
-      const rest = needsSystem.sleep(bedBonus);
-      showInteractionFeedback(rest.success ? (bedBonus ? '+Energy (bed)' : '+Energy') : rest.message, !rest.success);
+      const rest = needsSystem.sleep(bedBonus, tier.sleepEnergyRestore);
+      showInteractionFeedback(rest.message, !rest.success);
+      syncEconomyHUD();
+      openHomeSheet();
+    });
+    document.getElementById('homeCookBtn')?.addEventListener('click', () => {
+      const tier = homeSystem.getHousingTier();
+      if (tier.cookCostGHS > 0 && !economyManager.canAfford(tier.cookCostGHS, 'CASH')) {
+        showInteractionFeedback(`Need ₵${tier.cookCostGHS} for ingredients to cook at home.`, true);
+        return;
+      }
+      if (tier.cookCostGHS > 0) {
+        economyManager.wallet.spendMoney({
+          amount: tier.cookCostGHS,
+          category: 'FOOD',
+          description: `Home Cooking (${tier.shortLabel})`,
+          channel: 'CASH'
+        });
+      }
+      const meal = needsSystem.eatMeal(
+        `Home-cooked meal (${tier.shortLabel})`,
+        tier.cookHungerRestore,
+        tier.cookEnergyBonus
+      );
+      showInteractionFeedback(meal.message, !meal.success);
+      syncEconomyHUD();
+      openHomeSheet();
+    });
+    document.getElementById('homeSocialBtn')?.addEventListener('click', () => {
+      const cd = homeSystem.getSocialCooldownSeconds();
+      if (cd > 0) {
+        showInteractionFeedback(`Wait ${cd}s before hosting/chilling again.`, true);
+        return;
+      }
+      const tier = homeSystem.getHousingTier();
+      homeSystem.markSocialUsed();
+      const boost = needsSystem.boostEnergy(tier.socialEnergyBonus, tier.socialActionLabel);
+      if (tier.socialCashBonusGHS > 0) {
+        economyManager.awardIncome({
+          amountGHS: tier.socialCashBonusGHS,
+          category: 'REWARD',
+          description: `Social Hosting (${tier.shortLabel})`
+        });
+      }
+      showInteractionFeedback(
+        tier.socialCashBonusGHS > 0
+          ? `${tier.socialActionLabel} · +₵${tier.socialCashBonusGHS}`
+          : boost.message
+      );
+      syncEconomyHUD();
+      openHomeSheet();
     });
     document.getElementById('homeShareBtn')?.addEventListener('click', async () => {
       const line = homeSystem.getFlexShareLine(playerDisplayName);
@@ -963,7 +1093,6 @@ function startGame(profile: OnboardingResult): void {
     const tick = () => {
       crimeSystem.tickHeatDecay(1 / 60);
       needsSystem.tick(1 / 60);
-      nearbyAvatars?.update(1 / 60);
       if (homeVisuals) {
         const p = phase1.player.position;
         const isInsideCompound =
@@ -1106,9 +1235,6 @@ function initMultiplayer(profile: OnboardingResult, phase1: Phase1Scene): void {
   setCurrentLocationPill(spawnLoc.id, false);
   if (chatSheetTitle) chatSheetTitle.textContent = `At ${spawnLoc.displayName}`;
 
-  // Spawn the nearby-avatar renderer so other Accraians are visible in 3D.
-  nearbyAvatars = new NearbyPlayerAvatars(phase1.scene);
-
   // Chat: always start (guests can read). Presence: only for accounts.
   chatManager.enter();
   if (isAccountMode) {
@@ -1172,7 +1298,6 @@ function initMultiplayer(profile: OnboardingResult, phase1: Phase1Scene): void {
   presenceManager.onNearby((players) => {
     setNearbyStrip(players, isAccountMode);
     if (chatSheetOpen) renderChatSheetNearby(players);
-    nearbyAvatars?.syncFromNearby(players);
   });
   presenceManager.onStatus((status) => {
     if (isAccountMode) {

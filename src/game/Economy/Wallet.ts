@@ -1,6 +1,12 @@
-import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { onAuthStateChanged, sendEmailVerification } from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../../firebase';
+
+export type CloudSaveAuthStatus =
+  | 'verified_account'
+  | 'unverified_email'
+  | 'anonymous_guest'
+  | 'local_guest';
 import { PaymentChannel, TransactionCategory } from './EconomicTypes';
 import { createTransactionRecord, TransactionRecord } from './Transaction';
 
@@ -388,56 +394,126 @@ export class Wallet {
     void this.saveToFirebase();
   }
 
+  public getAuthCloudSaveStatus(): {
+    status: CloudSaveAuthStatus;
+    email: string | null;
+    uid: string | null;
+  } {
+    const user = auth.currentUser;
+    if (!user) {
+      return { status: 'local_guest', email: null, uid: null };
+    }
+    if (user.isAnonymous) {
+      return { status: 'anonymous_guest', email: null, uid: user.uid };
+    }
+    if (user.email && !user.emailVerified) {
+      return { status: 'unverified_email', email: user.email, uid: user.uid };
+    }
+    return { status: 'verified_account', email: user.email, uid: user.uid };
+  }
+
+  public async sendVerificationEmailToCurrentUser(): Promise<{
+    ok: boolean;
+    message: string;
+  }> {
+    const user = auth.currentUser;
+    if (!user || user.isAnonymous || !user.email) {
+      return {
+        ok: false,
+        message: 'Sign in with an email account first to send a verification link.'
+      };
+    }
+    if (user.emailVerified) {
+      return { ok: true, message: 'Email is already verified!' };
+    }
+    try {
+      await sendEmailVerification(user);
+      return {
+        ok: true,
+        message: `Verification link sent to ${user.email}. Check your inbox or spam folder.`
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        message:
+          err instanceof Error
+            ? err.message.replace('Firebase: ', '')
+            : 'Could not send verification email right now.'
+      };
+    }
+  }
+
+  public async checkAndReloadEmailVerification(): Promise<{
+    verified: boolean;
+    message: string;
+  }> {
+    const user = auth.currentUser;
+    if (!user || user.isAnonymous) {
+      return { verified: false, message: 'No email account signed in.' };
+    }
+    try {
+      await user.reload();
+    } catch {
+      /* ignore reload error if offline */
+    }
+    if (auth.currentUser?.emailVerified) {
+      await this.saveToFirebase();
+      return {
+        verified: true,
+        message: 'Email verified! Your wallet & progress are now synced to Cloud Save.'
+      };
+    }
+    return {
+      verified: false,
+      message: `Still waiting for verification on ${user.email ?? 'your email'}. Click the link in your email first.`
+    };
+  }
+
   /**
    * Saves wallet state directly into the existing Firebase structure (`/players/{userId}`
    * and `/profiles/{userId}`) defined in `firebase-blueprint.json` and `firestore.rules`.
-   *
-   * Optional `needs` snapshot: if provided, the 6 needs fields (hunger, energy, fun,
-   * social, hygiene, bladder) are included in the /players merge. The strict rules
-   * validate each as int 0-100. Pass this from the call site that has access to the
-   * NeedsSystem instance (Wallet itself doesn't, to keep responsibilities separated).
+   * For unverified email/password accounts, saves are kept in local storage until the
+   * user completes email verification.
    */
-  public async saveToFirebase(needs?: {
-    hunger: number; energy: number; fun: number;
-    social: number; hygiene: number; bladder: number;
-  }): Promise<boolean> {
+  public async saveToFirebase(): Promise<boolean> {
     const user = auth.currentUser;
     if (!user) return false;
+    if (!user.isAnonymous && user.email && !user.emailVerified) {
+      // Gate cloud save for unverified email users until they verify their email
+      return false;
+    }
 
     const playerPath = `players/${user.uid}`;
     const serialized = this.serialize();
-    // Strict security rules require server-set timestamps (blocks Payload 10
-    // forged-timestamp attack). The rules also require ownerId == auth.uid
-    // on every write so the create-rule identity check passes.
-    const playerPayload: Record<string, unknown> = {
-      ownerId: user.uid,
-      displayName: user.displayName || 'Kwame (Accra Resident)',
-      state: {
-        wallet: serialized
-      },
-      updatedAt: serverTimestamp()
-    };
-    if (needs) {
-      playerPayload.hunger = Math.round(needs.hunger);
-      playerPayload.energy = Math.round(needs.energy);
-      playerPayload.fun = Math.round(needs.fun);
-      playerPayload.social = Math.round(needs.social);
-      playerPayload.hygiene = Math.round(needs.hygiene);
-      playerPayload.bladder = Math.round(needs.bladder);
-    }
-    const profilePayload: Record<string, unknown> = {
-      ownerId: user.uid,
-      displayName: user.displayName || 'Kwame (Accra Resident)',
-      day: 1,
-      career: 'Adabraka Hustler',
-      money: Math.floor(this.cashBalance),
-      location: 'Adabraka Neighborhood',
-      updatedAt: serverTimestamp()
-    };
+    const isoNow = new Date().toISOString();
 
     try {
-      await setDoc(doc(db, 'players', user.uid), playerPayload, { merge: true });
-      await setDoc(doc(db, 'profiles', user.uid), profilePayload, { merge: true });
+      await setDoc(
+        doc(db, 'players', user.uid),
+        {
+          ownerId: user.uid,
+          displayName: user.displayName || 'Kwame (Accra Resident)',
+          state: {
+            wallet: serialized
+          },
+          updatedAt: isoNow
+        },
+        { merge: true }
+      );
+
+      await setDoc(
+        doc(db, 'profiles', user.uid),
+        {
+          ownerId: user.uid,
+          displayName: user.displayName || 'Kwame (Accra Resident)',
+          day: 1,
+          career: 'Adabraka Hustler',
+          money: Math.floor(this.cashBalance),
+          location: 'Adabraka Neighborhood',
+          updatedAt: isoNow
+        },
+        { merge: true }
+      );
       return true;
     } catch (error) {
       const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
