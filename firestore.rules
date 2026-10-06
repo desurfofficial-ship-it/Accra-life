@@ -63,7 +63,7 @@ service cloud.firestore {
     //
     //   { ownerId, playerId, createdAt, updatedAt,           // identity + timestamps
     //     displayName, name, career, location, day, time, money,  // profile-bridge fields
-    //     hunger, energy, happy, social, health,           // needs (currently only hunger/energy tracked)
+    //     hunger, energy, fun, social, hygiene, bladder,   // 6 needs (per product brief)
     //     amaAffinity, kofiAffinity, abenaAffinity, kwameAffinity, efuaAffinity,  // NPC affinities
     //     amaMoney, kofiMoney, abenaMoney, kwameMoney, efuaMoney,  // NPC moneys
     //     recentLogs,                                        // bounded event log (<=20 entries)
@@ -95,7 +95,7 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly([
           'ownerId', 'playerId', 'createdAt', 'updatedAt',
           'displayName', 'name', 'career', 'location', 'day', 'time', 'money',
-          'hunger', 'energy', 'happy', 'social', 'health',
+          'hunger', 'energy', 'fun', 'social', 'hygiene', 'bladder',
           'amaAffinity', 'kofiAffinity', 'abenaAffinity', 'kwameAffinity', 'efuaAffinity',
           'amaMoney', 'kofiMoney', 'abenaMoney', 'kwameMoney', 'efuaMoney',
           'recentLogs', 'phase3Economy', 'state'
@@ -106,9 +106,10 @@ service cloud.firestore {
         && (!('time' in request.resource.data) || (request.resource.data.time is int && request.resource.data.time >= 0))
         && (!('hunger' in request.resource.data) || (request.resource.data.hunger is int && request.resource.data.hunger >= 0 && request.resource.data.hunger <= 100))
         && (!('energy' in request.resource.data) || (request.resource.data.energy is int && request.resource.data.energy >= 0 && request.resource.data.energy <= 100))
-        && (!('happy' in request.resource.data) || (request.resource.data.happy is int && request.resource.data.happy >= 0 && request.resource.data.happy <= 100))
+        && (!('fun' in request.resource.data) || (request.resource.data.fun is int && request.resource.data.fun >= 0 && request.resource.data.fun <= 100))
         && (!('social' in request.resource.data) || (request.resource.data.social is int && request.resource.data.social >= 0 && request.resource.data.social <= 100))
-        && (!('health' in request.resource.data) || (request.resource.data.health is int && request.resource.data.health >= 0 && request.resource.data.health <= 100))
+        && (!('hygiene' in request.resource.data) || (request.resource.data.hygiene is int && request.resource.data.hygiene >= 0 && request.resource.data.hygiene <= 100))
+        && (!('bladder' in request.resource.data) || (request.resource.data.bladder is int && request.resource.data.bladder >= 0 && request.resource.data.bladder <= 100))
         && (!('displayName' in request.resource.data) || isValidDisplayName(request.resource.data.displayName))
         && (!('name' in request.resource.data) || isValidName(request.resource.data.name))
         && (!('recentLogs' in request.resource.data) || (request.resource.data.recentLogs is list && request.resource.data.recentLogs.size() <= 20));
@@ -126,7 +127,7 @@ service cloud.firestore {
         // affectedKeys must be in the schema (blocks Payload 5).
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'updatedAt', 'displayName', 'name', 'career', 'location', 'day', 'time', 'money',
-          'hunger', 'energy', 'happy', 'social', 'health',
+          'hunger', 'energy', 'fun', 'social', 'hygiene', 'bladder',
           'amaAffinity', 'kofiAffinity', 'abenaAffinity', 'kwameAffinity', 'efuaAffinity',
           'amaMoney', 'kofiMoney', 'abenaMoney', 'kwameMoney', 'efuaMoney',
           'recentLogs', 'phase3Economy', 'state'
@@ -137,9 +138,10 @@ service cloud.firestore {
         && (!('time' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.time is int && request.resource.data.time >= 0))
         && (!('hunger' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.hunger is int && request.resource.data.hunger >= 0 && request.resource.data.hunger <= 100))
         && (!('energy' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.energy is int && request.resource.data.energy >= 0 && request.resource.data.energy <= 100))
-        && (!('happy' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.happy is int && request.resource.data.happy >= 0 && request.resource.data.happy <= 100))
+        && (!('fun' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.fun is int && request.resource.data.fun >= 0 && request.resource.data.fun <= 100))
         && (!('social' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.social is int && request.resource.data.social >= 0 && request.resource.data.social <= 100))
-        && (!('health' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.health is int && request.resource.data.health >= 0 && request.resource.data.health <= 100))
+        && (!('hygiene' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.hygiene is int && request.resource.data.hygiene >= 0 && request.resource.data.hygiene <= 100))
+        && (!('bladder' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.bladder is int && request.resource.data.bladder >= 0 && request.resource.data.bladder <= 100))
         && (!('displayName' in request.resource.data.diff(resource.data).affectedKeys()) || isValidDisplayName(request.resource.data.displayName))
         && (!('name' in request.resource.data.diff(resource.data).affectedKeys()) || isValidName(request.resource.data.name))
         && (!('recentLogs' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.recentLogs is list && request.resource.data.recentLogs.size() <= 20));

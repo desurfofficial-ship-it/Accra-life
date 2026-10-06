@@ -391,8 +391,16 @@ export class Wallet {
   /**
    * Saves wallet state directly into the existing Firebase structure (`/players/{userId}`
    * and `/profiles/{userId}`) defined in `firebase-blueprint.json` and `firestore.rules`.
+   *
+   * Optional `needs` snapshot: if provided, the 6 needs fields (hunger, energy, fun,
+   * social, hygiene, bladder) are included in the /players merge. The strict rules
+   * validate each as int 0-100. Pass this from the call site that has access to the
+   * NeedsSystem instance (Wallet itself doesn't, to keep responsibilities separated).
    */
-  public async saveToFirebase(): Promise<boolean> {
+  public async saveToFirebase(needs?: {
+    hunger: number; energy: number; fun: number;
+    social: number; hygiene: number; bladder: number;
+  }): Promise<boolean> {
     const user = auth.currentUser;
     if (!user) return false;
 
@@ -409,6 +417,14 @@ export class Wallet {
       },
       updatedAt: serverTimestamp()
     };
+    if (needs) {
+      playerPayload.hunger = Math.round(needs.hunger);
+      playerPayload.energy = Math.round(needs.energy);
+      playerPayload.fun = Math.round(needs.fun);
+      playerPayload.social = Math.round(needs.social);
+      playerPayload.hygiene = Math.round(needs.hygiene);
+      playerPayload.bladder = Math.round(needs.bladder);
+    }
     const profilePayload: Record<string, unknown> = {
       ownerId: user.uid,
       displayName: user.displayName || 'Kwame (Accra Resident)',

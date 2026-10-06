@@ -182,25 +182,37 @@ function getActiveObjectiveInfo(): {
 }
 
 function syncNeedsHUD(): void {
-  const state = needsSystem.getState();
-  const hBar =
-    document.getElementById('needHungerBar') || document.getElementById('hungerFill');
-  const eBar =
-    document.getElementById('needEnergyBar') || document.getElementById('energyFill');
-  const hVal =
-    document.getElementById('needHungerVal') || document.getElementById('hungerVal');
-  const eVal =
-    document.getElementById('needEnergyVal') || document.getElementById('energyVal');
-  if (hBar) {
-    hBar.style.width = `${Math.round(state.hunger)}%`;
-    hBar.classList.toggle('low', state.hunger < 25);
+  const s = needsSystem.getState();
+  setNeedMeter('needHungerBar', 'needHungerVal', 'hungerFill', 'hungerVal', s.hunger);
+  setNeedMeter('needEnergyBar', 'needEnergyVal', 'energyFill', 'energyVal', s.energy);
+  setNeedMeter('needFunBar', 'needFunVal', '', '', s.fun);
+  setNeedMeter('needSocialBar', 'needSocialVal', '', '', s.social);
+  setNeedMeter('needHygieneBar', 'needHygieneVal', '', '', s.hygiene);
+  setNeedMeter('needBladderBar', 'needBladderVal', '', '', s.bladder);
+}
+
+/**
+ * Set a single need meter's bar width + numeric value + low-class.
+ * Accepts both the new ID (e.g. `needHungerBar`) and the legacy fallback
+ * ID (e.g. `hungerFill`) for backward-compat with any HTML that hasn't
+ * migrated to the new IDs yet.
+ */
+function setNeedMeter(
+  newBarId: string,
+  newValId: string,
+  legacyBarId: string,
+  legacyValId: string,
+  value: number
+): void {
+  const bar = document.getElementById(newBarId)
+    || (legacyBarId ? document.getElementById(legacyBarId) : null);
+  const val = document.getElementById(newValId)
+    || (legacyValId ? document.getElementById(legacyValId) : null);
+  if (bar) {
+    bar.style.width = `${Math.round(value)}%`;
+    bar.classList.toggle('low', value < 25);
   }
-  if (eBar) {
-    eBar.style.width = `${Math.round(state.energy)}%`;
-    eBar.classList.toggle('low', state.energy < 25);
-  }
-  if (hVal) hVal.textContent = String(Math.round(state.hunger));
-  if (eVal) eVal.textContent = String(Math.round(state.energy));
+  if (val) val.textContent = String(Math.round(value));
 }
 
 function syncWalletDiagnosticPanel(): void {
@@ -676,9 +688,9 @@ function renderModalTabContent(): void {
 
     diagCard.querySelector('#diagSyncFirestoreBtn')?.addEventListener('click', async () => {
       economyManager.saveSnapshot();
-      const ok = await wallet.saveToFirebase();
+      const ok = await wallet.saveToFirebase(needsSystem.getState());
       showInteractionFeedback(
-        ok ? 'Synced wallet to Firebase store.' : 'Saved locally (sign in for cloud sync).'
+        ok ? 'Synced wallet + needs to Firebase store.' : 'Saved locally (sign in for cloud sync).'
       );
       renderModalTabContent();
       syncEconomyHUD();
@@ -738,10 +750,13 @@ function openHomeSheet(): void {
     list.innerHTML = '';
     if (!document.getElementById('homeRestBtn')) {
       const actionsRow = document.createElement('div');
-      actionsRow.style.cssText = 'display:flex;gap:8px;margin-bottom:8px';
+      actionsRow.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap';
       actionsRow.innerHTML = `
-        <button id="inlineHomeRestBtn" class="econ-action-btn" type="button" style="flex:1">Rest (+Energy)</button>
-        <button id="inlineHomeShareBtn" class="econ-action-btn" type="button" style="flex:1;background:#222;color:#fff;border-color:#555">Share Flex</button>
+        <button id="inlineHomeRestBtn" class="econ-action-btn" type="button" style="flex:1 1 45%;min-width:120px">Rest (+Energy)</button>
+        <button id="inlineHomeShowerBtn" class="econ-action-btn" type="button" style="flex:1 1 45%;min-width:120px">Shower (+Hygiene)</button>
+        <button id="inlineHomeToiletBtn" class="econ-action-btn" type="button" style="flex:1 1 45%;min-width:120px">Toilet (+Bladder)</button>
+        <button id="inlineHomeVibeBtn" class="econ-action-btn" type="button" style="flex:1 1 45%;min-width:120px">Vibe (+Fun)</button>
+        <button id="inlineHomeShareBtn" class="econ-action-btn" type="button" style="flex:1 1 45%;min-width:120px;background:#222;color:#fff;border-color:#555">Share Flex</button>
       `;
       actionsRow.querySelector('#inlineHomeRestBtn')?.addEventListener('click', () => {
         const bedBonus = homeSystem.owns('bed') ? 20 : 0;
@@ -750,6 +765,21 @@ function openHomeSheet(): void {
           rest.success ? (bedBonus ? '+Energy (bed)' : '+Energy') : rest.message,
           !rest.success
         );
+        syncEconomyHUD();
+      });
+      actionsRow.querySelector('#inlineHomeShowerBtn')?.addEventListener('click', () => {
+        const r = needsSystem.shower();
+        showInteractionFeedback(r.success ? '+Hygiene' : r.message, !r.success);
+        syncEconomyHUD();
+      });
+      actionsRow.querySelector('#inlineHomeToiletBtn')?.addEventListener('click', () => {
+        const r = needsSystem.useToilet();
+        showInteractionFeedback(r.success ? '+Bladder' : r.message, !r.success);
+        syncEconomyHUD();
+      });
+      actionsRow.querySelector('#inlineHomeVibeBtn')?.addEventListener('click', () => {
+        const r = needsSystem.haveFun(35, 'Vibing to Afrobeats');
+        showInteractionFeedback(r.success ? '+Fun' : r.message, !r.success);
         syncEconomyHUD();
       });
       actionsRow.querySelector('#inlineHomeShareBtn')?.addEventListener('click', async () => {
@@ -853,7 +883,11 @@ function handleWorldTargetInteracted(target: InteractableTarget): void {
     return;
   }
 
-  if (target.id === 'npc_older_001' || target.id === 'npc_male_001') {
+  if (target.id === 'npc_older_001' || target.id === 'npc_male_001' || target.id === 'npc_female_001') {
+    // Talking to an Accraian restores Social — even if you immediately open
+    // the hustles modal, the conversation itself is the social recovery.
+    const r = needsSystem.socialize(8, 'Talked');
+    if (!r.success) showInteractionFeedback(r.message, true);
     openEconomyModal('hustles', target.id);
     return;
   }
