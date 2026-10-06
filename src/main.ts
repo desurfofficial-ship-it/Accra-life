@@ -958,6 +958,50 @@ function openHomeSheet(): void {
         list.appendChild(row);
       }
     }
+
+    // 5. Furniture-gated action buttons (Phase-3 gameplay depth).
+    // These appear ONLY when the relevant furniture is placed — making
+    // furniture purchases meaningful for gameplay, not just decoration.
+    const placedItems = homeSystem.getPlaced();
+    const hasTV = placedItems.some((p) => p.catalogId === 'tv_basic' || p.catalogId === 'tv');
+    const hasSofa = placedItems.some((p) => p.catalogId === 'sofa_basic' || p.catalogId === 'sofa');
+    if (hasTV || hasSofa) {
+      const actionsHeading = document.createElement('div');
+      actionsHeading.className = 'home-section-heading';
+      actionsHeading.textContent = 'Furniture Actions';
+      list.appendChild(actionsHeading);
+      const actionsRow = document.createElement('div');
+      actionsRow.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px';
+      if (hasTV) {
+        const tvBtn = document.createElement('button');
+        tvBtn.className = 'econ-action-btn';
+        tvBtn.type = 'button';
+        tvBtn.style.cssText = 'flex:1 1 45%;min-width:120px;justify-content:center;display:flex;background:rgba(56,189,248,0.16);color:#38bdf8;border-color:rgba(56,189,248,0.4)';
+        tvBtn.textContent = '📺 Watch TV (+10 Energy)';
+        tvBtn.addEventListener('click', () => {
+          const r = needsSystem.restLight(10, '📺 Watching TV');
+          showInteractionFeedback(r.message, !r.success);
+          syncEconomyHUD();
+          openHomeSheet();
+        });
+        actionsRow.appendChild(tvBtn);
+      }
+      if (hasSofa) {
+        const sofaBtn = document.createElement('button');
+        sofaBtn.className = 'econ-action-btn';
+        sofaBtn.type = 'button';
+        sofaBtn.style.cssText = 'flex:1 1 45%;min-width:120px;justify-content:center;display:flex;background:rgba(74,222,128,0.16);color:var(--gta-green);border-color:rgba(74,222,128,0.4)';
+        sofaBtn.textContent = '🛋️ Relax (+8 Energy)';
+        sofaBtn.addEventListener('click', () => {
+          const r = needsSystem.restLight(8, '🛋️ Relaxing on sofa');
+          showInteractionFeedback(r.message, !r.success);
+          syncEconomyHUD();
+          openHomeSheet();
+        });
+        actionsRow.appendChild(sofaBtn);
+      }
+      list.appendChild(actionsRow);
+    }
   }
   backdrop?.classList.add('open');
 }
@@ -1284,6 +1328,15 @@ function startGame(profile: OnboardingResult): void {
       openHomeSheet();
     });
     document.getElementById('homeCookBtn')?.addEventListener('click', () => {
+      // GATE: cooking at home requires a placed gas cooker (Phase-3
+      // gameplay depth — furniture must be placed to unlock actions).
+      const hasCooker = homeSystem.getPlaced().some((p) => p.catalogId === 'cooker_gas');
+      if (!hasCooker) {
+        showInteractionFeedback('Need a gas cooker. Buy one at the Home Store →', true);
+        closeHomeSheet();
+        openHomeStore();
+        return;
+      }
       const tier = homeSystem.getHousingTier();
       if (tier.cookCostGHS > 0 && !economyManager.canAfford(tier.cookCostGHS, 'CASH')) {
         showInteractionFeedback(`Need ₵${tier.cookCostGHS} for ingredients to cook at home.`, true);
@@ -1364,11 +1417,11 @@ function startGame(profile: OnboardingResult): void {
       crimeSystem.tickHeatDecay(1 / 60);
       // Apply passive gameplay-effect multipliers from placed furniture.
       // These compound with the existing fatigueReductionPct (housing-tier
-      // bonus) + any live-events modifiers. All default to 1.0 (no change).
+      // bonus). The 2-need system (hunger + energy) only accepts an energy
+      // multiplier — placed furniture like fan/bed/sofa reduce energy decay.
       const agg = homeSystem.getAggregateGameplayEffects();
       needsSystem.tick(1 / 60, {
-        energy: agg.energyDecayMultiplier,
-        fun: agg.funDecayMultiplier
+        energy: agg.energyDecayMultiplier
       });
       if (homeVisuals) {
         homeVisuals.setCutawayMode(isPlayerInCompoundCutaway());

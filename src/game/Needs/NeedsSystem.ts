@@ -60,11 +60,26 @@ export class NeedsSystem {
     return { ok: true };
   }
 
-  /** Passive decay while living in Accra */
-  public tick(dtSeconds: number): void {
+  /**
+   * Passive decay while living in Accra. Call once per frame.
+   *
+   * Optional `modifiers` parameter: named multipliers scale the
+   * corresponding need's decay. The housing system uses this to apply
+   * passive bonuses from placed furniture (fan reduces energy decay,
+   * bed reduces energy decay, etc.). Default multiplier is 1.0 (normal).
+   *
+   * The fatigueReductionPct (housing-tier bonus) compounds multiplicatively
+   * with the modifier: effectiveEnergyDecay = DECAY_PER_SECOND.energy ×
+   * (1 - fatigueReductionPct/100) × (modifiers.energy ?? 1).
+   */
+  public tick(
+    dtSeconds: number,
+    modifiers?: { hunger?: number; energy?: number }
+  ): void {
     if (dtSeconds <= 0 || dtSeconds > 2) return;
-    const energyFactor = 1 - this.fatigueReductionPct / 100;
-    this.hunger = Math.max(0, this.hunger - DECAY_PER_SECOND.hunger * dtSeconds);
+    const m = modifiers ?? {};
+    const energyFactor = (1 - this.fatigueReductionPct / 100) * (m.energy ?? 1);
+    this.hunger = Math.max(0, this.hunger - DECAY_PER_SECOND.hunger * dtSeconds * (m.hunger ?? 1));
     this.energy = Math.max(0, this.energy - DECAY_PER_SECOND.energy * energyFactor * dtSeconds);
     this.notify();
   }
@@ -127,6 +142,25 @@ export class NeedsSystem {
     return {
       success: true,
       message: `Rested at home · Energy ${Math.round(before)} → ${Math.round(this.energy)}.`
+    };
+  }
+
+  /**
+   * Light rest — a small energy bump from furniture interactions
+   * (watching TV, relaxing on a sofa). Cheaper than sleep, capped at 95.
+   * Returns the result with a message showing the energy delta.
+   */
+  public restLight(amount: number, label = 'Rest'): { success: boolean; message: string } {
+    if (this.energy >= 95) {
+      return { success: false, message: 'Already rested.' };
+    }
+    const before = this.energy;
+    this.energy = Math.min(95, this.energy + Math.max(0, amount));
+    this.persist();
+    this.notify();
+    return {
+      success: true,
+      message: `${label} · Energy ${Math.round(before)} → ${Math.round(this.energy)}.`
     };
   }
 
