@@ -4,10 +4,190 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
 <title>CHALÉ LIFE — Accra</title>
-<meta http-equiv="refresh" content="0;url=https://esm.sh/gh/desurfofficial-ship-it/lagos-life-ghana@67c57b0f04c5ca66dc8c935c5944aad3a81318df/src/main.ts"/>
+<style>
+:root{--gta-black:#0a0a0a;--gta-panel:rgba(8,8,8,.9);--gta-yellow:#ffcc00;--gta-green:#66ff66;--gta-red:#ff4444;--gta-white:#f0f0f0;--gta-muted:#9a9a9a}
+*{box-sizing:border-box;user-select:none;-webkit-user-select:none}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#0a0a0a;font-family:Arial Narrow,Arial,sans-serif;color:var(--gta-white)}
+#viewportContainer{position:fixed;inset:0}
+#onboardingOverlay{position:fixed;inset:0;z-index:1000;background:linear-gradient(180deg,#0a0a0a,#2a1a0c);display:flex;align-items:center;justify-content:center;padding:24px;opacity:0;pointer-events:none;transition:opacity .35s}
+#onboardingOverlay.visible{opacity:1;pointer-events:auto}
+#onboardingOverlay.exit{opacity:0}
+.ob-card{width:100%;max-width:420px;text-align:center}
+.ob-screen{display:none;flex-direction:column;align-items:center;gap:12px}
+.ob-screen.active{display:flex}
+.ob-place{font-size:.75rem;font-weight:700;letter-spacing:.28em;color:var(--gta-yellow);margin:0}
+.ob-title{font-size:2.8rem;font-weight:900;margin:0;text-transform:uppercase;text-shadow:3px 3px 0 #000}
+.ob-tagline{font-size:1rem;color:var(--gta-muted)}
+.ob-tagline em{color:var(--gta-yellow);font-style:normal;font-weight:800}
+.ob-divider{width:60px;height:3px;background:var(--gta-yellow)}
+.ob-btn{width:100%;max-width:320px;border:2px solid transparent;padding:14px 24px;font-size:1rem;font-weight:900;cursor:pointer;text-transform:uppercase;font-family:inherit}
+.ob-btn-primary{background:var(--gta-yellow);color:#0a0a0a;border-color:#000;box-shadow:4px 4px 0 #000}
+.ob-btn-secondary{background:transparent;color:#fff;border:2px solid rgba(255,255,255,.35)}
+.ob-btn-ghost{background:transparent;color:var(--gta-muted);border:none;font-size:.78rem}
+.ob-input{width:100%;max-width:320px;background:#000;border:2px solid rgba(255,204,0,.4);padding:12px;font-size:1rem;color:#fff;font-family:inherit}
+.ob-error{display:none;color:var(--gta-red);font-size:.8rem;font-weight:800}
+.ob-error.visible{display:block}
+.ob-back{align-self:flex-start;background:none;border:none;color:var(--gta-muted);font-weight:800;cursor:pointer;text-transform:uppercase}
+.ob-chip-row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:340px}
+.ob-chip{background:#000;border:2px solid rgba(255,255,255,.2);color:#fff;padding:10px 14px;font-size:.78rem;font-weight:900;cursor:pointer;text-transform:uppercase;font-family:inherit}
+.ob-chip.selected{border-color:var(--gta-yellow);background:rgba(255,204,0,.18);color:var(--gta-yellow)}
+.ob-hint{font-size:.75rem;color:var(--gta-muted);margin:0}
+.ob-spinner{width:36px;height:36px;border:3px solid rgba(255,204,0,.2);border-top-color:var(--gta-yellow);border-radius:50%;animation:s .6s linear infinite}
+@keyframes s{to{transform:rotate(360deg)}}
+.phase1-hud-top{position:fixed;top:8px;left:8px;right:8px;display:flex;justify-content:space-between;z-index:20;pointer-events:none}
+.hud-right-stack{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.hud-top-actions{display:flex;gap:4px;pointer-events:auto}
+.wallet-chip{background:var(--gta-panel);border:1px solid rgba(102,255,102,.45);padding:4px 9px;font-weight:900;color:var(--gta-green);cursor:pointer;font-family:inherit}
+.jobs-btn,.cam-btn{background:var(--gta-yellow);color:#000;border:1px solid #000;padding:5px 10px;font-weight:900;font-size:.72rem;cursor:pointer;font-family:inherit}
+.cam-btn{background:#1a1a1a;color:#fff}
+.needs-stack{background:var(--gta-panel);border:1px solid rgba(255,255,255,.12);padding:4px 7px;min-width:96px}
+.need-row{display:flex;align-items:center;gap:5px;font-size:.65rem;font-weight:800}
+.need-bar{flex:1;height:5px;background:#222}
+.need-fill{height:100%;background:var(--gta-green)}
+.need-fill.low{background:var(--gta-red)}
+.heat-pill{font-size:.64rem;font-weight:900;color:var(--gta-muted);padding:2px 7px}
+#interactionPrompt{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);background:var(--gta-panel);border:1.5px solid rgba(255,204,0,.55);padding:7px 14px;z-index:25;opacity:0;text-align:center}
+#interactionPrompt.visible{opacity:1}
+#promptTitle{font-size:.86rem;font-weight:900;color:var(--gta-yellow);margin:0}
+#interactionToast{position:fixed;left:50%;top:16%;transform:translateX(-50%);background:#080808;border:1.5px solid rgba(102,255,102,.45);padding:8px 14px;z-index:60;opacity:0;font-weight:800}
+#interactionToast.visible,#interactionToast.show{opacity:1}
+#walletDeltaFloating{position:fixed;left:50%;top:24%;transform:translateX(-50%);font-size:1.15rem;font-weight:900;z-index:60;opacity:0}
+.economy-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.78);display:none;align-items:center;justify-content:center;z-index:50;padding:12px}
+.economy-modal-backdrop.open{display:flex}
+.economy-modal{background:#111;border:2px solid rgba(255,204,0,.45);width:100%;max-width:440px;max-height:85vh;overflow:auto}
+.modal-header{display:flex;justify-content:space-between;padding:11px 14px;border-bottom:1px solid rgba(255,255,255,.12)}
+.modal-tabs{display:flex}
+.modal-tab-btn{flex:1;background:#0a0a0a;border:none;color:var(--gta-muted);padding:10px;font-weight:900;font-size:.72rem;cursor:pointer;font-family:inherit}
+.modal-tab-btn.active{color:var(--gta-yellow);border-bottom:2px solid var(--gta-yellow)}
+.modal-body{padding:12px}
+.home-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:flex-end;justify-content:center;z-index:55}
+.home-modal-backdrop.open{display:flex}
+.home-sheet{background:#111;border-top:3px solid var(--gta-yellow);width:100%;max-width:480px;max-height:78vh;overflow:auto;padding:14px}
+.touch-controls{position:fixed;left:0;right:0;bottom:12px;display:flex;justify-content:space-between;padding:0 12px;pointer-events:none;z-index:15}
+.joystick-zone{width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,.06);border:2px solid rgba(255,255,255,.15);pointer-events:auto;position:relative}
+.joystick-knob{width:44px;height:44px;border-radius:50%;background:rgba(255,204,0,.85);position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+.action-buttons-right{display:flex;flex-direction:column;gap:8px;pointer-events:auto}
+.ctrl-btn{background:rgba(0,0,0,.75);border:2px solid rgba(255,255,255,.28);color:#fff;padding:12px 16px;font-weight:900;font-size:.75rem;cursor:pointer;font-family:inherit}
+</style>
 </head>
 <body>
-<p style="color:#ffcc00;font-family:sans-serif;padding:24px">Loading CHALÉ LIFE… If this stays, open the console.</p>
+<div id="viewportContainer"></div>
+<div id="onboardingOverlay">
+  <div class="ob-card">
+    <div id="obScreenWelcome" class="ob-screen active">
+      <p class="ob-place">ACCRA</p>
+      <h1 class="ob-title">CHALÉ<br/>LIFE</h1>
+      <div class="ob-divider"></div>
+      <p class="ob-tagline">Your second life in the capital.<br/><em>Earn. Eat. Rest. Flex.</em></p>
+      <button id="obBtnGuest" class="ob-btn ob-btn-primary" type="button">Enter Accra</button>
+      <button id="obBtnAccount" class="ob-btn ob-btn-secondary" type="button">Save Progress</button>
+    </div>
+    <div id="obScreenAuth" class="ob-screen">
+      <button id="obBackFromAuth" class="ob-back" type="button">← Back</button>
+      <h2 id="obAuthTitle" class="ob-title" style="font-size:1.6rem">Keep Your Story</h2>
+      <input id="obEmailInput" class="ob-input" type="email" placeholder="Email"/>
+      <input id="obPasswordInput" class="ob-input" type="password" placeholder="Password (min 6)"/>
+      <p id="obError" class="ob-error"></p>
+      <button id="obAuthSubmit" class="ob-btn ob-btn-primary" type="button">Create Account</button>
+      <button id="obAuthToggle" class="ob-btn ob-btn-ghost" type="button">Already have an account? Sign in</button>
+    </div>
+    <div id="obScreenName" class="ob-screen">
+      <button id="obBackFromName" class="ob-back" type="button">← Back</button>
+      <p class="ob-place">WHO YOU BE</p>
+      <h2 class="ob-title" style="font-size:1.6rem">Your Name</h2>
+      <input id="obNameInput" class="ob-input" type="text" placeholder="e.g. Kofi, Ama, Chale…" value="Chale" maxlength="24"/>
+      <p id="obNameError" class="ob-error"></p>
+      <button id="obBtnNameNext" class="ob-btn ob-btn-primary" type="button">Next</button>
+    </div>
+    <div id="obScreenLook" class="ob-screen">
+      <button id="obBackFromLook" class="ob-back" type="button">← Back</button>
+      <p class="ob-place">LOOK</p>
+      <h2 class="ob-title" style="font-size:1.6rem">Skin & Hair</h2>
+      <p class="ob-hint">Pick skin tone</p>
+      <div id="obSkinRow" class="ob-chip-row">
+        <button class="ob-chip" data-skin="deep" type="button">Deep</button>
+        <button class="ob-chip selected" data-skin="rich" type="button">Rich</button>
+        <button class="ob-chip" data-skin="warm" type="button">Warm</button>
+        <button class="ob-chip" data-skin="light" type="button">Light</button>
+      </div>
+      <p class="ob-hint">Pick hair</p>
+      <div id="obHairRow" class="ob-chip-row">
+        <button class="ob-chip selected" data-hair="fade" type="button">Fade</button>
+        <button class="ob-chip" data-hair="twists" type="button">Twists</button>
+        <button class="ob-chip" data-hair="bun" type="button">Bun</button>
+        <button class="ob-chip" data-hair="short" type="button">Short</button>
+      </div>
+      <button id="obBtnLookNext" class="ob-btn ob-btn-primary" type="button">Next</button>
+    </div>
+    <div id="obScreenTrait" class="ob-screen">
+      <button id="obBackFromTrait" class="ob-back" type="button">← Back</button>
+      <p class="ob-place">TRAIT</p>
+      <h2 class="ob-title" style="font-size:1.6rem">How You Move</h2>
+      <div id="obTraitRow" class="ob-chip-row"></div>
+      <button id="obBtnTraitNext" class="ob-btn ob-btn-primary" type="button">Next</button>
+    </div>
+    <div id="obScreenOrigin" class="ob-screen">
+      <button id="obBackFromOrigin" class="ob-back" type="button">← Back</button>
+      <p class="ob-place">ORIGIN</p>
+      <h2 class="ob-title" style="font-size:1.6rem">Where You Start</h2>
+      <div id="obOriginRow" class="ob-chip-row">
+        <button class="ob-chip" data-origin="dbee" type="button">DBee</button>
+        <button class="ob-chip selected" data-origin="aunty_ba" type="button">Aunty Ba</button>
+      </div>
+      <button id="obBtnEnter" class="ob-btn ob-btn-primary" type="button">Enter Accra</button>
+    </div>
+    <div id="obScreenLoading" class="ob-screen">
+      <div class="ob-spinner"></div>
+      <p class="ob-place" style="color:var(--gta-yellow)">Loading Accra…</p>
+      <p id="obLoadingName" class="ob-hint"></p>
+    </div>
+  </div>
+</div>
+<div class="phase1-hud-top">
+  <div id="activeObjectiveBanner" class="objective-banner" style="display:none"></div>
+  <div class="hud-right-stack">
+    <div class="hud-top-actions">
+      <button id="walletOpenBtn" class="wallet-chip" type="button"><span id="hudCashAmount">₵0</span></button>
+      <button id="workMenuOpenBtn" class="jobs-btn" type="button">Jobs</button>
+      <button id="resetCameraBtn" class="cam-btn" type="button">Cam</button>
+    </div>
+    <div class="needs-stack">
+      <div class="need-row"><span>H</span><div class="need-bar"><div id="hungerFill" class="need-fill" style="width:70%"></div></div><span id="hungerVal">70</span></div>
+      <div class="need-row"><span>E</span><div class="need-bar"><div id="energyFill" class="need-fill" style="width:80%"></div></div><span id="energyVal">80</span></div>
+    </div>
+    <div id="heatStatusPill" class="heat-pill"><span id="heatStatusText">◆ CLEAN</span></div>
+  </div>
+</div>
+<div id="interactionPrompt"><p id="promptTitle"></p><p id="promptSub" class="prompt-sub"></p></div>
+<div id="interactionToast"></div>
+<div id="walletDeltaFloating"></div>
+<div id="economyModalBackdrop" class="economy-modal-backdrop">
+  <div class="economy-modal">
+    <div class="modal-header"><h2 id="modalHeaderTitle">Work</h2><button id="modalCloseBtn" type="button" style="background:none;border:none;color:#999;font-size:1.3rem;cursor:pointer">×</button></div>
+    <div class="modal-tabs">
+      <button class="modal-tab-btn active" data-tab="jobs" type="button">Jobs</button>
+      <button class="modal-tab-btn" data-tab="hustles" type="button">Hustles</button>
+      <button class="modal-tab-btn" data-tab="spend" type="button">Spend</button>
+      <button class="modal-tab-btn" data-tab="wallet" type="button">Wallet</button>
+    </div>
+    <div id="modalBodyContent" class="modal-body"></div>
+  </div>
+</div>
+<div id="homeModalBackdrop" class="home-modal-backdrop">
+  <div class="home-sheet">
+    <h2>My Compound</h2>
+    <p id="homeFlexScore" style="font-size:.75rem;color:#9a9a9a">Flex score: 0</p>
+    <div id="furnGrid"></div>
+    <button id="homeModalClose" type="button" style="margin-top:10px;width:100%;background:#222;color:#fff;border:1px solid #444;padding:10px;font-weight:900;cursor:pointer">Close</button>
+  </div>
+</div>
+<div class="touch-controls">
+  <div id="joystickZone" class="joystick-zone"><div id="joystickKnob" class="joystick-knob"></div></div>
+  <div class="action-buttons-right">
+    <button id="sprintToggleBtn" class="ctrl-btn" type="button">Jog</button>
+    <button id="interactTriggerBtn" class="ctrl-btn" type="button">Act</button>
+  </div>
+</div>
 <script type="module">
 import 'https://esm.sh/gh/desurfofficial-ship-it/lagos-life-ghana@67c57b0f04c5ca66dc8c935c5944aad3a81318df/src/main.ts';
 </script>
