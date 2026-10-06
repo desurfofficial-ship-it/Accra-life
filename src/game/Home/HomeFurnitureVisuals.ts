@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { sharedArtLibrary } from '../Art/AssetRegistry';
-import { FURNITURE_CATALOG, type FurnitureId } from './HomeSystem';
-
+import { FURNITURE_CATALOG, type FurnitureId, type PlacedFurnitureInstance } from './HomeSystem';
 /** Courtyard slots — outside veranda terrace (top at Y = 0.24) */
 const COURTYARD_SLOTS: [number, number, number][] = [
   [-12.2, 0.24, 9.7],
@@ -82,8 +81,21 @@ export class HomeFurnitureVisuals {
     return g;
   }
 
-  public sync(owned: FurnitureId[]): void {
-    const set = new Set(owned);
+  /**
+   * Sync visible furniture with ownership state.
+   *
+   * @param owned All owned furniture IDs
+   * @param placed All placed furniture instances (to exclude from
+   *               fixed-slot rendering — the PlacementEngine renders those
+   *               at player-chosen positions instead)
+   */
+  public sync(owned: FurnitureId[], placed: PlacedFurnitureInstance[] = []): void {
+    // Build a set of catalog IDs that are already placed — these should
+    // NOT be rendered at fixed slots (the PlacementEngine renders them
+    // at the player-chosen grid position). This prevents double-rendering.
+    const placedCatalogIds = new Set(placed.map((p) => p.catalogId));
+    // Only render furniture that's owned AND NOT yet placed.
+    const set = new Set(owned.filter((id) => !placedCatalogIds.has(id)));
 
     for (const [id, mesh] of this.meshes) {
       if (!set.has(id)) {

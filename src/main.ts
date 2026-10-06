@@ -863,7 +863,7 @@ function openHomeSheet(): void {
           showInteractionFeedback(res.message, !res.success);
           if (res.success) {
             rebuildPlayerCompoundForTier(res.tier.id);
-            homeVisuals?.sync(homeSystem.getOwned());
+            homeVisuals?.sync(homeSystem.getOwned(), homeSystem.getPlaced());
             syncEconomyHUD();
             openHomeSheet();
           }
@@ -905,7 +905,7 @@ function openHomeSheet(): void {
           );
           showInteractionFeedback(res.message, !res.success);
           if (res.success) {
-            homeVisuals?.sync(homeSystem.getOwned());
+            homeVisuals?.sync(homeSystem.getOwned(), homeSystem.getPlaced());
             openHomeSheet();
             syncEconomyHUD();
           }
@@ -947,9 +947,24 @@ function openHomeSheet(): void {
           });
           showInteractionFeedback(res.message, !res.success);
           if (res.success) {
-            // Remove the 3D mesh from the scene (next renderHomeSheet call
-            // won't include it; the 3D mesh removal happens on next game
-            // reload — TODO: live 3D removal).
+            // Remove the 3D mesh from the scene immediately (no reload needed).
+            const mesh = placedFurnitureMeshes.get(inst.instanceId);
+            if (mesh && phase1SceneRef) {
+              phase1SceneRef.scene.remove(mesh);
+              mesh.traverse((obj) => {
+                const m = obj as THREE.Mesh;
+                if (m.isMesh) {
+                  m.geometry?.dispose?.();
+                  const mat = m.material;
+                  if (Array.isArray(mat)) mat.forEach((mm) => mm.dispose?.());
+                  else mat?.dispose?.();
+                }
+              });
+              placedFurnitureMeshes.delete(inst.instanceId);
+            }
+            // Re-sync HomeFurnitureVisuals (the sold item is no longer in
+            // 'owned' so it won't render at a fixed slot either).
+            homeVisuals?.sync(homeSystem.getOwned(), homeSystem.getPlaced());
             syncEconomyHUD();
             openHomeSheet();
           }
@@ -1013,6 +1028,9 @@ function closeHomeSheet(): void {
 // ── Phase-1 housing engine state ─────────────────────────────────────────────
 let placementEngine: PlacementEngine | null = null;
 let currentStoreCategory: string = 'all';
+/** Tracks placed furniture 3D meshes by instanceId so selling can
+ *  immediately remove them from the scene without waiting for reload. */
+const placedFurnitureMeshes = new Map<string, THREE.Group>();
 
 /**
  * Initialize the housing engine: Home Store modal + PlacementEngine +
@@ -1039,9 +1057,20 @@ function initHousingEngine(phase1: Phase1Scene): void {
     container ?? document.body,
     homeSystem,
     {
-      onPlaced: () => {
+      onPlaced: (instanceId) => {
         hidePlacementHud();
-        showInteractionFeedback('Placed!', false);
+        // Build + add + register the placed furniture mesh so it renders
+        // immediately in the 3D scene (not just on reload).
+        const placed = homeSystem.getPlaced().find((p) => p.instanceId === instanceId);
+        if (placed) {
+          const mesh = buildPlacedFurnitureMesh(placed, ROOM_ORIGIN);
+          phase1.scene.add(mesh);
+          placedFurnitureMeshes.set(instanceId, mesh);
+        }
+        // Also re-sync HomeFurnitureVisuals so the fixed-slot copy (if any)
+        // is removed (prevents double-rendering).
+        homeVisuals?.sync(homeSystem.getOwned(), homeSystem.getPlaced());
+        showInteractionFeedback('Placed! ✓', false);
       },
       onCancelled: () => {
         hidePlacementHud();
@@ -1060,9 +1089,11 @@ function initHousingEngine(phase1: Phase1Scene): void {
   placementEngine.setRoomOrigin(ROOM_ORIGIN_X, ROOM_ORIGIN_Y, ROOM_ORIGIN_Z);
 
   // Render previously-placed furniture on game start (persistence).
+  placedFurnitureMeshes.clear();
   for (const inst of homeSystem.getPlaced()) {
     const mesh = buildPlacedFurnitureMesh(inst, ROOM_ORIGIN);
     phase1.scene.add(mesh);
+    placedFurnitureMeshes.set(inst.instanceId, mesh);
   }
 
   // Wire Home Store button.
@@ -1312,7 +1343,7 @@ function startGame(profile: OnboardingResult): void {
     phase1SceneRef = phase1;
     rebuildPlayerCompoundForTier(homeSystem.getHousingTierId());
     homeVisuals = new HomeFurnitureVisuals(phase1.scene);
-    homeVisuals.sync(homeSystem.getOwned());
+    homeVisuals.sync(homeSystem.getOwned(), homeSystem.getPlaced());
     playerDisplayName = profile.displayName || 'Chale';
     playerTrait = profile.trait || 'hustler';
 

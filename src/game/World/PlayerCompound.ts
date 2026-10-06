@@ -25,26 +25,47 @@ export function isPlayerInCompoundCutaway(): boolean {
   return isCutawayActive;
 }
 
+// Debounce: minimum ms between cutaway toggles. Prevents rapid flicker
+// when the player stands at the boundary (e.g., in the doorway).
+const CUTAWAY_TOGGLE_MIN_MS = 250;
+let lastCutawayToggleMs = 0;
+
 export function updatePlayerCompoundCutaway(playerPos: THREE.Vector3): boolean {
-  // Stable hysteresis deadzone: player must step onto the covered veranda/doorway
-  // to activate cutaway, and must step all the way down into the open courtyard to deactivate.
+  // Wide hysteresis deadzone: prevents rapid flicker when moving near
+  // doorway / veranda. Activation zone is generously INSIDE the room;
+  // deactivation only triggers when clearly OUTSIDE the compound walls.
+  let newState = isCutawayActive;
   if (isCutawayActive) {
+    // Deactivate only when clearly outside the compound (wide margin).
     if (
-      playerPos.x < -15.2 ||
-      playerPos.x > -5.8 ||
-      playerPos.z < 8.8 ||
-      playerPos.z > 16.4
+      playerPos.x < -15.8 ||
+      playerPos.x > -5.2 ||
+      playerPos.z < 7.8 ||
+      playerPos.z > 16.8
     ) {
-      isCutawayActive = false;
+      newState = false;
     }
   } else {
+    // Activate only when clearly inside the room (deep margin to avoid
+    // doorway jitter — the doorway is at z≈10.6, activation requires z>9.5).
     if (
-      playerPos.x >= -14.4 &&
-      playerPos.x <= -6.6 &&
-      playerPos.z >= 9.8 &&
-      playerPos.z <= 15.8
+      playerPos.x >= -14.8 &&
+      playerPos.x <= -6.2 &&
+      playerPos.z >= 9.5 &&
+      playerPos.z <= 15.5
     ) {
-      isCutawayActive = true;
+      newState = true;
+    }
+  }
+
+  // Debounce: don't toggle more than once per 250ms. This eliminates
+  // flicker when the player is standing right at the boundary and
+  // collision resolution pushes them back and forth by a few cm.
+  if (newState !== isCutawayActive) {
+    const now = performance.now();
+    if (now - lastCutawayToggleMs >= CUTAWAY_TOGGLE_MIN_MS) {
+      isCutawayActive = newState;
+      lastCutawayToggleMs = now;
     }
   }
 
@@ -163,15 +184,15 @@ function createDynamicHouseShell(
     map: sharedArtLibrary.getRoomTileFloorTexture(),
     roughness: tier.level >= 4 ? 0.38 : 0.68,
     polygonOffset: true,
-    polygonOffsetFactor: -2,
-    polygonOffsetUnits: -2
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1
   });
   const interiorFloor = new THREE.Mesh(
     new THREE.BoxGeometry(roomW - 0.06, 0.04, roomD - 0.06),
     interiorFloorMat
   );
-  // Top surface at 0.230 + 0.02 = 0.250 (sits cleanly 10mm above 0.240 terrace plinth to prevent depth fighting)
-  interiorFloor.position.set(0, 0.230, roomZ);
+  // Top surface at 0.228 + 0.02 = 0.248 (sits cleanly above 0.240 terrace plinth to prevent depth fighting)
+  interiorFloor.position.set(0, 0.228, roomZ);
   interiorFloor.receiveShadow = true;
   shellGroup.add(interiorFloor);
 
@@ -191,35 +212,34 @@ function createDynamicHouseShell(
   wallE.castShadow = true;
   wallE.receiveShadow = true;
 
-  const innerWallZ = northWallZ - wallT / 2;
   const baseboardN = new THREE.Mesh(
     new THREE.BoxGeometry(roomW - wallT * 2, 0.14, 0.04),
     matTerracottaPlinth
   );
-  baseboardN.position.set(0, 0.32, innerWallZ + 0.015);
+  baseboardN.position.set(0, 0.31, northWallZ - wallT / 2 - 0.02);
   shellGroup.add(wallN, wallW, wallE, baseboardN);
 
   // Wall poster & barred window on back wall for authentic Accra room feel
   const poster = new THREE.Mesh(
-    new THREE.BoxGeometry(0.55, 0.68, 0.02),
+    new THREE.BoxGeometry(0.55, 0.68, 0.03),
     matWhiteTrim
   );
-  poster.position.set(-roomW * 0.22, 1.85, innerWallZ + 0.012);
+  poster.position.set(-roomW * 0.22, 1.85, northWallZ - wallT / 2 - 0.02);
   const posterHeader = new THREE.Mesh(
-    new THREE.BoxGeometry(0.48, 0.16, 0.025),
+    new THREE.BoxGeometry(0.48, 0.16, 0.04),
     sharedArtLibrary.getMaterial('poster_red', { color: 0xdc2626, roughness: 0.6 })
   );
-  posterHeader.position.set(-roomW * 0.22, 2.08, innerWallZ + 0.016);
+  posterHeader.position.set(-roomW * 0.22, 2.08, northWallZ - wallT / 2 - 0.025);
   const backWinFrame = new THREE.Mesh(
     new THREE.BoxGeometry(1.15, 0.95, 0.08),
     matWhiteTrim
   );
-  backWinFrame.position.set(roomW * 0.18, 1.9, innerWallZ + 0.02);
+  backWinFrame.position.set(roomW * 0.18, 1.9, northWallZ - wallT / 2 - 0.02);
   const backWinGlass = new THREE.Mesh(
-    new THREE.BoxGeometry(0.98, 0.78, 0.015),
+    new THREE.BoxGeometry(0.98, 0.78, 0.02),
     matGlassWindow
   );
-  backWinGlass.position.set(roomW * 0.18, 1.9, innerWallZ + 0.02);
+  backWinGlass.position.set(roomW * 0.18, 1.9, northWallZ - wallT / 2 - 0.02);
   shellGroup.add(poster, posterHeader, backWinFrame, backWinGlass);
 
   // Built-in Starter & Tier-Specific Interior Fixtures so the 14 m² room and upgrades feel alive!
@@ -352,7 +372,7 @@ function createDynamicHouseShell(
       maxX,
       minZ: maxZ - wallT - 0.14,
       maxZ: maxZ + 0.08,
-      height: 4.6
+      height: 3.5
     },
     // West wall of room
     {
@@ -361,7 +381,7 @@ function createDynamicHouseShell(
       maxX: minX + wallT + 0.14,
       minZ,
       maxZ,
-      height: 4.6
+      height: 3.5
     },
     // East wall of room
     {
@@ -370,7 +390,7 @@ function createDynamicHouseShell(
       maxX: maxX + 0.06,
       minZ,
       maxZ,
-      height: 4.6
+      height: 3.5
     },
     // Front-Left (South-West) wall segment
     {
@@ -379,7 +399,7 @@ function createDynamicHouseShell(
       maxX: doorMinX,
       minZ: minZ - 0.05,
       maxZ: minZ + wallT + 0.14,
-      height: 4.6
+      height: 3.5
     },
     // Front-Right (South-East) wall segment
     {
@@ -388,7 +408,7 @@ function createDynamicHouseShell(
       maxX,
       minZ: minZ - 0.05,
       maxZ: minZ + wallT + 0.14,
-      height: 4.6
+      height: 3.5
     }
   );
 
