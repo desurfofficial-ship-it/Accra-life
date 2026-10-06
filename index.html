@@ -417,10 +417,18 @@ html, body {
   display: flex;
   align-items: center;
   gap: 5px;
-  max-width: 225px;
+  max-width: 260px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* Flex containers don't ellipsize children by themselves — the inner span
+   needs its own overflow + min-width:0 so long event banners truncate
+   cleanly instead of clipping the countdown off-screen. */
+#liveEventPill #liveEventText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 /* Active Objective Banner */

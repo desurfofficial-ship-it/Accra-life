@@ -1106,4 +1106,91 @@ export class HomeSystem {
       /* ignore parse errors */
     }
   }
+
+  /**
+   * Restore housing state from a cloud snapshot (Firestore players/{uid}:
+   * housingTier / unlockedTiers / owned / placedFurniture). Every field is
+   * validated against the current registries (same rules as load()), then
+   * the local state is REPLACED and persisted. Used by the cloud-save
+   * restore path after sign-in — the local state is already loaded in the
+   * constructor, so only call this when the cloud snapshot is trusted
+   * (i.e. it came from this player's own private document).
+   *
+   * Returns true when any state actually changed (so the caller knows to
+   * rebuild 3D meshes / HUD).
+   */
+  public hydrateCloudState(cloud: Partial<HomeState>): boolean {
+    let changed = false;
+
+    if (cloud.housingTier && HOUSING_TIERS.some((t) => t.id === cloud.housingTier)) {
+      if (this.housingTier !== cloud.housingTier) changed = true;
+      this.housingTier = cloud.housingTier;
+      this.unlockedTiers.add(cloud.housingTier);
+    }
+    if (Array.isArray(cloud.unlockedTiers)) {
+      for (const tid of cloud.unlockedTiers) {
+        if (HOUSING_TIERS.some((t) => t.id === tid)) {
+          if (!this.unlockedTiers.has(tid)) changed = true;
+          this.unlockedTiers.add(tid);
+        }
+      }
+    }
+    if (Array.isArray(cloud.owned)) {
+      const owned = new Set<FurnitureId>();
+      for (const id of cloud.owned) {
+        if (FURNITURE_CATALOG.some((f) => f.id === id)) owned.add(id);
+      }
+      if (
+        owned.size !== this.owned.size ||
+        [...owned].some((id) => !this.owned.has(id))
+      ) {
+        changed = true;
+      }
+      this.owned = owned;
+    }
+    if (Array.isArray(cloud.placed)) {
+      const placed: PlacedFurnitureInstance[] = [];
+      for (const inst of cloud.placed) {
+        if (
+          inst &&
+          inst.instanceId &&
+          inst.catalogId &&
+          FURNITURE_CATALOG.some((f) => f.id === inst.catalogId) &&
+          typeof inst.x === 'number' &&
+          typeof inst.z === 'number' &&
+          typeof inst.rotationY === 'number'
+        ) {
+          placed.push({
+            instanceId: inst.instanceId,
+            catalogId: inst.catalogId,
+            x: inst.x,
+            z: inst.z,
+            rotationY: inst.rotationY,
+            placementState: 'placed',
+            purchasePrice: typeof inst.purchasePrice === 'number' ? inst.purchasePrice : 0
+          });
+        }
+      }
+      if (
+        placed.length !== this.placed.length ||
+        placed.some((p, i) => p.instanceId !== this.placed[i]?.instanceId)
+      ) {
+        changed = true;
+      }
+      this.placed = placed;
+    }
+
+    if (changed) {
+      // Keep instanceCounter ahead of any restored `furn_<ts>_<n>` ids so
+      // new placements never collide with restored instance ids.
+      for (const inst of this.placed) {
+        const parts = inst.instanceId.split('_');
+        const n = Number(parts[parts.length - 1]);
+        if (Number.isFinite(n) && n > this.instanceCounter) this.instanceCounter = n;
+      }
+      this.persist();
+      this.notify();
+    }
+    return changed;
+  }
 }

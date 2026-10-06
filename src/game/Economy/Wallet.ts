@@ -478,13 +478,12 @@ export class Wallet {
   /**
    * Saves wallet + needs + housing state to Firestore.
    *
-   * @param needs Optional needs snapshot (hunger/energy/fun/social/hygiene/bladder)
-   * @param homeState Optional housing snapshot (housingTier/unlockedTiers/owned/placedFurniture)
+   * @param needs Optional needs snapshot (hunger/energy — matches NeedsSystem's 2-need state)
+   * @param homeState Optional housing snapshot (housingTier/unlockedTiers/owned/placed)
    */
   public async saveToFirebase(
     needs?: {
-      hunger: number; energy: number; fun: number;
-      social: number; hygiene: number; bladder: number;
+      hunger: number; energy: number;
     },
     homeState?: {
       housingTier: string;
@@ -513,10 +512,6 @@ export class Wallet {
     if (needs) {
       playerPayload.hunger = Math.round(needs.hunger);
       playerPayload.energy = Math.round(needs.energy);
-      playerPayload.fun = Math.round(needs.fun);
-      playerPayload.social = Math.round(needs.social);
-      playerPayload.hygiene = Math.round(needs.hygiene);
-      playerPayload.bladder = Math.round(needs.bladder);
     }
     if (homeState) {
       playerPayload.housingTier = homeState.housingTier;
@@ -552,6 +547,79 @@ export class Wallet {
         }
       }
       return false;
+    }
+  }
+
+  /**
+   * Lightweight housing-only cloud sync (Phase-1 housing persistence).
+   *
+   * Writes just the housing fields to /players/{uid} (merge) — avoids
+   * rewriting the wallet + profile docs on every furniture move.
+   * Fields allowed by the strict hasOnly lists in firestore.rules.
+   */
+  public async syncHousingToFirebase(homeState: {
+    housingTier: string;
+    unlockedTiers: string[];
+    owned: string[];
+    placed: unknown[];
+  }): Promise<boolean> {
+    const user = auth.currentUser;
+    if (!user) return false;
+    if (!user.isAnonymous && user.email && !user.emailVerified) return false;
+
+    try {
+      await setDoc(
+        doc(db, 'players', user.uid),
+        {
+          ownerId: user.uid,
+          housingTier: homeState.housingTier,
+          unlockedTiers: homeState.unlockedTiers,
+          owned: homeState.owned,
+          placedFurniture: homeState.placed,
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+      return true;
+    } catch {
+      // Offline / permission denied — local persistence remains the fallback
+      return false;
+    }
+  }
+
+  /**
+   * Reads the housing snapshot from /players/{uid} (cloud save restore).
+   * Returns null when signed out, unverified, or the doc carries no
+   * housing data (e.g. legacy account that never synced a home).
+   */
+  public async loadHousingFromFirebase(): Promise<{
+    housingTier: string;
+    unlockedTiers: string[];
+    owned: string[];
+    placed: unknown[];
+  } | null> {
+    const user = auth.currentUser;
+    if (!user) return null;
+    if (!user.isAnonymous && user.email && !user.emailVerified) return null;
+
+    try {
+      const snap = await getDoc(doc(db, 'players', user.uid));
+      if (!snap.exists()) return null;
+      const data = snap.data() as {
+        housingTier?: string;
+        unlockedTiers?: string[];
+        owned?: string[];
+        placedFurniture?: unknown[];
+      };
+      if (!data.housingTier) return null;
+      return {
+        housingTier: data.housingTier,
+        unlockedTiers: Array.isArray(data.unlockedTiers) ? data.unlockedTiers : [],
+        owned: Array.isArray(data.owned) ? data.owned : [],
+        placed: Array.isArray(data.placedFurniture) ? data.placedFurniture : []
+      };
+    } catch {
+      return null;
     }
   }
 

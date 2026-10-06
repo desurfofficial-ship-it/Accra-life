@@ -26,7 +26,9 @@ import {
 } from './game/Jobs/JobRegistry';
 import { InteractableTarget } from './game/Player/InteractionSystem';
 import { NeedsSystem } from './game/Needs/NeedsSystem';
-import { FURNITURE_CATALOG, HOUSING_TIERS, HomeSystem, type FurnitureId } from './game/Home/HomeSystem';
+import { FURNITURE_CATALOG, HOUSING_TIERS, HomeSystem, type FurnitureId, type HomeState, type HousingTierId, type PlacedFurnitureInstance } from './game/Home/HomeSystem';
+import { LiveEventsSystem, type ActiveLiveEventState } from './game/Events/LiveEventsSystem';
+import { NearbyPlayerAvatars } from './game/Multiplayer/NearbyPlayerAvatars';
 import { PlacementEngine, buildPlacedFurnitureMesh } from './game/Housing/PlacementEngine';
 import { HomeFurnitureVisuals } from './game/Home/HomeFurnitureVisuals';
 import { rebuildPlayerCompoundForTier, isPlayerInCompoundCutaway } from './game/World/PlayerCompound';
@@ -98,6 +100,8 @@ const chatInput = document.getElementById('chatInput') as HTMLInputElement | nul
 const chatSendBtn = document.getElementById('chatSendBtn') as HTMLButtonElement | null;
 const nearbyStrip = document.getElementById('nearbyStrip');
 const currentLocationPill = document.getElementById('currentLocationPill');
+const liveEventPillEl = document.getElementById('liveEventPill');
+const liveEventTextEl = document.getElementById('liveEventText');
 let currentLocationId: LocationId = 'adabraka_neighborhood';
 
 const economyManager = new EconomyManager();
@@ -106,6 +110,18 @@ const crimeSystem = new HeatSystem(economyManager);
 const needsSystem = new NeedsSystem();
 const homeSystem = new HomeSystem();
 let homeVisuals: HomeFurnitureVisuals | null = null;
+let nearbyAvatars: NearbyPlayerAvatars | null = null;
+let liveEvents: LiveEventsSystem | null = null;
+let lastLiveEventId: string | null = null;
+let lastLiveEventShownSeconds = -1;
+// ── Phase-1 housing: 3D mesh registry for placed furniture ──────────────────
+// instanceId → live mesh. Lets us add/remove meshes the moment furniture is
+// placed or sold, instead of waiting for the next game reload.
+const placedFurnitureMeshes = new Map<string, THREE.Object3D>();
+// Shared room origin (compound interior floor center, per PlayerCompound).
+const ROOM_ORIGIN = new THREE.Vector3(-10.5, 0.24, 11.1);
+// Debounce handle for the housing → Firestore cloud sync.
+let housingCloudSyncTimer: ReturnType<typeof setTimeout> | null = null;
 let playerDisplayName = 'Chale';
 let playerTrait: TraitId = (loadSavedProfile()?.trait as TraitId) || 'hustler';
 let lastCooldownUiTickMs = 0;
@@ -714,6 +730,8 @@ function renderModalTabContent(): void {
         if (local.jobs) jobSystem.hydrate(local.jobs);
         if (local.crime) crimeSystem.hydrate(local.crime);
       }
+      // Also restore housing state (tier + furniture + placements).
+      await restoreHousingFromCloud();
       showInteractionFeedback(
         loadedCloud ? 'Reloaded wallet from Firebase store.' : 'Reloaded wallet from local persistence.'
       );
@@ -763,7 +781,14 @@ function openHomeSheet(): void {
 
   const currentTier = homeSystem.getHousingTier();
   const bedBonus = homeSystem.owns('bed') ? 20 : 0;
-  const totalSleepRestore = Math.min(100, currentTier.sleepEnergyRestore + bedBonus);
+  let totalSleepRestore = Math.min(100, currentTier.sleepEnergyRestore + bedBonus);
+  // Dumsor: sleeping through a power outage is worse — unless a Backup
+  // Generator is placed in the compound (Phase-3 gating: must be PLACED).
+  const dumsorEv = liveEvents?.getActiveEvent()?.event ?? null;
+  if (dumsorEv?.isDumsor) {
+    const hasGenerator = homeSystem.getPlaced().some((p) => p.catalogId === 'generator');
+    totalSleepRestore = Math.max(20, totalSleepRestore + (hasGenerator ? 15 : -15));
+  }
 
   if (titleEl) {
     titleEl.textContent = `${currentTier.icon} ${currentTier.title} (${currentTier.sizeSqm} m²)`;
@@ -947,23 +972,10 @@ function openHomeSheet(): void {
           });
           showInteractionFeedback(res.message, !res.success);
           if (res.success) {
-            // Remove the 3D mesh from the scene immediately (no reload needed).
-            const mesh = placedFurnitureMeshes.get(inst.instanceId);
-            if (mesh && phase1SceneRef) {
-              phase1SceneRef.scene.remove(mesh);
-              mesh.traverse((obj) => {
-                const m = obj as THREE.Mesh;
-                if (m.isMesh) {
-                  m.geometry?.dispose?.();
-                  const mat = m.material;
-                  if (Array.isArray(mat)) mat.forEach((mm) => mm.dispose?.());
-                  else mat?.dispose?.();
-                }
-              });
-              placedFurnitureMeshes.delete(inst.instanceId);
-            }
-            // Re-sync HomeFurnitureVisuals (the sold item is no longer in
-            // 'owned' so it won't render at a fixed slot either).
+            // Live 3D removal — diff the registry against HomeSystem state
+            // so the sold instance's mesh disappears immediately (and any
+            // other drift self-corrects), then re-sync legacy slots.
+            if (phase1SceneRef) syncPlacedFurnitureMeshes(phase1SceneRef.scene);
             homeVisuals?.sync(homeSystem.getOwned(), homeSystem.getPlaced());
             syncEconomyHUD();
             openHomeSheet();
@@ -1028,9 +1040,10 @@ function closeHomeSheet(): void {
 // ── Phase-1 housing engine state ─────────────────────────────────────────────
 let placementEngine: PlacementEngine | null = null;
 let currentStoreCategory: string = 'all';
-/** Tracks placed furniture 3D meshes by instanceId so selling can
- *  immediately remove them from the scene without waiting for reload. */
-const placedFurnitureMeshes = new Map<string, THREE.Group>();
+// NOTE: placed furniture 3D meshes are tracked by the module-level
+// `placedFurnitureMeshes` registry (top of file) and synced via
+// `syncPlacedFurnitureMeshes()` — single source of truth for
+// boot render, placement confirm, sell removal, and cloud restore.
 
 /**
  * Initialize the housing engine: Home Store modal + PlacementEngine +
@@ -1049,8 +1062,6 @@ function initHousingEngine(phase1: Phase1Scene): void {
   const ROOM_ORIGIN_X = -10.5;
   const ROOM_ORIGIN_Y = 0.24;
   const ROOM_ORIGIN_Z = 11.1;
-  const ROOM_ORIGIN = new THREE.Vector3(ROOM_ORIGIN_X, ROOM_ORIGIN_Y, ROOM_ORIGIN_Z);
-
   placementEngine = new PlacementEngine(
     phase1.scene,
     phase1.thirdPersonCamera.camera,
@@ -1059,18 +1070,15 @@ function initHousingEngine(phase1: Phase1Scene): void {
     {
       onPlaced: (instanceId) => {
         hidePlacementHud();
-        // Build + add + register the placed furniture mesh so it renders
-        // immediately in the 3D scene (not just on reload).
-        const placed = homeSystem.getPlaced().find((p) => p.instanceId === instanceId);
-        if (placed) {
-          const mesh = buildPlacedFurnitureMesh(placed, ROOM_ORIGIN);
-          phase1.scene.add(mesh);
-          placedFurnitureMeshes.set(instanceId, mesh);
-        }
-        // Also re-sync HomeFurnitureVisuals so the fixed-slot copy (if any)
-        // is removed (prevents double-rendering).
-        homeVisuals?.sync(homeSystem.getOwned(), homeSystem.getPlaced());
         showInteractionFeedback('Placed! ✓', false);
+        // Render the confirmed furniture immediately — previously the mesh
+        // only appeared after a game reload (the ghost was removed on
+        // confirm and nothing re-added it). The diff helper also removes
+        // the legacy fixed-slot copy via the homeVisuals resync below
+        // (prevents double-rendering).
+        if (phase1SceneRef) syncPlacedFurnitureMeshes(phase1SceneRef.scene);
+        homeVisuals?.sync(homeSystem.getOwned(), homeSystem.getPlaced());
+        void instanceId;
       },
       onCancelled: () => {
         hidePlacementHud();
@@ -1089,12 +1097,7 @@ function initHousingEngine(phase1: Phase1Scene): void {
   placementEngine.setRoomOrigin(ROOM_ORIGIN_X, ROOM_ORIGIN_Y, ROOM_ORIGIN_Z);
 
   // Render previously-placed furniture on game start (persistence).
-  placedFurnitureMeshes.clear();
-  for (const inst of homeSystem.getPlaced()) {
-    const mesh = buildPlacedFurnitureMesh(inst, ROOM_ORIGIN);
-    phase1.scene.add(mesh);
-    placedFurnitureMeshes.set(inst.instanceId, mesh);
-  }
+  syncPlacedFurnitureMeshes(phase1.scene);
 
   // Wire Home Store button.
   document.getElementById('homeStoreBtn')?.addEventListener('click', () => {
@@ -1192,6 +1195,8 @@ function renderHomeStoreBody(): void {
         id,
         (c) => economyManager.canAfford(c, 'CASH'),
         (c, title) =>
+          // spendMoney returns TransactionRecord | null — HomeSystem's spend
+          // callback must report plain boolean success.
           Boolean(
             economyManager.wallet.spendMoney({
               amount: c,
@@ -1224,10 +1229,7 @@ function enterPlacementMode(catalogId: FurnitureId): void {
   if (!placementEngine) return;
   // Set room origin again in case the housing tier changed (room moves).
   const tier = homeSystem.getHousingTier();
-  const ROOM_ORIGIN_X = -10.5;
-  const ROOM_ORIGIN_Y = 0.24;
-  const ROOM_ORIGIN_Z = 11.1;
-  placementEngine.setRoomOrigin(ROOM_ORIGIN_X, ROOM_ORIGIN_Y, ROOM_ORIGIN_Z);
+  placementEngine.setRoomOrigin(ROOM_ORIGIN.x, ROOM_ORIGIN.y, ROOM_ORIGIN.z);
   void tier; // room origin is fixed for now; future: vary by tier.roomWidthM/roomDepthM
   const ok = placementEngine.enterPlacementMode(catalogId);
   if (!ok) {
@@ -1247,6 +1249,107 @@ function hidePlacementHud(): void {
   if (hud) hud.style.display = 'none';
 }
 
+/**
+ * Diff `homeSystem.getPlaced()` against the 3D mesh registry: spawns meshes
+ * for new instances, removes + disposes meshes for sold/replaced instances.
+ * Keeps the scene in sync with HomeSystem state WITHOUT a game reload —
+ * covers initial load, placement confirm, sell, and cloud restore.
+ */
+function syncPlacedFurnitureMeshes(scene: THREE.Scene): void {
+  const placed = homeSystem.getPlaced();
+  const liveIds = new Set(placed.map((p) => p.instanceId));
+  // Remove stale meshes (sold or replaced instances).
+  for (const [instanceId, mesh] of placedFurnitureMeshes) {
+    if (!liveIds.has(instanceId)) {
+      scene.remove(mesh);
+      mesh.traverse((obj) => {
+        const m = obj as THREE.Mesh;
+        if (m.isMesh) {
+          m.geometry?.dispose?.();
+          const mat = m.material;
+          if (Array.isArray(mat)) mat.forEach((mm) => mm.dispose?.());
+          else mat?.dispose?.();
+        }
+      });
+      placedFurnitureMeshes.delete(instanceId);
+    }
+  }
+  // Spawn meshes for instances we haven't rendered yet.
+  for (const inst of placed) {
+    if (placedFurnitureMeshes.has(inst.instanceId)) continue;
+    const mesh = buildPlacedFurnitureMesh(inst, ROOM_ORIGIN);
+    scene.add(mesh);
+    placedFurnitureMeshes.set(inst.instanceId, mesh);
+  }
+}
+
+/**
+ * Drive the #liveEventPill HUD from the active Accra Live Event.
+ * Called on every LiveEventsSystem notify — caches by event id + shown
+ * second so the DOM is only touched when something actually changed.
+ * Fires a toast whenever a NEW event starts.
+ */
+function updateLiveEventPill(state: ActiveLiveEventState): void {
+  const secs = Math.max(0, Math.round(state.remainingSeconds));
+  if (state.event.id === lastLiveEventId && secs === lastLiveEventShownSeconds) return;
+  const isNewEvent = state.event.id !== lastLiveEventId;
+  lastLiveEventId = state.event.id;
+  lastLiveEventShownSeconds = secs;
+  if (liveEventTextEl) {
+    const mm = Math.floor(secs / 60);
+    const ss = String(secs % 60).padStart(2, '0');
+    liveEventTextEl.textContent = `${state.event.icon} ${state.event.shortBanner} · ${mm}:${ss}`;
+  }
+  liveEventPillEl?.setAttribute(
+    'title',
+    `${state.event.title} — ${state.event.description} (${state.event.effectSummary})`
+  );
+  if (isNewEvent) {
+    showInteractionFeedback(`${state.event.icon} ${state.event.title} — ${state.event.effectSummary}`);
+  }
+}
+
+/**
+ * Debounced housing → Firestore sync. Fires 4s after the last home change
+ * (buy / place / sell / upgrade) so rapid furniture shuffles coalesce into
+ * one write. Guests are localStorage-only and skip this entirely.
+ */
+function scheduleHousingCloudSync(state: HomeState): void {
+  if (!isAccountMode) return;
+  if (housingCloudSyncTimer) clearTimeout(housingCloudSyncTimer);
+  housingCloudSyncTimer = setTimeout(() => {
+    housingCloudSyncTimer = null;
+    void economyManager.wallet.syncHousingToFirebase({
+      housingTier: state.housingTier,
+      unlockedTiers: state.unlockedTiers,
+      owned: state.owned,
+      placed: state.placed
+    });
+  }, 4000);
+}
+
+/**
+ * Restore housing state from the player's private /players/{uid} doc after
+ * sign-in, then rebuild the 3D compound + furniture meshes to match.
+ * No-ops for guests and for accounts with no cloud housing snapshot.
+ */
+async function restoreHousingFromCloud(): Promise<void> {
+  const cloud = await economyManager.wallet.loadHousingFromFirebase();
+  if (!cloud) return;
+  const changed = homeSystem.hydrateCloudState({
+    housingTier: cloud.housingTier as HousingTierId,
+    unlockedTiers: cloud.unlockedTiers as HousingTierId[],
+    owned: cloud.owned as FurnitureId[],
+    placed: cloud.placed as PlacedFurnitureInstance[]
+  });
+  if (changed && phase1SceneRef) {
+    rebuildPlayerCompoundForTier(homeSystem.getHousingTierId());
+    homeVisuals?.sync(homeSystem.getOwned());
+    syncPlacedFurnitureMeshes(phase1SceneRef.scene);
+    showInteractionFeedback('🏠 Home restored from cloud save.');
+  }
+}
+
 function handleWorldTargetInteracted(target: InteractableTarget): void {
   const illegalAdvance = crimeSystem.tryAdvanceAtInteractable(target.id, target.assetId);
   if (illegalAdvance.handled) {
@@ -1254,6 +1357,11 @@ function handleWorldTargetInteracted(target: InteractableTarget): void {
     syncEconomyHUD();
     return;
   }
+
+  // Capture which work track (legal job vs side hustle) this interaction is
+  // about to complete, so the live event pay multiplier can be picked
+  // AFTER tryAdvanceAtInteractable clears the active work.
+  const wasHustleStep = jobSystem.getActiveHustle()?.currentStep.targetInteractableId === target.id;
 
   const advance = jobSystem.tryAdvanceAtInteractable(target.id, target.assetId);
   if (advance.handled) {
@@ -1271,10 +1379,29 @@ function handleWorldTargetInteracted(target: InteractableTarget): void {
           });
         }
       }
-      const totalEarned = advance.earnedGHS + bonusGHS;
+      // Accra Live Event pay boost (awarded as a separate bonus so the
+      // base payout inside JobManager stays untouched — no double-pay).
+      const ev = liveEvents?.getActiveEvent()?.event ?? null;
+      let eventBonusGHS = 0;
+      if (ev && advance.earnedGHS > 0) {
+        const mult = wasHustleStep ? ev.hustlePayMultiplier : ev.jobPayMultiplier;
+        eventBonusGHS = Math.round(advance.earnedGHS * (mult - 1));
+        if (eventBonusGHS > 0) {
+          economyManager.awardIncome({
+            amountGHS: eventBonusGHS,
+            category: 'REWARD',
+            description: `${ev.icon} ${ev.title} Bonus`
+          });
+        }
+      }
+      const totalEarned = advance.earnedGHS + bonusGHS + eventBonusGHS;
       const pay = totalEarned > 0 ? ` +₵${totalEarned.toFixed(0)}` : '';
       showInteractionFeedback(
-        bonusGHS > 0 ? `Paid${pay} (incl. +₵${bonusGHS} home prestige)` : `Paid${pay}`
+        eventBonusGHS > 0
+          ? `Paid${pay} (incl. +₵${eventBonusGHS} ${ev?.icon ?? ''} event bonus)`
+          : bonusGHS > 0
+            ? `Paid${pay} (incl. +₵${bonusGHS} home prestige)`
+            : `Paid${pay}`
       );
     } else showInteractionFeedback(advance.message);
     syncEconomyHUD();
@@ -1301,7 +1428,14 @@ function handleWorldTargetInteracted(target: InteractableTarget): void {
     }
     const buy = economyManager.purchaseEverydayExpense('EXP_WAAKYE_MEAL');
     if (buy.success) {
-      needsSystem.eatMeal('Waakye');
+      // Live event boosts: Fresh Waakye Batch adds hunger/energy to meals.
+      const ev = liveEvents?.getActiveEvent()?.event ?? null;
+      // 45 hunger / 6 energy mirror NeedsSystem's MEAL defaults.
+      needsSystem.eatMeal(
+        'Waakye',
+        45 + (ev?.mealHungerBonus ?? 0),
+        6 + (ev?.recoveryEnergyBonus ?? 0)
+      );
       showInteractionFeedback('+Hunger (Waakye)');
     } else showInteractionFeedback(buy.message || 'No', true);
     syncEconomyHUD();
@@ -1358,7 +1492,14 @@ function startGame(profile: OnboardingResult): void {
       // bed, etc.) — not just the legacy 'bed' ownership check.
       const agg = homeSystem.getAggregateGameplayEffects();
       const bedBonus = agg.sleepEnergyBonus;
-      const totalSleepRestore = Math.min(100, tier.sleepEnergyRestore + bedBonus);
+      let totalSleepRestore = Math.min(100, tier.sleepEnergyRestore + bedBonus);
+      // ECG Dumsor: power outage makes sleep worse — unless a Backup
+      // Generator is placed in the compound (+15 instead of -15).
+      const dumsorEv = liveEvents?.getActiveEvent()?.event ?? null;
+      if (dumsorEv?.isDumsor) {
+        const hasGenerator = homeSystem.getPlaced().some((p) => p.catalogId === 'generator');
+        totalSleepRestore = Math.max(20, totalSleepRestore + (hasGenerator ? 15 : -15));
+      }
       const rest = needsSystem.sleep(bedBonus, totalSleepRestore);
       showInteractionFeedback(rest.message, !rest.success);
       syncEconomyHUD();
@@ -1389,8 +1530,8 @@ function startGame(profile: OnboardingResult): void {
       }
       const meal = needsSystem.eatMeal(
         `Home-cooked meal (${tier.shortLabel})`,
-        tier.cookHungerRestore,
-        tier.cookEnergyBonus
+        tier.cookHungerRestore + (liveEvents?.getActiveEvent()?.event.mealHungerBonus ?? 0),
+        tier.cookEnergyBonus + (liveEvents?.getActiveEvent()?.event.recoveryEnergyBonus ?? 0)
       );
       showInteractionFeedback(meal.message, !meal.success);
       syncEconomyHUD();
@@ -1404,17 +1545,23 @@ function startGame(profile: OnboardingResult): void {
       }
       const tier = homeSystem.getHousingTier();
       homeSystem.markSocialUsed();
-      const boost = needsSystem.boostEnergy(tier.socialEnergyBonus, tier.socialActionLabel);
-      if (tier.socialCashBonusGHS > 0) {
+      // Highlife Night doubles home hosting rewards (socialBonusMultiplier).
+      const socialMult = liveEvents?.getActiveEvent()?.event.socialBonusMultiplier ?? 1;
+      const boost = needsSystem.boostEnergy(
+        Math.round(tier.socialEnergyBonus * socialMult),
+        tier.socialActionLabel
+      );
+      const socialCash = Math.round(tier.socialCashBonusGHS * socialMult);
+      if (socialCash > 0) {
         economyManager.awardIncome({
-          amountGHS: tier.socialCashBonusGHS,
+          amountGHS: socialCash,
           category: 'REWARD',
           description: `Social Hosting (${tier.shortLabel})`
         });
       }
       showInteractionFeedback(
-        tier.socialCashBonusGHS > 0
-          ? `${tier.socialActionLabel} · +₵${tier.socialCashBonusGHS}`
+        socialCash > 0
+          ? `${tier.socialActionLabel} · +₵${socialCash}`
           : boost.message
       );
       syncEconomyHUD();
@@ -1432,6 +1579,21 @@ function startGame(profile: OnboardingResult): void {
 
     // ── Phase-1 housing engine: Home Store + PlacementEngine ────────────────
     initHousingEngine(phase1);
+
+    // ── Accra Live Events: cycle world events + drive the HUD pill ─────────
+    // tick() is called inside the 500ms UI interval below (cheap Date.now
+    // check); the onUpdate listener updates the pill + toasts new events.
+    liveEvents = new LiveEventsSystem();
+    liveEvents.onUpdate((state) => updateLiveEventPill(state));
+    liveEventPillEl?.addEventListener('click', () => {
+      const ev = liveEvents?.getActiveEvent();
+      if (ev) {
+        showInteractionFeedback(`${ev.event.icon} ${ev.event.title} · ${ev.event.description}`);
+      }
+    });
+
+    // ── Housing cloud sync: push home changes to Firestore (accounts) ──────
+    homeSystem.onUpdate((state) => scheduleHousingCloudSync(state));
 
     syncEconomyHUD();
 
@@ -1454,12 +1616,15 @@ function startGame(profile: OnboardingResult): void {
       crimeSystem.tickHeatDecay(1 / 60);
       // Apply passive gameplay-effect multipliers from placed furniture.
       // These compound with the existing fatigueReductionPct (housing-tier
-      // bonus). The 2-need system (hunger + energy) only accepts an energy
-      // multiplier — placed furniture like fan/bed/sofa reduce energy decay.
+      // bonus) and the active live event's fatigue drain multiplier (e.g.
+      // Highlife Night -65%, Dumsor +10%).
       const agg = homeSystem.getAggregateGameplayEffects();
+      const fatigueMult = liveEvents?.getActiveEvent()?.event.fatigueDrainMultiplier ?? 1;
       needsSystem.tick(1 / 60, {
-        energy: agg.energyDecayMultiplier
+        energy: agg.energyDecayMultiplier * fatigueMult
       });
+      // 3D rigs for nearby signed-in players (presence → visible avatars).
+      nearbyAvatars?.update(1 / 60);
       if (homeVisuals) {
         homeVisuals.setCutawayMode(isPlayerInCompoundCutaway());
       }
@@ -1467,6 +1632,8 @@ function startGame(profile: OnboardingResult): void {
       if (now - lastCooldownUiTickMs >= 500) {
         lastCooldownUiTickMs = now;
         updateLiveJobModalCooldowns();
+        // Cycle Accra Live Events on the same 500ms UI cadence.
+        liveEvents?.tick();
       }
       requestAnimationFrame(tick);
     };
@@ -1595,6 +1762,12 @@ function initMultiplayer(profile: OnboardingResult, phase1: Phase1Scene): void {
     origin: profile.origin
   });
 
+  // 3D avatars: one character rig per nearby signed-in player. Presence
+  // snapshots (20s heartbeats) are smoothed by the avatar system's lerp.
+  // Guests never subscribe to presence, so they simply see nobody —
+  // consistent with the HUD's read-only guest mode.
+  nearbyAvatars = new NearbyPlayerAvatars(phase1.scene);
+
   // Initial UI: pill + chat sheet title reflect the spawn location.
   setCurrentLocationPill(spawnLoc.id, false);
   if (chatSheetTitle) chatSheetTitle.textContent = `At ${spawnLoc.displayName}`;
@@ -1608,6 +1781,9 @@ function initMultiplayer(profile: OnboardingResult, phase1: Phase1Scene): void {
     if (chatSheetSub) chatSheetSub.textContent = `${spawnLoc.displayName} — local chat, everyone here can see this.`;
     setStatusPill('online');
     setNearbyStrip([], true);
+    // Cloud save restore: pull the player's housing snapshot (tier + owned
+    // + placed furniture) once auth is known-good, then rebuild the world.
+    void restoreHousingFromCloud();
   } else {
     // Guest: read-only chat, no presence writes.
     if (chatSheetSub) chatSheetSub.textContent = `${spawnLoc.displayName} — sign in to send messages & be seen.`;
@@ -1661,6 +1837,8 @@ function initMultiplayer(profile: OnboardingResult, phase1: Phase1Scene): void {
   // Render nearby updates + presence status.
   presenceManager.onNearby((players) => {
     setNearbyStrip(players, isAccountMode);
+    // Spawn/despawn/update the 3D rigs for nearby players.
+    nearbyAvatars?.syncFromNearby(players);
     if (chatSheetOpen) renderChatSheetNearby(players);
   });
   presenceManager.onStatus((status) => {
