@@ -4,12 +4,16 @@ import { ColliderBox, PlayerController } from '../Player/PlayerController';
 import { ThirdPersonCamera } from '../Player/ThirdPersonCamera';
 import { InteractableTarget, InteractionSystem } from '../Player/InteractionSystem';
 import { buildFirstNeighborhoodBlock } from '../World/NeighborhoodBlock';
-import { CharacterRig } from '../Art/CharacterBuilder';
+import { CharacterRig, type PlayerLookOptions } from '../Art/CharacterBuilder';
 import { Canvas3DFallbackRenderer } from './Canvas3DFallbackRenderer';
 
 export interface Phase1Callbacks {
   onTargetChanged: (target: InteractableTarget | null) => void;
   onTargetInteracted: (target: InteractableTarget) => void;
+}
+
+export interface Phase1Options {
+  look?: PlayerLookOptions;
 }
 
 interface ActiveRenderer {
@@ -34,7 +38,7 @@ export class Phase1Scene {
   private callbacks: Phase1Callbacks;
   private usingFallback = false;
 
-  constructor(container: HTMLElement, callbacks: Phase1Callbacks) {
+  constructor(container: HTMLElement, callbacks: Phase1Callbacks, options?: Phase1Options) {
     this.container = container;
     this.callbacks = callbacks;
     this.scene = new THREE.Scene();
@@ -51,16 +55,17 @@ export class Phase1Scene {
 
     this.setupLighting();
 
-    // Build the Phase 2 Visual Accra Neighborhood Block + 3 NPC Visual Archetypes
     const block = buildFirstNeighborhoodBlock(this.scene);
     this.colliders = block.colliders;
     this.npcRigs = block.npcRigs;
 
-    // Initialize centralized InputManager
     this.inputManager = new InputManager();
 
-    // Spawn PLAYER_GHA_001 at a safe location on the South pedestrian walkway
-    this.player = new PlayerController(this.inputManager, new THREE.Vector3(0, 0, 5.8));
+    this.player = new PlayerController(
+      this.inputManager,
+      new THREE.Vector3(0, 0, 5.8),
+      options?.look
+    );
     this.scene.add(this.player.group);
 
     this.thirdPersonCamera = new ThirdPersonCamera(
@@ -106,7 +111,6 @@ export class Phase1Scene {
       const webgl = new THREE.WebGLRenderer({ antialias: true });
       const gl = webgl.getContext();
       if (gl && !gl.isContextLost()) {
-        // Guard WebGL shader methods so a null shader handle can never throw an uncaught TypeError
         const origShaderSource = gl.shaderSource.bind(gl);
         const origCompileShader = gl.compileShader.bind(gl);
         const origGetShaderParam = gl.getShaderParameter.bind(gl);
@@ -155,7 +159,7 @@ export class Phase1Scene {
       }
       webgl.dispose();
     } catch {
-      // Fall through to Canvas3DFallbackRenderer
+      // Fall through
     }
 
     this.usingFallback = true;
@@ -177,12 +181,10 @@ export class Phase1Scene {
   }
 
   private setupLighting(): void {
-    // 1. Warm Accra Sky-to-Laterite Hemisphere Fill
     const hemiLight = new THREE.HemisphereLight(0xfff7ed, 0xd8b48e, 0.92);
     hemiLight.position.set(0, 32, 0);
     this.scene.add(hemiLight);
 
-    // 2. Primary Golden Daylight Sun Key Light with Soft Shadows
     const sunLight = new THREE.DirectionalLight(0xfff3d6, 1.55);
     sunLight.position.set(18, 28, 20);
     sunLight.castShadow = true;
@@ -199,7 +201,6 @@ export class Phase1Scene {
     sunLight.shadow.normalBias = 0.02;
     this.scene.add(sunLight);
 
-    // 3. Soft Opposite Rim / Facial Readability Fill Light (no shadow map cost)
     const rimLight = new THREE.DirectionalLight(0xe0f2fe, 0.45);
     rimLight.position.set(-14, 14, -16);
     this.scene.add(rimLight);
