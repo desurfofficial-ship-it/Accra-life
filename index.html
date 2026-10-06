@@ -1,1 +1,243 @@
-PLACEHOLDER_WILL_FAIL
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>CHALÉ LIFE — Accra</title>
+<style>
+:root{--gta-black:#0a0a0a;--gta-panel:rgba(8,8,8,.88);--gta-yellow:#ffcc00;--gta-green:#66ff66;--gta-red:#ff3333;--gta-white:#f0f0f0;--gta-muted:#9a9a9a}
+*{box-sizing:border-box;user-select:none;-webkit-user-select:none}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;overscroll-behavior:none;touch-action:none;background:#0a0a0a;font-family:Arial Narrow,Arial,Helvetica Neue,sans-serif;color:var(--gta-white)}
+#viewportContainer{position:fixed;inset:0;width:100%;height:100%;touch-action:none}
+#onboardingOverlay{position:fixed;inset:0;z-index:1000;background:radial-gradient(ellipse 100% 70% at 50% 110%,rgba(180,80,20,.4) 0%,transparent 50%),linear-gradient(180deg,#0a0a0a 0%,#1a1208 50%,#2a1a0c 100%);display:flex;align-items:center;justify-content:center;padding:24px;opacity:0;pointer-events:none;transition:opacity .35s ease}
+#onboardingOverlay.visible{opacity:1;pointer-events:auto}
+#onboardingOverlay.exit{opacity:0;transition:opacity .4s ease}
+.ob-card{width:100%;max-width:420px;padding:24px 16px;text-align:center}
+.ob-screen{display:none;flex-direction:column;align-items:center;gap:14px}
+.ob-screen.active{display:flex}
+.ob-place{font-size:.75rem;font-weight:700;letter-spacing:.28em;text-transform:uppercase;color:var(--gta-yellow);margin:0}
+.ob-title{font-size:3.2rem;font-weight:900;color:var(--gta-white);letter-spacing:.04em;margin:0;text-transform:uppercase;line-height:.95;text-shadow:3px 3px 0 #000,-1px -1px 0 #000}
+.ob-tagline{font-size:1rem;color:var(--gta-muted);margin:4px 0 12px;line-height:1.4}
+.ob-tagline em{color:var(--gta-yellow);font-style:normal;font-weight:800}
+.ob-divider{width:60px;height:3px;background:var(--gta-yellow);margin:2px 0 8px}
+.ob-btn{width:100%;max-width:320px;border:2px solid transparent;border-radius:2px;padding:14px 24px;font-size:1.05rem;font-weight:900;cursor:pointer;letter-spacing:.06em;text-transform:uppercase;font-family:inherit}
+.ob-btn:active{transform:scale(.98)}
+.ob-btn-primary{background:var(--gta-yellow);color:#0a0a0a;border-color:#000;box-shadow:4px 4px 0 #000}
+.ob-btn-primary:active{box-shadow:2px 2px 0 #000;transform:translate(2px,2px)}
+.ob-btn-secondary{background:transparent;color:var(--gta-white);border:2px solid rgba(255,255,255,.35);font-size:.85rem;letter-spacing:.08em;margin-top:4px}
+.ob-btn-ghost{background:transparent;color:var(--gta-muted);font-size:.78rem;font-weight:700;letter-spacing:.04em;text-transform:none;border:none;padding:8px}
+.ob-input{width:100%;max-width:320px;background:rgba(0,0,0,.7);border:2px solid rgba(255,204,0,.4);border-radius:2px;padding:12px 14px;font-size:1rem;color:var(--gta-white);outline:none;font-family:inherit}
+.ob-input:focus{border-color:var(--gta-yellow)}
+.ob-input::placeholder{color:#666}
+.ob-error{display:none;color:var(--gta-red);font-size:.8rem;font-weight:800;margin:0}
+.ob-error.visible{display:block}
+.ob-back{align-self:flex-start;background:none;border:none;color:var(--gta-muted);font-size:.8rem;font-weight:800;cursor:pointer;padding:0;letter-spacing:.06em;text-transform:uppercase;font-family:inherit}
+.ob-loading-city{font-size:1.3rem;color:var(--gta-yellow);font-weight:900;margin:0;letter-spacing:.08em;text-transform:uppercase}
+.ob-loading-name{font-size:.9rem;color:var(--gta-muted);margin:0}
+.ob-spinner{width:36px;height:36px;border:3px solid rgba(255,204,0,.2);border-top-color:var(--gta-yellow);border-radius:50%;animation:obspin .6s linear infinite}
+@keyframes obspin{to{transform:rotate(360deg)}}
+.ob-chip-row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;width:100%;max-width:340px}
+.ob-chip{background:rgba(0,0,0,.65);border:2px solid rgba(255,255,255,.2);color:var(--gta-white);border-radius:0;padding:10px 14px;font-size:.78rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;font-family:inherit}
+.ob-chip.selected{border-color:var(--gta-yellow);background:rgba(255,204,0,.12);color:var(--gta-yellow)}
+.ob-chip-skin{width:44px;height:44px;padding:0}
+.ob-chip-skin.selected{box-shadow:0 0 0 2px #000,0 0 0 4px var(--gta-yellow)}
+.ob-section-label{font-size:.68rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--gta-muted);margin:8px 0 0;align-self:flex-start;max-width:340px;width:100%;text-align:left}
+.ob-trait-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;max-width:340px}
+.ob-trait-card{background:rgba(0,0,0,.65);border:2px solid rgba(255,255,255,.15);padding:12px 10px;cursor:pointer;text-align:left}
+.ob-trait-card.selected{border-color:var(--gta-yellow);background:rgba(255,204,0,.1)}
+.ob-trait-card strong{display:block;font-size:.82rem;font-weight:900;letter-spacing:.04em;text-transform:uppercase;color:var(--gta-white);margin-bottom:4px}
+.ob-trait-card.selected strong{color:var(--gta-yellow)}
+.ob-trait-card span{font-size:.7rem;color:var(--gta-muted);line-height:1.3;font-weight:600;text-transform:none;letter-spacing:0}
+.ob-origin-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:340px}
+.ob-origin-card{background:rgba(0,0,0,.7);border:2px solid rgba(255,255,255,.2);padding:16px 12px;cursor:pointer;text-align:left}
+.ob-origin-card.selected{border-color:var(--gta-yellow);background:rgba(255,204,0,.1)}
+.ob-origin-card strong{display:block;font-size:1rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:var(--gta-white);margin-bottom:6px}
+.ob-origin-card.selected strong{color:var(--gta-yellow)}
+.ob-origin-card span{font-size:.72rem;color:var(--gta-muted);line-height:1.35;font-weight:600}
+.ob-origin-card .ob-cash-hint{display:block;margin-top:8px;font-size:.75rem;font-weight:900;color:var(--gta-green);letter-spacing:.04em}
+.phase1-hud-top{position:fixed;top:8px;left:8px;right:8px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;z-index:20;gap:6px}
+.hud-left-stack{display:flex;flex-direction:column;gap:4px;max-width:min(200px,48vw);pointer-events:none}
+.brand-card{display:none}
+.objective-banner{background:var(--gta-panel);border:1px solid rgba(255,255,255,.12);border-left:3px solid var(--gta-green);padding:5px 8px;pointer-events:auto;box-shadow:2px 2px 0 rgba(0,0,0,.4);display:none}
+.objective-banner.visible{display:block}
+.objective-banner.risky{border-left-color:var(--gta-red)}
+.obj-header{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.obj-tag{font-size:.5rem;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:var(--gta-green)}
+.objective-banner.risky .obj-tag{color:var(--gta-red)}
+.obj-cancel-btn{background:transparent;color:var(--gta-muted);border:1px solid rgba(255,255,255,.2);padding:1px 5px;font-size:.5rem;font-weight:800;cursor:pointer;text-transform:uppercase;font-family:inherit}
+.obj-title{font-size:.72rem;font-weight:900;color:var(--gta-white);margin:2px 0 0}
+.obj-desc{display:none}
+.hud-right-stack{display:flex;flex-direction:column;align-items:flex-end;gap:4px;pointer-events:none}
+.hud-top-actions{display:flex;align-items:center;gap:4px;pointer-events:auto}
+.wallet-card-btn{background:var(--gta-panel);border:1px solid rgba(102,255,102,.35);padding:4px 8px;color:#fff;cursor:pointer;box-shadow:2px 2px 0 rgba(0,0,0,.4);position:relative;font-family:inherit}
+.wallet-label{display:none}
+.wallet-amount{font-size:.95rem;font-weight:900;color:var(--gta-green);font-variant-numeric:tabular-nums}
+.wallet-delta{position:absolute;top:100%;right:4px;margin-top:2px;padding:1px 5px;font-size:.65rem;font-weight:900;opacity:0;pointer-events:none}
+.wallet-delta.show-gain{background:rgba(0,40,0,.95);border:1px solid var(--gta-green);color:var(--gta-green);opacity:1}
+.wallet-delta.show-loss{background:rgba(40,0,0,.95);border:1px solid var(--gta-red);color:var(--gta-red);opacity:1}
+.work-hub-btn{background:var(--gta-yellow);color:#0a0a0a;border:1px solid #000;padding:5px 9px;font-size:.65rem;font-weight:900;cursor:pointer;letter-spacing:.04em;text-transform:uppercase;font-family:inherit;box-shadow:2px 2px 0 #000}
+.camera-reset-btn{background:var(--gta-panel);color:var(--gta-white);border:1px solid rgba(255,255,255,.2);padding:5px 7px;font-size:.6rem;font-weight:800;cursor:pointer;text-transform:uppercase;font-family:inherit}
+.needs-panel{pointer-events:none;background:var(--gta-panel);border:1px solid rgba(255,255,255,.12);padding:3px 5px;width:108px;box-shadow:2px 2px 0 rgba(0,0,0,.35)}
+.need-row{display:flex;align-items:center;gap:4px;margin-bottom:2px}
+.need-row:last-child{margin-bottom:0}
+.need-label{font-size:.5rem;font-weight:900;color:var(--gta-muted);width:12px}
+.need-bar-track{flex:1;height:4px;background:rgba(0,0,0,.55);overflow:hidden}
+.need-bar-fill{height:100%;transition:width .2s ease}
+.need-bar-fill.hunger{background:#f59e0b}
+.need-bar-fill.energy{background:#22c55e}
+.need-bar-fill.low{background:#ef4444!important}
+.need-val{font-size:.5rem;font-weight:900;width:18px;text-align:right}
+.heat-pill{pointer-events:auto;background:var(--gta-panel);border:1px solid rgba(255,255,255,.15);padding:2px 6px;font-size:.55rem;font-weight:900;color:var(--gta-muted);display:flex;align-items:center;gap:5px;text-transform:uppercase;opacity:.4}
+.heat-pill.suspicious{border-color:var(--gta-yellow);color:var(--gta-yellow);opacity:1}
+.heat-pill.wanted,.heat-pill.arrested{border-color:var(--gta-red);color:var(--gta-red);opacity:1}
+.heat-dot{width:6px;height:6px;background:var(--gta-green);transform:rotate(45deg)}
+.heat-pill.suspicious .heat-dot{background:var(--gta-yellow)}
+.heat-pill.wanted .heat-dot,.heat-pill.arrested .heat-dot{background:var(--gta-red)}
+.interaction-prompt{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(8px);background:var(--gta-panel);border:1px solid var(--gta-yellow);padding:5px 10px;display:flex;align-items:center;gap:8px;box-shadow:2px 2px 0 rgba(0,0,0,.4);opacity:0;pointer-events:none;z-index:30;max-width:85vw}
+.interaction-prompt.visible{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;cursor:pointer}
+.interaction-prompt.objective-match{border-color:var(--gta-green)}
+.key-cap{background:var(--gta-yellow);color:#0a0a0a;font-weight:900;font-size:.7rem;padding:2px 6px;border:1px solid #000}
+.prompt-title{font-size:.75rem;font-weight:900;color:var(--gta-white);text-transform:uppercase;letter-spacing:.02em}
+.prompt-sub{display:none}
+.interaction-toast{position:fixed;top:8px;left:50%;transform:translateX(-50%) translateY(-8px);background:rgba(0,40,0,.95);border:1px solid var(--gta-green);color:var(--gta-green);padding:5px 10px;font-size:.7rem;font-weight:900;text-transform:uppercase;opacity:0;pointer-events:none;z-index:60;max-width:90vw;text-align:center}
+.interaction-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.interaction-toast.warn{background:rgba(40,0,0,.95);border-color:var(--gta-red);color:var(--gta-red)}
+.economy-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;padding:12px;z-index:50}
+.economy-modal-backdrop.open{display:flex}
+.economy-modal{width:100%;max-width:520px;max-height:80vh;background:#0e0e0e;border:2px solid rgba(255,255,255,.15);display:flex;flex-direction:column;overflow:hidden;box-shadow:6px 6px 0 rgba(0,0,0,.5)}
+.modal-header{padding:10px 12px;border-bottom:1px solid rgba(255,204,0,.25);display:flex;justify-content:space-between;align-items:center}
+.modal-title-wrap h2{margin:0;font-size:.95rem;font-weight:900;color:var(--gta-yellow);text-transform:uppercase}
+.modal-title-wrap p{margin:2px 0 0;font-size:.65rem;color:var(--gta-muted)}
+.modal-close-btn{background:transparent;color:var(--gta-white);border:1px solid rgba(255,255,255,.25);padding:4px 8px;font-size:.65rem;font-weight:900;cursor:pointer;text-transform:uppercase;font-family:inherit}
+.modal-tabs{display:grid;grid-template-columns:repeat(4,1fr);background:#000}
+.modal-tab-btn{background:transparent;color:var(--gta-muted);border:none;border-bottom:2px solid transparent;padding:8px 4px;font-size:.65rem;font-weight:900;cursor:pointer;text-transform:uppercase;font-family:inherit}
+.modal-tab-btn.active{color:var(--gta-yellow);border-bottom-color:var(--gta-yellow)}
+.modal-body{padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;touch-action:pan-y}
+.econ-card{background:rgba(20,20,20,.9);border:1px solid rgba(255,255,255,.1);padding:10px}
+.econ-card-title{font-size:.85rem;font-weight:900;color:var(--gta-white);margin:0;text-transform:uppercase}
+.econ-pay-badge{background:rgba(0,40,0,.8);border:1px solid var(--gta-green);color:var(--gta-green);font-weight:900;font-size:.75rem;padding:3px 8px}
+.econ-action-btn{background:var(--gta-yellow);color:#0a0a0a;border:1px solid #000;padding:6px 10px;font-size:.7rem;font-weight:900;cursor:pointer;text-transform:uppercase;font-family:inherit}
+.touch-controls{position:fixed;bottom:10px;left:10px;right:10px;display:flex;justify-content:space-between;align-items:flex-end;pointer-events:none;z-index:25}
+.joystick-zone{width:84px;height:84px;border-radius:50%;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.2);position:relative;pointer-events:auto;touch-action:none;opacity:.6}
+.joystick-knob{width:34px;height:34px;border-radius:50%;background:var(--gta-yellow);border:1px solid #000;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
+.action-buttons-right{display:flex;gap:6px;pointer-events:auto}
+.ctrl-btn{background:var(--gta-panel);color:var(--gta-white);border:1px solid rgba(255,255,255,.25);padding:8px 11px;font-size:.65rem;font-weight:900;cursor:pointer;text-transform:uppercase;font-family:inherit;opacity:.85}
+.ctrl-btn.active{background:var(--gta-yellow);color:#0a0a0a;border-color:#000;opacity:1}
+@media(max-width:640px){.ob-title{font-size:2.4rem}.modal-tabs{grid-template-columns:repeat(2,1fr)}.interaction-prompt{bottom:82px}}
+</style>
+</head>
+<body>
+<div id="onboardingOverlay">
+<div class="ob-card">
+<div id="obScreenWelcome" class="ob-screen active">
+<p class="ob-place">Accra · Ghana</p>
+<h1 class="ob-title">CHALÉ<br>LIFE</h1>
+<div class="ob-divider"></div>
+<p class="ob-tagline">Your second life in <em>Accra</em>.<br>Work. Hustle. Survive.</p>
+<button id="obBtnGuest" class="ob-btn ob-btn-primary" type="button">Enter Accra</button>
+<button id="obBtnAccount" class="ob-btn ob-btn-secondary" type="button">Save Progress</button>
+</div>
+<div id="obScreenAuth" class="ob-screen">
+<button id="obBackFromAuth" class="ob-back" type="button">← Back</button>
+<h2 id="obAuthTitle" class="ob-title" style="font-size:1.6rem">Keep Your Story</h2>
+<p class="ob-tagline">Come back to Accra anytime.</p>
+<input id="obEmailInput" class="ob-input" type="email" placeholder="Email" autocomplete="email"/>
+<input id="obPasswordInput" class="ob-input" type="password" placeholder="Password (min 6)" autocomplete="new-password"/>
+<p id="obError" class="ob-error"></p>
+<button id="obAuthSubmit" class="ob-btn ob-btn-primary" type="button">Create Account</button>
+<button id="obAuthToggle" class="ob-btn ob-btn-ghost" type="button">Already have an account? Sign in</button>
+</div>
+<div id="obScreenName" class="ob-screen">
+<button id="obBackFromName" class="ob-back" type="button">← Back</button>
+<h2 class="ob-title" style="font-size:1.5rem">Your Name</h2>
+<p class="ob-tagline">What do they call you in Accra?</p>
+<input id="obNameInput" class="ob-input" type="text" placeholder="e.g. Kofi, Ama, Chale…" maxlength="24" autocomplete="nickname"/>
+<p id="obNameError" class="ob-error"></p>
+<button id="obBtnNameNext" class="ob-btn ob-btn-primary" type="button">Next</button>
+</div>
+<div id="obScreenLook" class="ob-screen">
+<button id="obBackFromLook" class="ob-back" type="button">← Back</button>
+<h2 class="ob-title" style="font-size:1.4rem">Your Look</h2>
+<p class="ob-tagline">Quick. Make it feel like you.</p>
+<p class="ob-section-label">Skin</p>
+<div id="obSkinRow" class="ob-chip-row">
+<button type="button" class="ob-chip ob-chip-skin selected" data-skin="deep" style="background:#3d2314" title="Deep"></button>
+<button type="button" class="ob-chip ob-chip-skin" data-skin="rich" style="background:#6b3e26" title="Rich"></button>
+<button type="button" class="ob-chip ob-chip-skin" data-skin="warm" style="background:#8b5a2b" title="Warm"></button>
+<button type="button" class="ob-chip ob-chip-skin" data-skin="light" style="background:#c4a574" title="Light"></button>
+</div>
+<p class="ob-section-label">Hair</p>
+<div id="obHairRow" class="ob-chip-row">
+<button type="button" class="ob-chip selected" data-hair="fade">Fade</button>
+<button type="button" class="ob-chip" data-hair="twists">Twists</button>
+<button type="button" class="ob-chip" data-hair="bun">Bun</button>
+<button type="button" class="ob-chip" data-hair="short">Short</button>
+</div>
+<button id="obBtnLookNext" class="ob-btn ob-btn-primary" type="button" style="margin-top:12px">Next</button>
+</div>
+<div id="obScreenTrait" class="ob-screen">
+<button id="obBackFromTrait" class="ob-back" type="button">← Back</button>
+<h2 class="ob-title" style="font-size:1.4rem">Your Trait</h2>
+<p class="ob-tagline">How Accra treats you.</p>
+<div id="obTraitGrid" class="ob-trait-grid">
+<div class="ob-trait-card selected" data-trait="hustler"><strong>Hustler</strong><span>Side money finds you. Rest is harder.</span></div>
+<div class="ob-trait-card" data-trait="church"><strong>Church Person</strong><span>Community opens doors. Nights cost more.</span></div>
+<div class="ob-trait-card" data-trait="campus"><strong>Campus</strong><span>Young energy. Bills hit different.</span></div>
+<div class="ob-trait-card" data-trait="family"><strong>Family First</strong><span>People back you. Obligations follow.</span></div>
+<div class="ob-trait-card" data-trait="quiet"><strong>Quiet Operator</strong><span>Less drama. Fewer invitations.</span></div>
+<div class="ob-trait-card" data-trait="party"><strong>Party Person</strong><span>Social fuel high. Cash burns faster.</span></div>
+</div>
+<p id="obTraitBlurb" class="ob-tagline" style="margin-top:4px">Side money finds you. Rest is harder.</p>
+<button id="obBtnTraitNext" class="ob-btn ob-btn-primary" type="button">Next</button>
+</div>
+<div id="obScreenOrigin" class="ob-screen">
+<button id="obBackFromOrigin" class="ob-back" type="button">← Back</button>
+<h2 class="ob-title" style="font-size:1.4rem">How You Start</h2>
+<p class="ob-tagline">Your first chapter in Accra.</p>
+<div id="obOriginRow" class="ob-origin-row">
+<div class="ob-origin-card" data-origin="dbee"><strong>DBee</strong><span>Connected. Soft landing. People know your name.</span><span class="ob-cash-hint">Start ₵500</span></div>
+<div class="ob-origin-card selected" data-origin="aunty_ba"><strong>Aunty Ba</strong><span>From the ground. Every cedi counts.</span><span class="ob-cash-hint">Start ₵0</span></div>
+</div>
+<button id="obBtnEnter" class="ob-btn ob-btn-primary" type="button" style="margin-top:12px">Step Into Accra</button>
+</div>
+<div id="obScreenLoading" class="ob-screen">
+<div class="ob-spinner"></div>
+<p class="ob-loading-city">Adabraka…</p>
+<p id="obLoadingName" class="ob-loading-name">Chale</p>
+</div>
+</div>
+</div>
+<div id="viewportContainer"></div>
+<div class="phase1-hud-top">
+<div class="hud-left-stack">
+<div class="brand-card">
+<div class="brand-top-row"><span class="brand-badge">Accra</span><span id="progressionTierBadge" class="tier-badge">Survival</span></div>
+<h1 class="brand-title">CHALÉ LIFE</h1>
+<p id="livingSituationSub" class="brand-sub"></p>
+</div>
+<div id="activeObjectiveBanner" class="objective-banner">
+<div class="obj-header"><span id="objTag" class="obj-tag">Job</span><button id="cancelObjectiveBtn" class="obj-cancel-btn" type="button">X</button></div>
+<div id="objTitle" class="obj-title">Job</div>
+<div id="objDesc" class="obj-desc"></div>
+</div>
+</div>
+<div class="hud-right-stack">
+<div class="hud-top-actions">
+<button id="walletOpenBtn" class="wallet-card-btn" type="button"><span id="hudCashAmount" class="wallet-amount">₵0</span><div id="walletDeltaFloating" class="wallet-delta">+₵0</div></button>
+<button id="workMenuOpenBtn" class="work-hub-btn" type="button">Jobs</button>
+<button id="resetCameraBtn" class="camera-reset-btn" type="button">Cam</button>
+</div>
+<div id="needsPanel" class="needs-panel">
+<div class="need-row"><span class="need-label">H</span><div class="need-bar-track"><div id="needHungerBar" class="need-bar-fill hunger" style="width:72%"></div></div><span id="needHungerVal" class="need-val">72</span></div>
+<div class="need-row"><span class="need-label">E</span><div class="need-bar-track"><div id="needEnergyBar" class="need-bar-fill energy" style="width:80%"></div></div><span id="needEnergyVal" class="need-val">80</span></div>
+</div>
+<div id="heatStatusPill" class="heat-pill"><span class="heat-dot"></span><span id="heatStatusText">Clean</span></div>
+</div>
+</div>
+<div id="interactionToast" class="interaction-toast"></div>
+<div id="interactionPrompt" class="interaction-prompt" role="button" tabindex="0"><span class="key-cap">E</span><span id="promptTitle" class="prompt-title">Interact</span><span id="promptSub" class="prompt-sub"></span></div>
+<div id="economyModalBackdrop" class="economy-modal-backdrop" role="dialog" aria-modal="true"><div class="economy-modal"><div class="modal-header"><div class="modal-title-wrap"><h2 id="modalHeaderTitle">Jobs</h2><p id="modalHeaderSub"></p></div><button id="modalCloseBtn" class="modal-close-btn" type="button">Close</button></div><div class="modal-tabs"><button class="modal-tab-btn active" data-tab="jobs" type="button">Jobs</button><button class="modal-tab-btn" data-tab="hustles" type="button">Hustles</button><button class="modal-tab-btn" data-tab="spend" type="button">Spend</button><button class="modal-tab-btn" data-tab="wallet" type="button">Wallet</button></div><div id="modalBodyContent" class="modal-body"></div></div></div>
+<div class="touch-controls"><div id="joystickZone" class="joystick-zone"><div id="joystickKnob" class="joystick-knob"></div></div><div class="action-buttons-right"><button id="sprintToggleBtn" class="ctrl-btn" type="button">Jog</button><button id="interactTriggerBtn" class="ctrl-btn" type="button">Act</button></div></div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
