@@ -206,9 +206,31 @@ function syncNeedsHUD(): void {
 
 function syncWalletDiagnosticPanel(): void {
   const balEl = document.getElementById('walletDiagBalance');
-  if (!balEl) return;
+  const srcEl = document.getElementById('walletDiagSource');
+  const txListEl = document.getElementById('walletDiagTxList');
   const wallet = economyManager.wallet;
-  balEl.textContent = formatGHS(wallet.getCashBalance());
+  if (balEl) balEl.textContent = formatGHS(wallet.getCashBalance());
+  const allTxs = wallet.getTransactions();
+  if (srcEl) {
+    srcEl.textContent = allTxs.length > 0 ? `${allTxs.length} tx ▾` : 'Synced ▾';
+  }
+  if (txListEl) {
+    const recent = allTxs.slice(0, 4);
+    if (recent.length === 0) {
+      txListEl.innerHTML = '<div style="color:#888;font-size:.56rem">No transactions yet</div>';
+    } else {
+      txListEl.innerHTML = recent
+        .map(
+          (tx) =>
+            `<div class="wallet-diag-tx"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px">${
+              tx.description
+            }</span><strong style="color:${
+              tx.type === 'INCOME' ? 'var(--gta-green)' : 'var(--gta-red)'
+            }">${formatSignedGHS(tx.type === 'INCOME' ? tx.amount : -tx.amount)}</strong></div>`
+        )
+        .join('');
+    }
+  }
 }
 
 function syncEconomyHUD(): void {
@@ -729,8 +751,6 @@ function renderModalTabContent(): void {
   }
 }
 
-const placedMeshesByInstanceId = new Map<string, THREE.Group>();
-
 function openHomeSheet(): void {
   const backdrop = document.getElementById('homeModalBackdrop');
   const titleEl = document.getElementById('homeSheetTitle');
@@ -742,6 +762,13 @@ function openHomeSheet(): void {
     document.getElementById('homeFurnList') || document.getElementById('furnGrid');
 
   const currentTier = homeSystem.getHousingTier();
+  // Check if relevant furniture is placed — drives dynamic button labels.
+  const placedItems = homeSystem.getPlaced();
+  const hasBed = placedItems.some((p) => p.catalogId === 'bed_basic' || p.catalogId === 'bed');
+  const hasCooker = placedItems.some((p) => p.catalogId === 'cooker_gas');
+  const hasTV = placedItems.some((p) => p.catalogId === 'tv_basic' || p.catalogId === 'tv');
+  const hasSofa = placedItems.some((p) => p.catalogId === 'sofa_basic' || p.catalogId === 'sofa');
+  // Sleep bonus from placed furniture (aggregate — bed_basic gives +20, etc.)
   const agg = homeSystem.getAggregateGameplayEffects();
   const bedBonus = agg.sleepEnergyBonus;
   const totalSleepRestore = Math.min(100, currentTier.sleepEnergyRestore + bedBonus);
@@ -753,10 +780,24 @@ function openHomeSheet(): void {
     flexEl.textContent = `${currentTier.dimensionsLabel} · Comfort ${homeSystem.getComfortScore()}% · Flex ${homeSystem.getFlexScore()} · Storage ${homeSystem.getUsedSlotsCount()}/${homeSystem.getMaxSlotsCount()}`;
   }
   if (restBtn) {
-    restBtn.textContent = `🛏️ Sleep (+${totalSleepRestore} Energy)`;
+    // Dynamic label: "Sleep in Bed" if bed placed, "Sleep on Floor" if not.
+    if (hasBed) {
+      restBtn.textContent = `🛏️ Sleep in Bed (+${totalSleepRestore} Energy)`;
+    } else {
+      restBtn.textContent = `🛏️ Sleep on Floor (+${currentTier.sleepEnergyRestore} Energy)`;
+    }
   }
   if (cookBtn) {
-    cookBtn.textContent = `🍳 ${currentTier.cookLabel}`;
+    // Dynamic label: greyed out if no cooker placed.
+    if (hasCooker) {
+      cookBtn.textContent = `🍳 ${currentTier.cookLabel}`;
+      cookBtn.style.opacity = '1';
+      cookBtn.style.cursor = 'pointer';
+    } else {
+      cookBtn.textContent = `🍳 Need Gas Cooker`;
+      cookBtn.style.opacity = '0.45';
+      cookBtn.style.cursor = 'not-allowed';
+    }
   }
   if (socialBtn) {
     const cd = homeSystem.getSocialCooldownSeconds();
@@ -766,6 +807,25 @@ function openHomeSheet(): void {
 
   if (list) {
     list.innerHTML = '';
+
+    // 0. Empty Room Welcome — shown only when no furniture is placed.
+    // Directs the player to the Home Store for their first purchase.
+    if (placedItems.length === 0) {
+      const welcomeBanner = document.createElement('div');
+      welcomeBanner.style.cssText = 'background:rgba(250,204,21,0.1);border:1px solid rgba(250,204,21,0.3);border-radius:8px;padding:10px 12px;margin-bottom:8px;text-align:center';
+      welcomeBanner.innerHTML = `
+        <p style="margin:0 0 4px;font-size:0.82rem;font-weight:800;color:var(--gta-yellow)">Your new place. Make it yours.</p>
+        <p style="margin:0;font-size:0.66rem;color:var(--gta-muted)">Empty ${currentTier.sizeSqm} m² room. What do you buy first?</p>
+        <div style="margin-top:6px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+          <span style="font-size:0.6rem;color:var(--gta-muted)">🛏️ Bed (₵250)</span>
+          <span style="font-size:0.6rem;color:var(--gta-muted)">🍳 Cooker (₵180)</span>
+          <span style="font-size:0.6rem;color:var(--gta-muted)">🚽 Toilet (₵120)</span>
+          <span style="font-size:0.6rem;color:var(--gta-muted)">🪣 Shower (₵80)</span>
+          <span style="font-size:0.6rem;color:var(--gta-muted)">🪑 Chair (₵20)</span>
+        </div>
+      `;
+      list.appendChild(welcomeBanner);
+    }
 
     // 1. Current Room Features & Meaningful Gameplay Perks Banner
     const currentBanner = document.createElement('div');
@@ -844,7 +904,7 @@ function openHomeSheet(): void {
           showInteractionFeedback(res.message, !res.success);
           if (res.success) {
             rebuildPlayerCompoundForTier(res.tier.id);
-            homeVisuals?.sync(homeSystem.getOwned());
+            // Fixed-slot rendering disabled — PlacementEngine is the sole furniture renderer;
             syncEconomyHUD();
             openHomeSheet();
           }
@@ -886,7 +946,7 @@ function openHomeSheet(): void {
           );
           showInteractionFeedback(res.message, !res.success);
           if (res.success) {
-            homeVisuals?.sync(homeSystem.getOwned());
+            // Fixed-slot rendering disabled — PlacementEngine is the sole furniture renderer;
             openHomeSheet();
             syncEconomyHUD();
           }
@@ -928,11 +988,24 @@ function openHomeSheet(): void {
           });
           showInteractionFeedback(res.message, !res.success);
           if (res.success) {
-            const mesh = placedMeshesByInstanceId.get(inst.instanceId);
+            // Remove the 3D mesh from the scene immediately (no reload needed).
+            const mesh = placedFurnitureMeshes.get(inst.instanceId);
             if (mesh && phase1SceneRef) {
               phase1SceneRef.scene.remove(mesh);
-              placedMeshesByInstanceId.delete(inst.instanceId);
+              mesh.traverse((obj) => {
+                const m = obj as THREE.Mesh;
+                if (m.isMesh) {
+                  m.geometry?.dispose?.();
+                  const mat = m.material;
+                  if (Array.isArray(mat)) mat.forEach((mm) => mm.dispose?.());
+                  else mat?.dispose?.();
+                }
+              });
+              placedFurnitureMeshes.delete(inst.instanceId);
             }
+            // Re-sync HomeFurnitureVisuals (the sold item is no longer in
+            // 'owned' so it won't render at a fixed slot either).
+            // Fixed-slot rendering disabled — PlacementEngine is the sole furniture renderer;
             syncEconomyHUD();
             openHomeSheet();
           }
@@ -996,6 +1069,9 @@ function closeHomeSheet(): void {
 // ── Phase-1 housing engine state ─────────────────────────────────────────────
 let placementEngine: PlacementEngine | null = null;
 let currentStoreCategory: string = 'all';
+/** Tracks placed furniture 3D meshes by instanceId so selling can
+ *  immediately remove them from the scene without waiting for reload. */
+const placedFurnitureMeshes = new Map<string, THREE.Group>();
 
 /**
  * Initialize the housing engine: Home Store modal + PlacementEngine +
@@ -1024,13 +1100,18 @@ function initHousingEngine(phase1: Phase1Scene): void {
     {
       onPlaced: (instanceId) => {
         hidePlacementHud();
-        showInteractionFeedback('Placed!', false);
-        const inst = homeSystem.getPlaced().find((p) => p.instanceId === instanceId);
-        if (inst) {
-          const mesh = buildPlacedFurnitureMesh(inst, ROOM_ORIGIN);
+        // Build + add + register the placed furniture mesh so it renders
+        // immediately in the 3D scene (not just on reload).
+        const placed = homeSystem.getPlaced().find((p) => p.instanceId === instanceId);
+        if (placed) {
+          const mesh = buildPlacedFurnitureMesh(placed, ROOM_ORIGIN);
           phase1.scene.add(mesh);
-          placedMeshesByInstanceId.set(instanceId, mesh);
+          placedFurnitureMeshes.set(instanceId, mesh);
         }
+        // Also re-sync HomeFurnitureVisuals so the fixed-slot copy (if any)
+        // is removed (prevents double-rendering).
+        // Fixed-slot rendering disabled — PlacementEngine is the sole furniture renderer;
+        showInteractionFeedback('Placed! ✓', false);
       },
       onCancelled: () => {
         hidePlacementHud();
@@ -1049,10 +1130,11 @@ function initHousingEngine(phase1: Phase1Scene): void {
   placementEngine.setRoomOrigin(ROOM_ORIGIN_X, ROOM_ORIGIN_Y, ROOM_ORIGIN_Z);
 
   // Render previously-placed furniture on game start (persistence).
+  placedFurnitureMeshes.clear();
   for (const inst of homeSystem.getPlaced()) {
     const mesh = buildPlacedFurnitureMesh(inst, ROOM_ORIGIN);
     phase1.scene.add(mesh);
-    placedMeshesByInstanceId.set(inst.instanceId, mesh);
+    placedFurnitureMeshes.set(inst.instanceId, mesh);
   }
 
   // Wire Home Store button.
@@ -1302,7 +1384,7 @@ function startGame(profile: OnboardingResult): void {
     phase1SceneRef = phase1;
     rebuildPlayerCompoundForTier(homeSystem.getHousingTierId());
     homeVisuals = new HomeFurnitureVisuals(phase1.scene);
-    homeVisuals.sync(homeSystem.getOwned());
+    // Fixed-slot rendering disabled — PlacementEngine is the sole furniture renderer;
     playerDisplayName = profile.displayName || 'Chale';
     playerTrait = profile.trait || 'hustler';
 
@@ -1435,47 +1517,12 @@ function startGame(profile: OnboardingResult): void {
     workMenuOpenBtn?.addEventListener('click', () => openEconomyModal('jobs'));
     document.getElementById('homeOpenTopBtn')?.addEventListener('click', () => openHomeSheet());
     document.getElementById('chatCloseBtn')?.addEventListener('click', () => closeChatSheet());
-    document.getElementById('liveEventPill')?.addEventListener('click', () => {
-      showInteractionFeedback('🚐 Rush Hour: +35% Job Pay Active!');
-      openEconomyModal('jobs');
+    document.getElementById('walletDiagToggle')?.addEventListener('click', () => {
+      document.getElementById('walletDiagnosticPanel')?.classList.toggle('expanded');
     });
-
-    // Clean Screen / Minimal HUD Toggle for decluttering and small screens
-    const hudCleanToggleBtn = document.getElementById('hudCleanToggleBtn');
-    const updateHudCleanState = (minimal: boolean) => {
-      document.body.classList.toggle('hud-minimal-mode', minimal);
-      if (hudCleanToggleBtn) {
-        hudCleanToggleBtn.classList.toggle('active', minimal);
-        hudCleanToggleBtn.setAttribute('title', minimal ? 'Show Full HUD (Tap to expand)' : 'Clean HUD / Minimal Mode');
-        hudCleanToggleBtn.setAttribute('aria-pressed', minimal ? 'true' : 'false');
-      }
-    };
-    const initialMinimal = localStorage.getItem('chale_hud_minimal') === 'true';
-    updateHudCleanState(initialMinimal);
-    hudCleanToggleBtn?.addEventListener('click', () => {
-      const nextMinimal = !document.body.classList.contains('hud-minimal-mode');
-      localStorage.setItem('chale_hud_minimal', nextMinimal ? 'true' : 'false');
-      updateHudCleanState(nextMinimal);
-      showInteractionFeedback(nextMinimal ? 'Minimal HUD Active' : 'Full HUD Restored');
+    document.getElementById('walletDiagOpenFullBtn')?.addEventListener('click', () => {
+      openEconomyModal('wallet');
     });
-
-    // Street-tied Recovery Action (Fresh Coconut: +15 Hunger, +20 Energy for ₵5)
-    document.getElementById('placeRecoveryBtn')?.addEventListener('click', () => {
-      if (!economyManager.canAfford(5, 'CASH')) {
-        showInteractionFeedback('Need ₵5 for fresh coconut.', true);
-        return;
-      }
-      economyManager.wallet.spendMoney({
-        amount: 5,
-        category: 'FOOD',
-        description: 'Fresh Street Coconut',
-        channel: 'CASH'
-      });
-      const meal = needsSystem.eatMeal('Fresh Coconut', 15, 20);
-      showInteractionFeedback(meal.message, !meal.success);
-      syncEconomyHUD();
-    });
-
     modalCloseBtn?.addEventListener('click', () => closeEconomyModal());
     economyModalBackdrop?.addEventListener('click', (e) => {
       if (e.target === economyModalBackdrop) closeEconomyModal();
@@ -1519,7 +1566,7 @@ function startGame(profile: OnboardingResult): void {
       let stickActive = false;
       let centerX = 0;
       let centerY = 0;
-      let maxR = 36;
+      const maxR = 36;
       const updateStick = (cx: number, cy: number) => {
         const dx = cx - centerX;
         const dy = cy - centerY;
@@ -1541,7 +1588,6 @@ function startGame(profile: OnboardingResult): void {
         const r = joystickZone.getBoundingClientRect();
         centerX = r.left + r.width / 2;
         centerY = r.top + r.height / 2;
-        maxR = Math.max(20, Math.round(r.width * 0.38));
         joystickZone.setPointerCapture(e.pointerId);
         updateStick(e.clientX, e.clientY);
       });

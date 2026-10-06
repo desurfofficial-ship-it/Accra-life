@@ -242,8 +242,13 @@ function createDynamicHouseShell(
   backWinGlass.position.set(roomW * 0.18, 1.9, northWallZ - wallT / 2 - 0.02);
   shellGroup.add(poster, posterHeader, backWinFrame, backWinGlass);
 
-  // Built-in Starter & Tier-Specific Interior Fixtures so the 14 m² room and upgrades feel alive!
-  buildBuiltInTierInterior(shellGroup, tier.id, roomW, roomD, southWallZ, northWallZ, wallT);
+  // NOTE: buildBuiltInTierInterior() is intentionally NOT called. Per the
+  // housing spec (section 2): "The starter room must contain: ZERO beds,
+  // ZERO chairs, ZERO tables, ZERO sofas, ZERO TV, ZERO refrigerator,
+  // ZERO cooker, ZERO wardrobe, etc." The player buys + places their own
+  // furniture via the Home Store + PlacementEngine. The structural shell
+  // (walls, floor, door, windows, roof, poster, baseboard) is built above
+  // in createDynamicHouseShell — only the furniture fixtures are skipped.
 
   // Doorway gap (1.42m on 14 m² starter room, 1.62m on larger tiers)
   const doorGap = tier.level === 1 ? 1.42 : 1.62;
