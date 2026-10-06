@@ -7,6 +7,28 @@ export type CharacterArchetypeId =
   | 'NPC_FEMALE_001'
   | 'NPC_OLDER_001';
 
+export type PlayerSkinPreset = 'deep' | 'rich' | 'warm' | 'light';
+export type PlayerHairPreset = 'fade' | 'twists' | 'bun' | 'short';
+
+export interface PlayerLookOptions {
+  skin?: PlayerSkinPreset;
+  hair?: PlayerHairPreset;
+}
+
+const SKIN_HEX: Record<PlayerSkinPreset, number> = {
+  deep: 0x3d2314,
+  rich: 0x6b3e26,
+  warm: 0x8b5a2b,
+  light: 0xc4a574
+};
+
+const HAIR_STYLE: Record<PlayerHairPreset, ArchetypeVisualSpec['hairStyle']> = {
+  fade: 'block_fade',
+  twists: 'block_twists',
+  bun: 'block_bun',
+  short: 'block_fade'
+};
+
 export interface CharacterRig {
   readonly assetId: CharacterArchetypeId;
   readonly root: THREE.Group;
@@ -46,11 +68,6 @@ interface ArchetypeVisualSpec {
   hasBeard?: boolean;
 }
 
-/**
- * Middle-ground stylized blocky geometry.
- * Head-to-body ≈ 1:5, medium human eyes, chunky but human limbs.
- * Feels like a second life in Accra — not a toy.
- */
 interface SharedBlockyGeometries {
   shadowDisc: THREE.CircleGeometry;
   torsoBox: THREE.BoxGeometry;
@@ -73,28 +90,23 @@ let cachedBlockyGeos: SharedBlockyGeometries | null = null;
 
 function getSharedBlockyGeometries(): SharedBlockyGeometries {
   if (!cachedBlockyGeos) {
-    const shadowDisc = new THREE.CircleGeometry(0.40, 16);
+    const shadowDisc = new THREE.CircleGeometry(0.4, 16);
     shadowDisc.rotateX(-Math.PI / 2);
-
     cachedBlockyGeos = {
       shadowDisc,
-      // Torso — solid, readable
-      torsoBox: new THREE.BoxGeometry(0.40, 0.46, 0.24),
-      pelvisBox: new THREE.BoxGeometry(0.38, 0.20, 0.22),
-      // Head — slightly larger than realistic (1:5), not Roblox-huge
-      headBox: new THREE.BoxGeometry(0.30, 0.30, 0.30),
+      torsoBox: new THREE.BoxGeometry(0.4, 0.46, 0.24),
+      pelvisBox: new THREE.BoxGeometry(0.38, 0.2, 0.22),
+      headBox: new THREE.BoxGeometry(0.3, 0.3, 0.3),
       neckBox: new THREE.BoxGeometry(0.12, 0.09, 0.12),
-      // Chunky but human limbs
       upperArm: new THREE.BoxGeometry(0.12, 0.26, 0.12),
       lowerArm: new THREE.BoxGeometry(0.11, 0.24, 0.11),
-      hand: new THREE.BoxGeometry(0.10, 0.10, 0.10),
+      hand: new THREE.BoxGeometry(0.1, 0.1, 0.1),
       thigh: new THREE.BoxGeometry(0.14, 0.32, 0.14),
-      calf: new THREE.BoxGeometry(0.13, 0.30, 0.13),
-      foot: new THREE.BoxGeometry(0.13, 0.07, 0.20),
-      // Medium human eyes (not giant)
-      eyeWhite: new THREE.SphereGeometry(0.030, 10, 8),
+      calf: new THREE.BoxGeometry(0.13, 0.3, 0.13),
+      foot: new THREE.BoxGeometry(0.13, 0.07, 0.2),
+      eyeWhite: new THREE.SphereGeometry(0.03, 10, 8),
       pupil: new THREE.SphereGeometry(0.016, 8, 6),
-      hairBlock: new THREE.BoxGeometry(0.32, 0.10, 0.32),
+      hairBlock: new THREE.BoxGeometry(0.32, 0.1, 0.32),
       ear: new THREE.BoxGeometry(0.05, 0.08, 0.035)
     };
   }
@@ -109,7 +121,7 @@ function getArchetypeSpec(id: CharacterArchetypeId): ArchetypeVisualSpec {
         hairHex: 0x1c1917,
         trouserHex: 0x1e293b,
         shoeHex: 0xf8fafc,
-        heightScale: 1.0,
+        heightScale: 1,
         shirtColor: 0xf59e0b,
         accentColor: 0x059669,
         hairStyle: 'block_fade',
@@ -156,12 +168,38 @@ function getArchetypeSpec(id: CharacterArchetypeId): ArchetypeVisualSpec {
   }
 }
 
+function applyLookOverrides(
+  spec: ArchetypeVisualSpec,
+  look?: PlayerLookOptions
+): ArchetypeVisualSpec {
+  if (!look) return spec;
+  const next = { ...spec };
+  if (look.skin && SKIN_HEX[look.skin] !== undefined) {
+    next.skinHex = SKIN_HEX[look.skin];
+  }
+  if (look.hair && HAIR_STYLE[look.hair]) {
+    next.hairStyle = HAIR_STYLE[look.hair];
+    // Short = low sides, almost no height — reuse fade with thinner top later if needed
+  }
+  return next;
+}
+
 function buildBlockyHair(
   head: THREE.Group,
   spec: ArchetypeVisualSpec,
   hairMat: THREE.MeshStandardMaterial,
-  geos: SharedBlockyGeometries
+  geos: SharedBlockyGeometries,
+  shortCut = false
 ): void {
+  if (shortCut) {
+    // Low fade / short crop
+    const top = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.05, 0.28), hairMat);
+    top.position.y = 0.15;
+    top.castShadow = true;
+    head.add(top);
+    return;
+  }
+
   const hairTop = new THREE.Mesh(geos.hairBlock, hairMat);
   hairTop.position.y = 0.17;
   hairTop.castShadow = true;
@@ -197,7 +235,7 @@ function buildBlockyHair(
   }
 
   if (spec.hasBeard) {
-    const beard = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.10, 0.10), hairMat);
+    const beard = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.1, 0.1), hairMat);
     beard.position.set(0, -0.14, 0.14);
     head.add(beard);
   }
@@ -246,7 +284,7 @@ function buildBlockyLeg(
 ): { hip: THREE.Group; knee: THREE.Group } {
   const hip = new THREE.Group();
   hip.name = side < 0 ? 'LeftHip' : 'RightHip';
-  hip.position.set(side * 0.11, -0.10, 0);
+  hip.position.set(side * 0.11, -0.1, 0);
 
   const thighMat = isSkirt ? skinMat : trouserMat;
   const thigh = new THREE.Mesh(geos.thigh, thighMat);
@@ -274,13 +312,16 @@ function buildBlockyLeg(
 
 /**
  * Middle-ground stylized blocky Ghanaian character.
- * Feels like a second life in Accra — simplified, readable, human.
+ * Optional look overrides from onboarding (skin + hair).
  */
 export function buildStylizedGhanaianCharacter(
-  archetypeId: CharacterArchetypeId
+  archetypeId: CharacterArchetypeId,
+  look?: PlayerLookOptions
 ): CharacterRig {
-  const spec = getArchetypeSpec(archetypeId);
+  const base = getArchetypeSpec(archetypeId);
+  const spec = applyLookOverrides(base, look);
   const geos = getSharedBlockyGeometries();
+  const shortCut = look?.hair === 'short';
 
   const root = new THREE.Group();
   root.name = archetypeId;
@@ -310,7 +351,6 @@ export function buildStylizedGhanaianCharacter(
     roughness: 0.5
   });
 
-  // Contact shadow
   const shadowMat = sharedArtLibrary.getBasicMaterial('char_contact_shadow', {
     color: 0x0f172a,
     transparent: true,
@@ -323,7 +363,6 @@ export function buildStylizedGhanaianCharacter(
   shadowDisc.position.y = 0.01;
   root.add(shadowDisc);
 
-  // PELVIS
   const pelvis = new THREE.Group();
   pelvis.name = 'Pelvis';
   pelvis.position.set(0, 0.88, 0);
@@ -334,7 +373,6 @@ export function buildStylizedGhanaianCharacter(
   pelvisMesh.receiveShadow = true;
   pelvis.add(pelvisMesh);
 
-  // TORSO
   const torso = new THREE.Group();
   torso.name = 'Torso';
   torso.position.set(0, 0.23, 0);
@@ -345,7 +383,6 @@ export function buildStylizedGhanaianCharacter(
   torsoMesh.receiveShadow = true;
   torso.add(torsoMesh);
 
-  // Ghanaian accent stripe
   const accentMat = sharedArtLibrary.getMaterial(`accent_${spec.accentColor}`, {
     color: spec.accentColor,
     roughness: 0.5
@@ -361,7 +398,6 @@ export function buildStylizedGhanaianCharacter(
     pelvis.add(skirt);
   }
 
-  // NECK + HEAD
   const neck = new THREE.Group();
   neck.name = 'Neck';
   neck.position.set(0, 0.27, 0);
@@ -373,14 +409,13 @@ export function buildStylizedGhanaianCharacter(
 
   const head = new THREE.Group();
   head.name = 'Head';
-  head.position.set(0, 0.20, 0);
+  head.position.set(0, 0.2, 0);
   neck.add(head);
 
   const headMesh = new THREE.Mesh(geos.headBox, skinMat);
   headMesh.castShadow = true;
   head.add(headMesh);
 
-  // Medium human eyes (not giant)
   const eyeWhiteMat = sharedArtLibrary.getMaterial('eye_white', {
     color: 0xf8fafc,
     roughness: 0.35
@@ -394,29 +429,25 @@ export function buildStylizedGhanaianCharacter(
     const eyeWhite = new THREE.Mesh(geos.eyeWhite, eyeWhiteMat);
     eyeWhite.position.set(side * 0.075, 0.03, 0.155);
     head.add(eyeWhite);
-
     const pupil = new THREE.Mesh(geos.pupil, pupilMat);
     pupil.position.set(side * 0.075, 0.03, 0.175);
     head.add(pupil);
   }
 
-  // Simple human mouth
   const mouthMat = sharedArtLibrary.getMaterial('mouth', {
     color: 0x3f1f0f,
     roughness: 0.6
   });
-  const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.025, 0.03), mouthMat);
+  const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.025, 0.03), mouthMat);
   mouth.position.set(0, -0.07, 0.155);
   head.add(mouth);
 
-  // Ears
   for (const side of [-1, 1]) {
     const ear = new THREE.Mesh(geos.ear, skinMat);
     ear.position.set(side * 0.165, 0.015, 0);
     head.add(ear);
   }
 
-  // Earrings
   if (spec.hasEarrings) {
     const earringMat = sharedArtLibrary.getMaterial('gold_earring', {
       color: 0xf59e0b,
@@ -430,20 +461,17 @@ export function buildStylizedGhanaianCharacter(
     }
   }
 
-  buildBlockyHair(head, spec, hairMat, geos);
+  buildBlockyHair(head, spec, hairMat, geos, shortCut);
 
-  // ARMS
   const { shoulder: leftShoulder, elbow: leftElbow } = buildBlockyArm(-1, geos, skinMat, shirtMat);
   const { shoulder: rightShoulder, elbow: rightElbow } = buildBlockyArm(1, geos, skinMat, shirtMat);
   torso.add(leftShoulder, rightShoulder);
 
-  // LEGS
   const isSkirt = spec.garmentCut === 'block_skirt';
   const { hip: leftHip, knee: leftKnee } = buildBlockyLeg(-1, geos, skinMat, trouserMat, shoeMat, isSkirt);
   const { hip: rightHip, knee: rightKnee } = buildBlockyLeg(1, geos, skinMat, trouserMat, shoeMat, isSkirt);
   pelvis.add(leftHip, rightHip);
 
-  // ANIMATION
   let animClock = 0;
   let idleClock = 0;
   let walkBlend = 0;
@@ -458,28 +486,24 @@ export function buildStylizedGhanaianCharacter(
     moveSpeedRatio = 1
   ): void => {
     const smoothRate = 1 - Math.exp(-dt * 12);
-    const targetWalk = isMoving ? THREE.MathUtils.clamp(moveSpeedRatio, 0.25, 1.0) : 0;
+    const targetWalk = isMoving ? THREE.MathUtils.clamp(moveSpeedRatio, 0.25, 1) : 0;
     const targetSprint = isMoving && isSprinting ? 1 : 0;
 
     walkBlend = THREE.MathUtils.lerp(walkBlend, targetWalk, smoothRate);
     sprintBlend = THREE.MathUtils.lerp(sprintBlend, targetSprint, smoothRate);
 
-    const cadence = THREE.MathUtils.lerp(7.5, 11.0, sprintBlend);
-    if (walkBlend > 0.01) {
-      animClock += dt * cadence * Math.max(0.55, walkBlend);
-    }
+    const cadence = THREE.MathUtils.lerp(7.5, 11, sprintBlend);
+    if (walkBlend > 0.01) animClock += dt * cadence * Math.max(0.55, walkBlend);
     idleClock += dt * 1.8;
 
     const phase = animClock + phaseOffset;
     const sinP = Math.sin(phase);
     const cosP = Math.cos(phase);
 
-    // Idle breathing
     const breath = Math.sin(idleClock) * 0.007 * (1 - walkBlend);
     torso.position.y = 0.23 + breath;
     head.rotation.y = Math.sin(idleClock * 0.4) * 0.04 * (1 - walkBlend);
 
-    // Legs
     const legAmp = THREE.MathUtils.lerp(0.42, 0.68, sprintBlend) * walkBlend;
     leftHip.rotation.x = -sinP * legAmp;
     rightHip.rotation.x = sinP * legAmp;
@@ -488,12 +512,10 @@ export function buildStylizedGhanaianCharacter(
     leftKnee.rotation.x = Math.max(0, cosP) * maxKnee;
     rightKnee.rotation.x = Math.max(0, -cosP) * maxKnee;
 
-    // Arms
     const armAmp = THREE.MathUtils.lerp(0.32, 0.52, sprintBlend) * walkBlend;
     leftShoulder.rotation.x = sinP * armAmp;
     rightShoulder.rotation.x = -sinP * armAmp;
 
-    // Elbow
     const elbowBase = THREE.MathUtils.lerp(-0.22, -0.85, sprintBlend) * walkBlend - 0.12;
     leftElbow.rotation.x = elbowBase - (-sinP) * 0.14 * walkBlend;
     rightElbow.rotation.x = elbowBase - sinP * 0.14 * walkBlend;
