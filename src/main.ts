@@ -178,10 +178,14 @@ function getActiveObjectiveInfo(): {
 
 function syncNeedsHUD(): void {
   const state = needsSystem.getState();
-  const hBar = document.getElementById('needHungerBar');
-  const eBar = document.getElementById('needEnergyBar');
-  const hVal = document.getElementById('needHungerVal');
-  const eVal = document.getElementById('needEnergyVal');
+  const hBar =
+    document.getElementById('needHungerBar') || document.getElementById('hungerFill');
+  const eBar =
+    document.getElementById('needEnergyBar') || document.getElementById('energyFill');
+  const hVal =
+    document.getElementById('needHungerVal') || document.getElementById('hungerVal');
+  const eVal =
+    document.getElementById('needEnergyVal') || document.getElementById('energyVal');
   if (hBar) {
     hBar.style.width = `${Math.round(state.hunger)}%`;
     hBar.classList.toggle('low', state.hunger < 25);
@@ -237,17 +241,44 @@ function syncEconomyHUD(): void {
     else if (status === 'WANTED') heatStatusPillEl.classList.add('wanted');
     else if (status === 'ARRESTED') heatStatusPillEl.classList.add('arrested');
     heatStatusTextEl.textContent =
-      status === 'CLEAN' || status === 'NORMAL' ? 'Clean' : `${status} (${Math.round(heat)}%)`;
+      status === 'CLEAN' || status === 'NORMAL'
+        ? '◆ CLEAN'
+        : `◆ ${status} (${Math.round(heat)}%)`;
   }
   const obj = getActiveObjectiveInfo();
-  if (activeObjectiveBannerEl && objTagEl && objTitleEl) {
+  if (activeObjectiveBannerEl) {
     if (obj) {
+      activeObjectiveBannerEl.style.display = 'block';
       activeObjectiveBannerEl.classList.add('visible');
       activeObjectiveBannerEl.classList.toggle('risky', obj.isRisky);
-      objTagEl.textContent = obj.tag;
-      objTitleEl.textContent = obj.title;
-      if (objDescEl) objDescEl.textContent = obj.instruction;
+      if (objTagEl && objTitleEl) {
+        objTagEl.textContent = obj.tag;
+        objTitleEl.textContent = obj.title;
+        if (objDescEl) objDescEl.textContent = obj.instruction;
+      } else {
+        activeObjectiveBannerEl.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+            <span style="font-size:.65rem;font-weight:900;color:${
+              obj.isRisky ? 'var(--gta-red)' : 'var(--gta-green)'
+            };text-transform:uppercase">${obj.tag}</span>
+            <button id="inlineCancelObjBtn" type="button" style="background:none;border:1px solid #ffffff33;color:#ccc;font-size:.6rem;padding:1px 5px;cursor:pointer">Cancel</button>
+          </div>
+          <div style="font-size:.8rem;font-weight:900;margin-top:2px">${obj.title}</div>
+          <div style="font-size:.68rem;color:#9a9a9a;margin-top:2px">${obj.instruction}</div>
+        `;
+        activeObjectiveBannerEl
+          .querySelector('#inlineCancelObjBtn')
+          ?.addEventListener('click', () => {
+            if (crimeSystem.getActiveIllegalHustle()) {
+              showInteractionFeedback(crimeSystem.cancelActiveIllegalHustle());
+            } else {
+              showInteractionFeedback(jobSystem.cancelActiveWork());
+            }
+            syncEconomyHUD();
+          });
+      }
     } else {
+      activeObjectiveBannerEl.style.display = 'none';
       activeObjectiveBannerEl.classList.remove('visible', 'risky');
     }
   }
@@ -362,13 +393,21 @@ function updateLiveJobModalCooldowns(): void {
 }
 
 function renderModalTabContent(): void {
-  if (!modalBodyContent || !modalHeaderTitle || !modalHeaderSub) return;
+  if (!modalBodyContent || !modalHeaderTitle) return;
   modalBodyContent.innerHTML = '';
   const cash = economyManager.wallet.getCashBalance();
   const needs = needsSystem.getState();
   const traitLabel = TRAIT_DEFS[playerTrait]?.label ?? playerTrait;
-  modalHeaderTitle.textContent = `Jobs · ${formatGHS(cash)}`;
-  modalHeaderSub.textContent = `Energy ${Math.round(needs.energy)} · Hunger ${Math.round(needs.hunger)} · Trait: ${traitLabel}`;
+  modalHeaderTitle.textContent = `Accra Hub · ${formatGHS(cash)}`;
+  if (modalHeaderSub) {
+    modalHeaderSub.textContent = `Energy ${Math.round(needs.energy)} · Hunger ${Math.round(needs.hunger)} · Trait: ${traitLabel}`;
+  } else {
+    const statusStrip = document.createElement('div');
+    statusStrip.style.cssText =
+      'font-size:0.68rem;color:#9a9a9a;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,0.08)';
+    statusStrip.textContent = `Energy ${Math.round(needs.energy)} · Hunger ${Math.round(needs.hunger)} · Trait: ${traitLabel}`;
+    modalBodyContent.appendChild(statusStrip);
+  }
 
   if (currentModalTab === 'jobs') {
     const activeJob = jobSystem.getActiveJob();
@@ -687,10 +726,38 @@ function renderModalTabContent(): void {
 function openHomeSheet(): void {
   const backdrop = document.getElementById('homeModalBackdrop');
   const flexEl = document.getElementById('homeFlexScore');
-  const list = document.getElementById('homeFurnList');
+  const list =
+    document.getElementById('homeFurnList') || document.getElementById('furnGrid');
   if (flexEl) flexEl.textContent = `Flex ${homeSystem.getFlexScore()} · ${homeSystem.getFlexLabel()}`;
   if (list) {
     list.innerHTML = '';
+    if (!document.getElementById('homeRestBtn')) {
+      const actionsRow = document.createElement('div');
+      actionsRow.style.cssText = 'display:flex;gap:8px;margin-bottom:8px';
+      actionsRow.innerHTML = `
+        <button id="inlineHomeRestBtn" class="econ-action-btn" type="button" style="flex:1">Rest (+Energy)</button>
+        <button id="inlineHomeShareBtn" class="econ-action-btn" type="button" style="flex:1;background:#222;color:#fff;border-color:#555">Share Flex</button>
+      `;
+      actionsRow.querySelector('#inlineHomeRestBtn')?.addEventListener('click', () => {
+        const bedBonus = homeSystem.owns('bed') ? 20 : 0;
+        const rest = needsSystem.sleep(bedBonus);
+        showInteractionFeedback(
+          rest.success ? (bedBonus ? '+Energy (bed)' : '+Energy') : rest.message,
+          !rest.success
+        );
+        syncEconomyHUD();
+      });
+      actionsRow.querySelector('#inlineHomeShareBtn')?.addEventListener('click', async () => {
+        const line = homeSystem.getFlexShareLine(playerDisplayName);
+        try {
+          await navigator.clipboard.writeText(line);
+          showInteractionFeedback('Copied');
+        } catch {
+          showInteractionFeedback(line);
+        }
+      });
+      list.appendChild(actionsRow);
+    }
     for (const item of FURNITURE_CATALOG) {
       const owned = homeSystem.owns(item.id);
       const row = document.createElement('div');
