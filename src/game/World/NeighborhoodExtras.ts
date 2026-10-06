@@ -643,29 +643,54 @@ function buildBillboardGantry(scene: THREE.Scene, colliders: ColliderBox[]): voi
   frame.castShadow = true;
   group.add(frame);
 
-  // Real branded ad creative via the existing signboard texture helper.
-  // MTN yellow (#ffcc00) + MTN blue (#003c71) — instantly recognizable.
-  const adTex = sharedArtLibrary.getSignboardTexture(
-    'billboard_mtn_ad',
-    '#ffcc00',         // bg: MTN yellow
-    '#003c71',         // border/text accent: MTN blue
-    'MTN',             // title
-    'Everywhere You Go' // subtitle
-  );
-  const matAd = sharedArtLibrary.getBasicMaterial('billboard_ad_mtn', { map: adTex });
+  // High-resolution branded billboards for both directions:
+  // East-facing panel (traffic looking East): MTN MoMo Everywhere You Go
+  const adTexEast = sharedArtLibrary.getBillboardTexture('mtn_ad_v3', 'mtn');
+  const matAdEast = sharedArtLibrary.getBasicMaterial('billboard_ad_mtn_v3', {
+    map: adTexEast,
+    side: THREE.DoubleSide
+  });
 
-  // Two ad panels — one facing +X (eastbound traffic), one facing -X (westbound)
-  const panelE = new THREE.Mesh(new THREE.PlaneGeometry(panelW, panelH), matAd);
-  panelE.position.set(0.18, panelY, 0);
-  // Default PlaneGeometry faces +Z; rotate -90° around Y to face +X (east)
-  panelE.rotation.y = -Math.PI / 2;
+  // West-facing panel (traffic looking West): Telecel Ghana
+  const adTexWest = sharedArtLibrary.getBillboardTexture('telecel_ad_v3', 'telecel');
+  const matAdWest = sharedArtLibrary.getBasicMaterial('billboard_ad_telecel_v3', {
+    map: adTexWest,
+    side: THREE.DoubleSide
+  });
+
+  // Two ad panels — one facing +X (eastbound traffic), one facing -X (westbound traffic)
+  // Default PlaneGeometry normal is +Z.
+  // Rotating +90° (+Math.PI / 2) around Y points the front face normal to +X (East).
+  const panelE = new THREE.Mesh(new THREE.PlaneGeometry(panelW, panelH), matAdEast);
+  panelE.position.set(0.20, panelY, 0);
+  panelE.rotation.y = Math.PI / 2;
   group.add(panelE);
 
-  const panelW_face = new THREE.Mesh(new THREE.PlaneGeometry(panelW, panelH), matAd);
-  panelW_face.position.set(-0.18, panelY, 0);
-  // Rotate +90° around Y to face -X (west)
-  panelW_face.rotation.y = Math.PI / 2;
+  // Rotating -90° (-Math.PI / 2) around Y points the front face normal to -X (West).
+  const panelW_face = new THREE.Mesh(new THREE.PlaneGeometry(panelW, panelH), matAdWest);
+  panelW_face.position.set(-0.20, panelY, 0);
+  panelW_face.rotation.y = -Math.PI / 2;
   group.add(panelW_face);
+
+  // Overhead catwalk & floodlight spotlights along top of the billboard
+  const catwalk = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.08, panelW + 0.2), matSteel);
+  catwalk.position.set(0, panelY - panelH / 2 - 0.1, 0);
+  group.add(catwalk);
+
+  const matLamp = sharedArtLibrary.getMaterial('billboard_lamp_housing', { color: 0x1e293b, roughness: 0.5 });
+  const matGlow = sharedArtLibrary.getBasicMaterial('billboard_lamp_glow', { color: 0xfffbeb });
+  for (const dir of [-1, 1]) {
+    for (let lz = -3.0; lz <= 3.0; lz += 2.0) {
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.05, 0.05), matSteel);
+      arm.position.set(dir * 0.35, panelY + panelH / 2 + 0.18, lz);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.1, 0.22), matLamp);
+      head.position.set(dir * 0.52, panelY + panelH / 2 + 0.14, lz);
+      head.rotation.z = dir * 0.35;
+      const bulb = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, 0.18), matGlow);
+      bulb.position.set(dir * 0.5, panelY + panelH / 2 + 0.12, lz);
+      group.add(arm, head, bulb);
+    }
+  }
 
   scene.add(group);
 

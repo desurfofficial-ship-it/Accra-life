@@ -611,6 +611,189 @@ class SharedArtLibrary {
     });
   }
 
+  public getBillboardTexture(
+    key: string,
+    variant: 'mtn' | 'telecel'
+  ): THREE.CanvasTexture {
+    return this.getOrCreateTexture(`billboard_${key}`, 1024, 320, (ctx) => {
+      const w = 1024;
+      const h = 320;
+
+      if (variant === 'mtn') {
+        // High-fidelity iconic MTN Ghana Highway Billboard (Yellow & Deep Blue)
+        const grad = ctx.createLinearGradient(0, 0, w, h);
+        grad.addColorStop(0, '#ffcc00');
+        grad.addColorStop(0.5, '#ffd214');
+        grad.addColorStop(1, '#f59e0b');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+
+        // Modern geometric pattern stripes in background
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
+        for (let i = -100; i < w + 200; i += 48) {
+          ctx.beginPath();
+          ctx.moveTo(i, 0);
+          ctx.lineTo(i + 24, 0);
+          ctx.lineTo(i - 36, h);
+          ctx.lineTo(i - 60, h);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        // Dark blue framing border
+        ctx.strokeStyle = '#00264d';
+        ctx.lineWidth = 14;
+        ctx.strokeRect(7, 7, w - 14, h - 14);
+
+        // Left Brand Oval / Rounded Badge
+        ctx.fillStyle = '#003366';
+        ctx.beginPath();
+        ctx.roundRect(42, 44, 210, 110, 24);
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        ctx.fillStyle = '#ffcc00';
+        ctx.font = '900 68px "Outfit", system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('MTN', 147, 98);
+
+        // Sub-badge under logo
+        ctx.fillStyle = '#00264d';
+        ctx.font = '800 20px "Plus Jakarta Sans", system-ui, sans-serif';
+        ctx.fillText('EVERYWHERE YOU GO', 147, 185);
+
+        // Main Headline: "MTN Mobile Money"
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#00264d';
+        ctx.font = '900 58px "Outfit", system-ui, sans-serif';
+        ctx.fillText('MTN Mobile Money', 290, 85);
+
+        // Slogan / Campaign
+        ctx.fillStyle = '#1e3a8a';
+        ctx.font = '800 32px "Plus Jakarta Sans", system-ui, sans-serif';
+        ctx.fillText('Send Money · Pay Bills · Cash Anywhere', 290, 138);
+
+        // Pill Call to Action: Dial *170#
+        ctx.fillStyle = '#00264d';
+        ctx.beginPath();
+        ctx.roundRect(290, 180, 260, 64, 16);
+        ctx.fill();
+
+        ctx.fillStyle = '#fde047';
+        ctx.font = '900 34px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('DIAL *170#', 420, 214);
+
+        // 5G Network Badge
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.roundRect(580, 180, 390, 64, 16);
+        ctx.fill();
+        ctx.strokeStyle = '#003366';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        ctx.fillStyle = '#003366';
+        ctx.font = '800 26px "Plus Jakarta Sans", system-ui, sans-serif';
+        ctx.fillText('⚡ GHANA’S 4G+ / 5G LEADER', 775, 214);
+
+        // Bottom disclaimer strip
+        ctx.fillStyle = 'rgba(0, 38, 77, 0.88)';
+        ctx.fillRect(14, h - 42, w - 28, 28);
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = '700 15px "Plus Jakarta Sans", system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('OFFICIAL TELECOM PARTNER · OXFORD STREET, OSU · ACCRA', w / 2, h - 26);
+      } else {
+        // High-fidelity Telecel Ghana Billboard (Crimson & White)
+        const grad = ctx.createLinearGradient(0, 0, w, h);
+        grad.addColorStop(0, '#e11d48');
+        grad.addColorStop(0.5, '#dc2626');
+        grad.addColorStop(1, '#991b1b');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+
+        // Diagonal accent lines
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+        for (let i = -80; i < w + 200; i += 60) {
+          ctx.beginPath();
+          ctx.moveTo(i, 0);
+          ctx.lineTo(i + 32, 0);
+          ctx.lineTo(i - 48, h);
+          ctx.lineTo(i - 80, h);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        // White border
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 14;
+        ctx.strokeRect(7, 7, w - 14, h - 14);
+
+        // Telecel Brand Badge
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.roundRect(42, 44, 230, 110, 24);
+        ctx.fill();
+
+        ctx.fillStyle = '#dc2626';
+        ctx.font = '900 52px "Outfit", system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('telecel', 157, 98);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '800 19px "Plus Jakarta Sans", system-ui, sans-serif';
+        ctx.fillText('CONNECTING MORE', 157, 185);
+
+        // Headline
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '900 56px "Outfit", system-ui, sans-serif';
+        ctx.fillText('More Speed. More Life.', 300, 85);
+
+        ctx.fillStyle = '#fecdd3';
+        ctx.font = '800 30px "Plus Jakarta Sans", system-ui, sans-serif';
+        ctx.fillText('Unlimited Fibre Home & Superfast Mobile Data', 300, 138);
+
+        // Telecel Cash CTA
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.roundRect(300, 180, 260, 64, 16);
+        ctx.fill();
+
+        ctx.fillStyle = '#dc2626';
+        ctx.font = '900 34px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('DIAL *110#', 430, 214);
+
+        // Zero Fees Badge
+        ctx.fillStyle = '#1e293b';
+        ctx.beginPath();
+        ctx.roundRect(590, 180, 380, 64, 16);
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = '800 24px "Plus Jakarta Sans", system-ui, sans-serif';
+        ctx.fillText('0% FEES ON ALL TRANSFERS', 780, 214);
+
+        // Bottom strip
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+        ctx.fillRect(14, h - 42, w - 28, 28);
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = '700 15px "Plus Jakarta Sans", system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('TELECEL CASH · GHANA’S TRUSTED MONEY NETWORK · OXFORD STREET', w / 2, h - 26);
+      }
+    });
+  }
+
   private getOrCreateTexture(
     key: string,
     width: number,

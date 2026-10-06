@@ -178,6 +178,11 @@ export class ThirdPersonCamera {
     const dirY = Math.sin(this.pitch);
     const dirZ = Math.cos(this.yaw) * Math.cos(this.pitch);
 
+    const isInsideCompoundRoom = isPlayerInCompoundCutaway();
+    const effectiveMaxDist = isInsideCompoundRoom
+      ? Math.min(this.distance, 6.4)
+      : this.distance;
+
     const unobstructedDist = this.computeSafeCameraDistance(
       this.currentLookTarget.x,
       this.currentLookTarget.y,
@@ -185,7 +190,7 @@ export class ThirdPersonCamera {
       dirX,
       dirY,
       dirZ,
-      this.distance,
+      effectiveMaxDist,
       colliders
     );
 
@@ -238,12 +243,9 @@ export class ThirdPersonCamera {
     for (let i = 0; i < colliders.length; i++) {
       const box = colliders[i];
       if (isInsideCompoundRoom) {
-        // In cutaway view, ignore front room walls and outer front walls to allow clean cutaway camera
-        if (
-          box.id === 'ACC_HOUSE_001_WALL_S_L' ||
-          box.id === 'ACC_HOUSE_001_WALL_S_R' ||
-          (dz < 0 && (box.id === 'ACC_HOUSE_001_WALL_L' || box.id === 'ACC_HOUSE_001_WALL_R'))
-        ) {
+        // In cutaway view, ignore all compound/house walls so the cutaway camera
+        // never rapidly collapses distance or jitters against interior walls or perimeter fences.
+        if (box.id.startsWith('ACC_HOUSE_001_')) {
           continue;
         }
       }

@@ -1160,9 +1160,15 @@ function renderHomeStoreBody(): void {
       const res = homeSystem.buy(
         id,
         (c) => economyManager.canAfford(c, 'CASH'),
-        (c, title) => economyManager.wallet.spendMoney({
-          amount: c, category: 'PURCHASE', description: title, channel: 'CASH'
-        })
+        (c, title) =>
+          Boolean(
+            economyManager.wallet.spendMoney({
+              amount: c,
+              category: 'PURCHASE',
+              description: title,
+              channel: 'CASH'
+            })
+          )
       );
       showInteractionFeedback(res.message, !res.success);
       if (res.success) {

@@ -38,6 +38,7 @@ export class Phase1Scene {
   private clock = new THREE.Clock();
   private callbacks: Phase1Callbacks;
   private usingFallback = false;
+  private sunLight: THREE.DirectionalLight | null = null;
 
   constructor(container: HTMLElement, callbacks: Phase1Callbacks, options?: Phase1Options) {
     this.container = container;
@@ -168,7 +169,9 @@ export class Phase1Scene {
     sunLight.shadow.camera.bottom = -d;
     sunLight.shadow.bias = 0.0002;
     sunLight.shadow.normalBias = 0.02;
+    this.sunLight = sunLight;
     this.scene.add(sunLight);
+    this.scene.add(sunLight.target);
 
     const rimLight = new THREE.DirectionalLight(0xe0f2fe, 0.45);
     rimLight.position.set(-14, 14, -16);
@@ -182,6 +185,12 @@ export class Phase1Scene {
 
     this.player.update(dt, this.thirdPersonCamera.yaw, this.colliders);
     updatePlayerCompoundCutaway(this.player.position);
+
+    if (this.sunLight) {
+      this.sunLight.position.set(this.player.position.x + 18, 28, this.player.position.z + 20);
+      this.sunLight.target.position.set(this.player.position.x, 0, this.player.position.z);
+      this.sunLight.target.updateMatrixWorld();
+    }
 
     for (let i = 0; i < this.npcRigs.length; i++) {
       this.npcRigs[i].updateAnimation(dt, false, false, i * 1.8);
