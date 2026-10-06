@@ -19,6 +19,8 @@ import {
 } from './game/Jobs/JobRegistry';
 import { InteractableTarget } from './game/Player/InteractionSystem';
 import { NeedsSystem } from './game/Needs/NeedsSystem';
+import { FURNITURE_CATALOG, HomeSystem } from './game/Home/HomeSystem';
+import { HomeFurnitureVisuals } from './game/Home/HomeFurnitureVisuals';
 
 const container = document.getElementById('viewportContainer');
 const promptEl = document.getElementById('interactionPrompt');
@@ -67,6 +69,9 @@ const economyManager = new EconomyManager();
 const jobSystem = new JobManager(economyManager);
 const crimeSystem = new HeatSystem(economyManager);
 const needsSystem = new NeedsSystem();
+const homeSystem = new HomeSystem();
+let homeVisuals: HomeFurnitureVisuals | null = null;
+let playerDisplayName = 'Chale';
 
 economyManager.bindExternalStateProviders(
   () => jobSystem.getPersistedState(),
@@ -212,7 +217,7 @@ function updateInteractionPromptUI(target: InteractableTarget | null): void {
     } else {
       const short: Record<string, string> = {
         food_vendor: 'Waakye · ₵12',
-        home_door: 'Rest',
+        home_door: 'Compound',
         provision_shop: 'Shop',
         trotro_stop: 'Trotro'
       };
@@ -273,7 +278,61 @@ function renderModalTabContent(): void {
     return;
   }
 
-  modalBodyContent.innerHTML = '<p style="color:#9a9a9a;font-size:0.8rem;">Use Jobs. Eat at waakye. Rest at home.</p>';
+  modalBodyContent.innerHTML =
+    '<p style="color:#9a9a9a;font-size:0.8rem;">Jobs. Waakye. Compound for furniture.</p>';
+}
+
+function openHomeSheet(): void {
+  const backdrop = document.getElementById('homeModalBackdrop');
+  const flexEl = document.getElementById('homeFlexScore');
+  const list = document.getElementById('homeFurnList');
+  if (flexEl) {
+    flexEl.textContent = `Flex ${homeSystem.getFlexScore()} · ${homeSystem.getFlexLabel()}`;
+  }
+  if (list) {
+    list.innerHTML = '';
+    for (const item of FURNITURE_CATALOG) {
+      const owned = homeSystem.owns(item.id);
+      const row = document.createElement('div');
+      row.className = 'furn-row' + (owned ? ' owned' : '');
+      row.innerHTML = `<div class="furn-meta"><p class="furn-title">${item.title}</p><p class="furn-blurb">${item.blurb}</p></div>`;
+      const btn = document.createElement('button');
+      btn.className = 'furn-buy';
+      btn.type = 'button';
+      btn.textContent = owned ? 'Owned' : `₵${item.costGHS}`;
+      btn.disabled = owned;
+      if (!owned) {
+        btn.addEventListener('click', () => {
+          const res = homeSystem.buy(
+            item.id,
+            (c) => economyManager.canAfford(c, 'CASH'),
+            (c, title) => {
+              const tx = economyManager.wallet.spendMoney({
+                amount: c,
+                category: 'PURCHASE',
+                description: title,
+                channel: 'CASH'
+              });
+              return Boolean(tx);
+            }
+          );
+          showInteractionFeedback(res.message, !res.success);
+          if (res.success) {
+            homeVisuals?.sync(homeSystem.getOwned());
+            openHomeSheet();
+            syncEconomyHUD();
+          }
+        });
+      }
+      row.appendChild(btn);
+      list.appendChild(row);
+    }
+  }
+  backdrop?.classList.add('open');
+}
+
+function closeHomeSheet(): void {
+  document.getElementById('homeModalBackdrop')?.classList.remove('open');
 }
 
 function handleWorldTargetInteracted(target: InteractableTarget): void {
@@ -306,8 +365,7 @@ function handleWorldTargetInteracted(target: InteractableTarget): void {
   }
 
   if (target.id === 'home_door') {
-    const rest = needsSystem.sleep();
-    showInteractionFeedback(rest.success ? '+Energy' : rest.message, !rest.success);
+    openHomeSheet();
     return;
   }
 
@@ -333,6 +391,28 @@ function startGame(profile: OnboardingResult): void {
       { look: { skin: profile.skin, hair: profile.hair } }
     );
     phase1SceneRef = phase1;
+    homeVisuals = new HomeFurnitureVisuals(phase1.scene);
+    homeVisuals.sync(homeSystem.getOwned());
+    playerDisplayName = profile.displayName || 'Chale';
+
+    document.getElementById('homeModalClose')?.addEventListener('click', () => closeHomeSheet());
+    document.getElementById('homeModalBackdrop')?.addEventListener('click', (e) => {
+      if (e.target === document.getElementById('homeModalBackdrop')) closeHomeSheet();
+    });
+    document.getElementById('homeRestBtn')?.addEventListener('click', () => {
+      const rest = needsSystem.sleep();
+      showInteractionFeedback(rest.success ? '+Energy' : rest.message, !rest.success);
+    });
+    document.getElementById('homeShareBtn')?.addEventListener('click', async () => {
+      const line = homeSystem.getFlexShareLine(playerDisplayName);
+      try {
+        await navigator.clipboard.writeText(line);
+        showInteractionFeedback('Copied — paste on X');
+      } catch {
+        showInteractionFeedback(line);
+      }
+    });
+
     syncEconomyHUD();
 
     crimeSystem.onArrest(() => {
@@ -354,7 +434,10 @@ function startGame(profile: OnboardingResult): void {
       if (e.target === economyModalBackdrop) closeEconomyModal();
     });
     window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && economyModalBackdrop?.classList.contains('open')) closeEconomyModal();
+      if (e.key === 'Escape') {
+        if (document.getElementById('homeModalBackdrop')?.classList.contains('open')) closeHomeSheet();
+        else if (economyModalBackdrop?.classList.contains('open')) closeEconomyModal();
+      }
     });
     for (const btn of modalTabBtns) {
       btn.addEventListener('click', () => {
