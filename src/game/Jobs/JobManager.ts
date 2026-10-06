@@ -46,6 +46,23 @@ export class JobManager {
     this.activeHustleId = state.activeHustleId ?? null;
     this.activeHustleStepIndex = Math.max(0, Number(state.activeHustleStepIndex) || 0);
     this.completedStepIds.clear();
+    // Rebuild step progress so mid-shift refresh can still pay out
+    if (this.activeJobId) {
+      const job = getLegalJobById(this.activeJobId);
+      if (job) {
+        for (let i = 0; i < this.currentStepIndex && i < job.steps.length; i++) {
+          this.completedStepIds.add(job.steps[i].stepId);
+        }
+      }
+    }
+    if (this.activeHustleId) {
+      const hustle = getSideHustleById(this.activeHustleId);
+      if (hustle) {
+        for (let i = 0; i < this.activeHustleStepIndex && i < hustle.steps.length; i++) {
+          this.completedStepIds.add(hustle.steps[i].stepId);
+        }
+      }
+    }
   }
 
   public reset(): void {
@@ -100,10 +117,6 @@ export class JobManager {
     return this.completedJobCounts[id] ?? 0;
   }
 
-  /**
-   * Returns all legal jobs registered in JobRegistry, prioritizing jobs anchored
-   * at the currently focused neighborhood entity if provided.
-   */
   public getAvailableJobs(
     focusedInteractableId?: string | null
   ): ReadonlyArray<LegalJobDefinition> {
@@ -117,10 +130,6 @@ export class JobManager {
     });
   }
 
-  /**
-   * Returns all side hustles registered in JobRegistry, prioritizing hustles anchored
-   * at the currently focused neighborhood entity if provided.
-   */
   public getAvailableSideHustles(
     focusedInteractableId?: string | null
   ): ReadonlyArray<SideHustleDefinition> {
@@ -245,11 +254,6 @@ export class JobManager {
     return 'No active job or hustle to cancel.';
   }
 
-  /**
-   * Verifies that the player is interacting with the exact neighborhood entity required
-   * by the current step of the active job or side hustle.
-   * Payout is only awarded after all multi-entity steps are sequentially completed.
-   */
   public tryAdvanceAtInteractable(
     interactableId: string,
     assetId?: string
@@ -277,7 +281,6 @@ export class JobManager {
       if (nextIndex < activeJob.job.steps.length) {
         this.status = 'WORKING';
         this.currentStepIndex = nextIndex;
-        const nextStep = activeJob.job.steps[nextIndex];
         this.economy.saveSnapshot();
         return {
           handled: true,
@@ -287,12 +290,10 @@ export class JobManager {
         };
       }
 
-      // Verify every step in the job sequence was legitimately completed before paying wages
       const allStepsVerified = activeJob.job.steps.every((s) =>
         this.completedStepIds.has(s.stepId)
       );
       if (!allStepsVerified && activeJob.job.steps.length > 1) {
-        // Fallback if hydrated mid-shift: still require reaching the final step index
         if (this.currentStepIndex !== activeJob.job.steps.length - 1) {
           return {
             handled: false,
