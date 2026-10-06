@@ -44,10 +44,10 @@ export function buildNeighborhoodExtras(
 ): void {
   buildMoMoUmbrella(scene, colliders, interactables);
   buildHawkerTable(scene, colliders);
-  buildCoolChest(scene, colliders);
+  buildCoolChest(scene, colliders, interactables);
   buildSusuKiosk(scene, colliders, interactables);
   buildParkBench(scene, colliders);
-  buildChaleWotePanel(scene, colliders);
+  buildChaleWotePanel(scene, colliders, interactables);
   buildBillboardGantry(scene, colliders);
 }
 
@@ -239,7 +239,11 @@ function buildHawkerTable(scene: THREE.Scene, colliders: ColliderBox[]): void {
 // Cool chest — ice chest for cold drinks (blue/white branded)
 // ============================================================================
 
-function buildCoolChest(scene: THREE.Scene, colliders: ColliderBox[]): void {
+function buildCoolChest(
+  scene: THREE.Scene,
+  colliders: ColliderBox[],
+  interactables: InteractableTarget[]
+): void {
   const group = new THREE.Group();
   group.name = 'ACC_COOL_CHEST';
   group.position.set(5.5, 0, -8.5);
@@ -296,6 +300,17 @@ function buildCoolChest(scene: THREE.Scene, colliders: ColliderBox[]): void {
     minX: 4.9, maxX: 6.1,
     minZ: -8.85, maxZ: -8.15,
     height: 0.8
+  });
+
+  interactables.push({
+    id: 'cool_chest',
+    assetId: 'ACC_COOL_CHEST',
+    title: 'Cool Chest',
+    promptLabel: 'Cold Drink · ₵3',
+    interactionResponse: 'Iced mineral water or bottled soft drink.',
+    position: new THREE.Vector3(5.5, 0.14, -7.9),
+    lookAtPosition: new THREE.Vector3(5.5, 0.14, -8.4),
+    radius: 2.4
   });
 }
 
@@ -439,7 +454,11 @@ function buildParkBench(scene: THREE.Scene, colliders: ColliderBox[]): void {
 // Chale Wote graffiti wall panel — bright abstract street art
 // ============================================================================
 
-function buildChaleWotePanel(scene: THREE.Scene, colliders: ColliderBox[]): void {
+function buildChaleWotePanel(
+  scene: THREE.Scene,
+  colliders: ColliderBox[],
+  interactables: InteractableTarget[]
+): void {
   const group = new THREE.Group();
   group.name = 'ACC_CHALE_WOTE_PANEL';
   group.position.set(-22.5, 0, -7.5);
@@ -508,6 +527,17 @@ function buildChaleWotePanel(scene: THREE.Scene, colliders: ColliderBox[]): void
     minX: -22.7, maxX: -22.3,
     minZ: -10.0, maxZ: -5.0,
     height: 3.0
+  });
+
+  interactables.push({
+    id: 'chale_wote_panel',
+    assetId: 'ACC_CHALE_WOTE_PANEL',
+    title: 'Chale Wote Mural',
+    promptLabel: 'View Art',
+    interactionResponse: 'Street art inspired by the Chale Wote festival in Jamestown.',
+    position: new THREE.Vector3(-21.5, 0.14, -7.5),
+    lookAtPosition: new THREE.Vector3(-22.4, 1.0, -7.5),
+    radius: 3.0
   });
 }
 
