@@ -148,6 +148,40 @@ export class PresenceManager {
     this.lastPos = { x, z, rotY };
   }
 
+  /**
+   * Update the player's current location. Called by the game loop when the
+   * player crosses a location boundary. Performs three things atomically:
+   *   1. Update the in-memory currentLocation.
+   *   2. Immediately write a fresh presence doc with the new currentLocation
+   *      (so other players see us "leave" the old location and "arrive" at
+   *      the new one without waiting for the next 20s heartbeat).
+   *   3. Re-subscribe to the nearby query filtered by the new currentLocation.
+   *
+   * Returns true if the location actually changed, false if it was the same.
+   * Safe to call from a guest (no-op write, but the subscription still
+   * switches so they can see who's at the new place).
+   */
+  public updateLocation(newLocation: string): boolean {
+    if (newLocation === this.currentLocation) return false;
+    this.currentLocation = newLocation;
+    // Force an immediate write so other players see the location change fast.
+    if (this.uid) {
+      void this.writePresence().catch(() => { /* soft-fail */ });
+    }
+    // Re-subscribe to nearby for the new location.
+    this.subscribeNearby();
+    // Clear the nearby cache — listeners will get a fresh snapshot from the
+    // new subscription shortly, but clearing now avoids flashing stale names.
+    this.nearbyCache = [];
+    this.emitNearby();
+    return true;
+  }
+
+  /** Current location id (read-only view for the game loop). */
+  public getCurrentLocation(): string {
+    return this.currentLocation;
+  }
+
   // ------------------------------------------------------------------ queries
 
   public getNearby(): NearbyPlayer[] {

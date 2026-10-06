@@ -54,7 +54,7 @@ const MAX_TEXT_LEN = 500;
 export class LocationChatManager {
   private readonly uid: string | null;
   private readonly displayName: string;
-  private readonly locationId: LocationId;
+  private locationId: LocationId; // mutable — switchLocation updates this
   private readonly origin?: string;
 
   private unsubscribeSnapshot: (() => void) | null = null;
@@ -117,6 +117,34 @@ export class LocationChatManager {
     }
     this.messagesCache = [];
     this.emit();
+  }
+
+  /**
+   * Switch to a new location's chat stream. Unsubscribes from the old
+   * location, clears the message cache, updates the locationId, and
+   * re-subscribes to the new location. If the new location is the same as
+   * the current one, this is a no-op (returns false).
+   *
+   * If the manager was previously left() (no active subscription), this
+   * also re-activates the subscription — i.e. switchLocation() implies enter()
+   * for the new location.
+   */
+  public switchLocation(newLocationId: LocationId): boolean {
+    if (newLocationId === this.locationId && this.unsubscribeSnapshot) return false;
+    if (this.unsubscribeSnapshot) {
+      this.unsubscribeSnapshot();
+      this.unsubscribeSnapshot = null;
+    }
+    this.locationId = newLocationId;
+    this.messagesCache = [];
+    this.emit();
+    this.enter();
+    return true;
+  }
+
+  /** Current location id (read-only view for the game loop). */
+  public getCurrentLocation(): LocationId {
+    return this.locationId;
   }
 
   // ------------------------------------------------------------------ queries

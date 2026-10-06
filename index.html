@@ -1002,6 +1002,44 @@ button:focus-visible, input:focus-visible {
   border-color: #fde047;
 }
 </style>
+  <style>
+    /* ---- multiplayer (presence + chat) ---- */
+    #nearbyStrip{pointer-events:auto;background:var(--panel-bg);border:1px solid #ffcc0059;color:var(--gta-white);cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 8px;font-size:.68rem;font-weight:900;max-width:240px}
+    #nearbyStrip .dot{background:var(--gta-green);width:7px;height:7px;border-radius:50%}
+    #nearbyStrip.guest .dot,#nearbyStrip.offline .dot{background:#666}
+    #nearbyStrip .names{color:var(--gta-muted);font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    #nearbyStrip .count{color:var(--gta-yellow)}
+    .chat-btn{background:#1a1a1a;color:var(--gta-yellow);cursor:pointer;border:1px solid #000;padding:5px 10px;font-family:inherit;font-size:.72rem;font-weight:900;position:relative}
+    .chat-btn .badge{position:absolute;top:-6px;right:-6px;background:var(--gta-yellow);color:#0a0a0a;border-radius:9px;font-size:.6rem;font-weight:900;padding:0 5px;min-width:14px;height:14px;display:flex;align-items:center;justify-content:center}
+    .chat-btn .badge.zero{display:none}
+    #chatModalBackdrop{z-index:55;background:#000000bf;display:none;position:fixed;inset:0;justify-content:center;align-items:flex-end}
+    #chatModalBackdrop.open{display:flex}
+    #chatSheet{border-top:3px solid var(--gta-yellow);background:#111;width:100%;max-width:480px;max-height:78vh;display:flex;flex-direction:column;padding:14px}
+    #chatSheet h2{margin:0 0 4px;font-size:1.05rem;letter-spacing:.04em;color:var(--gta-yellow);text-transform:uppercase}
+    .chat-sub{color:var(--gta-muted);font-size:.7rem;margin:0 0 10px}
+    #chatMessages{flex:1;overflow-y:auto;background:#0a0a0a;border:1px solid #ffffff1f;padding:8px;font-size:.85rem;display:flex;flex-direction:column;gap:6px;min-height:140px;max-height:48vh}
+    .chat-msg{line-height:1.3;word-wrap:break-word;overflow-wrap:anywhere}
+    .chat-msg .name{color:var(--gta-yellow);font-weight:900;margin-right:6px}
+    .chat-msg.mine .name{color:var(--gta-green)}
+    .chat-msg .time{color:#555;font-size:.6rem;margin-left:6px}
+    .chat-empty{color:#555;font-style:italic;text-align:center;padding:20px 0}
+    .chat-compose{display:flex;gap:8px;margin-top:8px}
+    .chat-compose input{flex:1;background:#000;border:2px solid #ffffff2e;color:#fff;padding:10px;font-family:inherit;font-size:.9rem}
+    .chat-compose input:focus{outline:none;border-color:var(--gta-yellow)}
+    .chat-compose button{background:var(--gta-yellow);color:#0a0a0a;border:1px solid #000;padding:0 14px;font-family:inherit;font-weight:900;cursor:pointer}
+    .chat-compose button:disabled{opacity:.45;cursor:not-allowed}
+    .chat-status-row{display:flex;justify-content:space-between;align-items:center;margin-top:8px;color:var(--gta-muted);font-size:.66rem}
+    .chat-status-row .pill{background:#000;border:1px solid #ffffff26;padding:2px 7px;font-weight:900}
+    .chat-status-row .pill.online{color:var(--gta-green);border-color:#66ff6673}
+    .chat-status-row .pill.guest{color:var(--gta-yellow);border-color:#ffcc0059}
+    .chat-status-row .pill.offline{color:#888}
+    #currentLocationPill{pointer-events:auto;background:var(--panel-bg);border:1px solid #ffcc0059;color:var(--gta-yellow);cursor:pointer;display:flex;align-items:center;gap:5px;padding:4px 8px;font-size:.68rem;font-weight:900;max-width:260px}
+    #currentLocationPill .ico{font-size:.8rem}
+    #currentLocationPill .nm{color:var(--gta-white);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    #currentLocationPill.flash{animation:locflash .8s ease-out}
+    @keyframes locflash{0%{background:var(--gta-yellow);color:#0a0a0a}100%{background:var(--panel-bg);color:var(--gta-yellow)}}
+  </style>
+  <script type="module" crossorigin src="/src/main.ts"></script>
 </head>
 <body>
 <div id="viewportContainer" data-testid="viewport-container"></div>
@@ -1149,6 +1187,8 @@ button:focus-visible, input:focus-visible {
     </div>
 
     <div id="heatStatusPill" class="heat-pill"><span id="heatStatusText">◆ CLEAN</span></div>
+    <div id="currentLocationPill"><span class="ico">🌆</span><span class="nm">Adabraka</span></div>
+    <div id="nearbyStrip" class="offline"><span class="dot"></span><span class="count">0</span> <span class="names">offline</span></div>
   </div>
 </header>
 

@@ -30,6 +30,7 @@ import { HomeFurnitureVisuals } from './game/Home/HomeFurnitureVisuals';
 import { PresenceManager, type PresenceStatus } from './game/Multiplayer/PresenceManager';
 import { LocationChatManager } from './game/Multiplayer/LocationChatManager';
 import type { NearbyPlayer, ChatMessageView } from './game/Multiplayer/types';
+import { getLocationAt, getLocationDef, type LocationId } from './game/World/Locations';
 
 const container = document.getElementById('viewportContainer');
 const promptEl = document.getElementById('interactionPrompt');
@@ -93,6 +94,8 @@ const chatMessagesEl = document.getElementById('chatMessages');
 const chatInput = document.getElementById('chatInput') as HTMLInputElement | null;
 const chatSendBtn = document.getElementById('chatSendBtn') as HTMLButtonElement | null;
 const nearbyStrip = document.getElementById('nearbyStrip');
+const currentLocationPill = document.getElementById('currentLocationPill');
+let currentLocationId: LocationId = 'adabraka_neighborhood';
 
 const economyManager = new EconomyManager();
 const jobSystem = new JobManager(economyManager);
@@ -1041,22 +1044,30 @@ function startGame(profile: OnboardingResult): void {
  * own doc + subscribe to nearby) and chat.
  */
 function initMultiplayer(profile: OnboardingResult, phase1: Phase1Scene): void {
-  const LOCATION_ID = 'accra_neighborhood';
+  // Derive initial location from the player's spawn position. The
+  // PlayerController spawns at (0, 0, 5.8) — south sidewalk, which falls
+  // inside the Oxford Street bounds (z = -7.7..7.7).
+  const spawn = phase1.player.position;
+  const spawnLoc = getLocationAt(spawn.x, spawn.z);
+  currentLocationId = spawnLoc.id;
   isAccountMode = profile.mode === 'account' && !!profile.userId;
-
   presenceManager = new PresenceManager({
     uid: profile.userId ?? '',
     displayName: profile.displayName || 'Chale',
-    currentLocation: LOCATION_ID,
+    currentLocation: currentLocationId,
     origin: profile.origin,
     look: { skin: profile.skin, hair: profile.hair }
   });
   chatManager = new LocationChatManager({
     uid: profile.userId,
     displayName: profile.displayName || 'Chale',
-    locationId: LOCATION_ID,
+    locationId: currentLocationId,
     origin: profile.origin
   });
+
+  // Initial UI: pill + chat sheet title reflect the spawn location.
+  setCurrentLocationPill(spawnLoc.id, false);
+  if (chatSheetTitle) chatSheetTitle.textContent = `At ${spawnLoc.displayName}`;
 
   // Chat: always start (guests can read). Presence: only for accounts.
   chatManager.enter();
@@ -1064,12 +1075,12 @@ function initMultiplayer(profile: OnboardingResult, phase1: Phase1Scene): void {
     void presenceManager.enter().catch((err) => {
       console.warn('[presence] enter failed:', err);
     });
-    if (chatSheetSub) chatSheetSub.textContent = 'Local chat — everyone here can see this.';
+    if (chatSheetSub) chatSheetSub.textContent = `${spawnLoc.displayName} — local chat, everyone here can see this.`;
     setStatusPill('online');
     setNearbyStrip([], true);
   } else {
     // Guest: read-only chat, no presence writes.
-    if (chatSheetSub) chatSheetSub.textContent = 'Sign in to send messages & be seen.';
+    if (chatSheetSub) chatSheetSub.textContent = `${spawnLoc.displayName} — sign in to send messages & be seen.`;
     setStatusPill('guest');
     setNearbyStrip([], false);
   }
@@ -1130,11 +1141,32 @@ function initMultiplayer(profile: OnboardingResult, phase1: Phase1Scene): void {
 
   // Periodic in-world position report (every 2s). The presence heartbeat
   // already fires every 20s; this just feeds last-known coords to it.
+  // Also checks if the player crossed a location boundary and, if so,
+  // updates both PresenceManager (write new doc + re-subscribe to nearby)
+  // and LocationChatManager (switch chat subscription + clear cache), plus
+  // the HUD pill + chat sheet title.
   setInterval(() => {
     if (!phase1) return;
     const p = phase1.player.position;
     presenceManager?.reportPosition(p.x, p.z, phase1.player.rotationY);
+    const newLoc = getLocationAt(p.x, p.z);
+    if (newLoc.id !== currentLocationId) {
+      currentLocationId = newLoc.id;
+      presenceManager?.updateLocation(newLoc.id);
+      chatManager?.switchLocation(newLoc.id);
+      setCurrentLocationPill(newLoc.id, true);
+      if (chatSheetTitle) chatSheetTitle.textContent = `At ${newLoc.displayName}`;
+      if (chatSheetSub) {
+        chatSheetSub.textContent = isAccountMode
+          ? `${newLoc.displayName} — local chat, everyone here can see this.`
+          : `${newLoc.displayName} — sign in to send messages & be seen.`;
+      }
+    }
   }, 2_000);
+
+  // Click on the location pill opens the chat sheet (so players can see
+  // who's at the current place without reaching for the chat button).
+  currentLocationPill?.addEventListener('click', () => openChatSheet());
 }
 
 function openChatSheet(): void {
@@ -1218,6 +1250,23 @@ function setStatusPill(kind: 'online' | 'guest' | 'offline'): void {
   chatStatusPill.classList.remove('online', 'guest', 'offline');
   chatStatusPill.classList.add(kind);
   chatStatusPill.textContent = kind === 'online' ? 'online · Accra' : kind === 'guest' ? 'guest mode' : 'offline';
+}
+
+function setCurrentLocationPill(locId: LocationId, flash: boolean): void {
+  if (!currentLocationPill) return;
+  const def = getLocationDef(locId);
+  const icoEl = currentLocationPill.querySelector('.ico');
+  const nmEl = currentLocationPill.querySelector('.nm');
+  if (icoEl) icoEl.textContent = def.icon;
+  if (nmEl) nmEl.textContent = def.displayName;
+  // Title attr for accessibility / hover tooltip.
+  currentLocationPill.setAttribute('title', `${def.displayName} — ${def.flavor}`);
+  if (flash) {
+    currentLocationPill.classList.remove('flash');
+    // Force reflow so the animation restarts.
+    void currentLocationPill.offsetWidth;
+    currentLocationPill.classList.add('flash');
+  }
 }
 
 function updateChatBadge(): void {
