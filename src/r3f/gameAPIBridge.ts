@@ -19,6 +19,15 @@ import type { GameAPI } from '../game/GameAPI';
  */
 export const TROTRO_BOARD_EVENT = 'lagos-life:trotro-board';
 
+/**
+ * DOM event that routes the [E] key press at the Makola street-vendor
+ * stand (skills/vendor-system.md) from the systems layer into the R3F
+ * vendor panel. Fired by main.ts's
+ * handleWorldTargetInteracted('makola_vendor_stand') and handled by
+ * src/r3f/LivingVendor.tsx, which calls gameAPI.startVendorJob().
+ */
+export const VENDOR_SELL_EVENT = 'lagos-life:vendor-sell';
+
 export function getGameAPI(): GameAPI | null {
   return (window as unknown as { GameAPI?: GameAPI }).GameAPI ?? null;
 }

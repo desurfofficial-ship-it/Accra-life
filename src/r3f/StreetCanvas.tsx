@@ -27,7 +27,9 @@ import { InteriorFurniture } from './InteriorFurniture';
 import { BuildingAssets } from './BuildingAssets';
 import { TroTroBoarding, DEMO_FARE, DEMO_START_BALANCE } from './TroTroBoarding';
 import { LivingTrotro } from './LivingTrotro';
+import { LivingVendor } from './LivingVendor';
 import { TrotroService } from '../game/World/TrotroService';
+import { MAKOLA_VENDOR_STAND_WORLD } from '../game/World/GridMap';
 import { getGameAPI } from './gameAPIBridge';
 import { TroTroPrompt } from '../ui/TroTroPrompt';
 
@@ -242,6 +244,14 @@ export function StreetCanvas() {
       <LivingTrotro
         position={trotroStopPosition}
         trotroService={activeTrotro}
+      />
+
+      {/* Makola street-vendor stand (skills/vendor-system.md) — adopts the
+          SHARED VendorService (window.GameAPI.vendor) once the systems
+          layer boots; the engine owns the 10s shift timer and the payout. */}
+      <LivingVendor
+        position={[MAKOLA_VENDOR_STAND_WORLD[0], 0, MAKOLA_VENDOR_STAND_WORLD[1]]}
+        playerRef={playerGroupRef}
       />
 
       {/* Player avatar — spawns at Adabraka (home), walks with WASD */}

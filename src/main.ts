@@ -23,6 +23,7 @@ import { createGameAPI, GameAPI } from './game/GameAPI';
 import { TrotroService } from './game/World/TrotroService';
 import { eventService } from './game/World/EventService';
 import { JobManager } from './game/Jobs/JobManager';
+import { VendorService } from './game/Jobs/VendorService';
 import {
   ACCRA_LEGAL_JOBS,
   ACCRA_SIDE_HUSTLES
@@ -42,7 +43,7 @@ import { LocationChatManager } from './game/Multiplayer/LocationChatManager';
 import { FriendsSystem, type FriendEntry, type InboxMessageView } from './game/Multiplayer/FriendsSystem';
 import type { NearbyPlayer, ChatMessageView } from './game/Multiplayer/types';
 import { getLocationAt, getLocationDef, type LocationId } from './game/World/Locations';
-import { TROTRO_BOARD_EVENT } from './r3f/gameAPIBridge';
+import { TROTRO_BOARD_EVENT, VENDOR_SELL_EVENT } from './r3f/gameAPIBridge';
 
 const container = document.getElementById('viewportContainer');
 const promptEl = document.getElementById('interactionPrompt');
@@ -161,6 +162,8 @@ economyManager.bindTrotroPassengerState(
   (n) => trotroService.loadPassengers(n)
 );
 const jobSystem = new JobManager(economyManager);
+/** Makola street-vendor timed shift (skills/vendor-system.md). */
+const vendorService = new VendorService(economyManager);
 const crimeSystem = new HeatSystem(economyManager);
 const needsSystem = new NeedsSystem();
 const homeSystem = new HomeSystem();
@@ -419,6 +422,7 @@ function updateInteractionPromptUI(target: InteractableTarget | null): void {
         home_door: 'Compound',
         provision_shop: 'Shop',
         trotro_stop: 'Trotro',
+        makola_vendor_stand: 'Vendor · [E]',
         npc_older_001: 'Errand',
         npc_male_001: 'Talk',
         npc_female_001: 'Talk'
@@ -1383,6 +1387,14 @@ function handleWorldTargetInteracted(target: InteractableTarget): void {
     return;
   }
 
+  // skills/vendor-system.md [ROUTING]: the R3F layer (LivingVendor.tsx)
+  // owns the vendor stand UI — dialogue bubble, 10 s shift bar, payout
+  // chime. Route the [E] key into it; the shift itself is startVendorJob().
+  if (target.id === 'makola_vendor_stand') {
+    window.dispatchEvent(new CustomEvent(VENDOR_SELL_EVENT));
+    return;
+  }
+
   const illegalAdvance = crimeSystem.tryAdvanceAtInteractable(target.id, target.assetId);
   if (illegalAdvance.handled) {
     showInteractionFeedback(illegalAdvance.message, illegalAdvance.arrested);
@@ -1491,7 +1503,8 @@ function startGame(profile: OnboardingResult): void {
       player: phase1.player,
       input: phase1.inputManager,
       interactions: phase1.interactionSystem,
-      trotro: trotroService
+      trotro: trotroService,
+      vendor: vendorService
     });
     (window as unknown as { GameAPI?: GameAPI }).GameAPI = gameAPI;
     // v4.9: arm the shared world-event cycle (NORMAL ↔ RUSH_HOUR) — both

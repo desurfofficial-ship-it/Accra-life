@@ -271,6 +271,30 @@ export const HOME_COMPOUND_ANCHOR: VenueAnchor = makeVenueAnchor({
   zone: 'adabraka'
 }); // world [-32, 0]
 
+/**
+ * Makola street-vendor stand (skills/vendor-system.md) — makola cell
+ * [row 2, col 1] (world [-16, 0]), the same cell Kojo hustles on. The
+ * stand itself sits at the cell's NE corner (+3.4, +2.6 → world
+ * [-12.6, 2.6]), clear of Kojo at the cell center, so the vendor
+ * interactable and Kojo's never fight for the [E] key from the same spot.
+ */
+export const MAKOLA_VENDOR_ANCHOR: VenueAnchor = makeVenueAnchor({
+  x: 1,
+  z: 2,
+  zone: 'makola'
+}); // cell center world [-16, 0]
+
+/** Local offset of the vendor stand inside its cell (meters, [dx, dz]). */
+export const MAKOLA_VENDOR_STAND_OFFSET: [number, number] = [3.4, 2.6];
+
+/** World-space [x, z] of the vendor stand itself — the proximity anchor
+ * for the `makola_vendor_stand` interactable (radius 3.5) AND the
+ * VendorService proximity gate (skills/vendor-system.md [LOGIC] rule 1). */
+export const MAKOLA_VENDOR_STAND_WORLD: [number, number] = [
+  MAKOLA_VENDOR_ANCHOR.world[0] + MAKOLA_VENDOR_STAND_OFFSET[0],
+  MAKOLA_VENDOR_ANCHOR.world[1] + MAKOLA_VENDOR_STAND_OFFSET[1]
+]; // [-12.6, 2.6]
+
 /** Tro-tro travel destinations — arrival anchor cell per destination. */
 export const TROTRO_DESTINATIONS: readonly TrotroDestination[] = [
   { id: 'circle', name: 'Circle', row: 3, col: 2, locationId: 'circle_trotro_stop' },

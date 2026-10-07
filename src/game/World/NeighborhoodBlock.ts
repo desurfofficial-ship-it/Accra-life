@@ -8,6 +8,7 @@ import { buildPlayerCompoundHouse } from './PlayerCompound';
 import { buildRoadsideGuttersAndWalkways } from './NeighborhoodGutters';
 import { buildProvisionStore } from './NeighborhoodProvision';
 import { buildFoodVendorJoint } from './NeighborhoodFood';
+import { buildMakolaVendorStand } from './NeighborhoodMarket';
 import { buildTrotroStopAndVehicle } from './NeighborhoodTrotro';
 import { buildNeighborhoodExtras } from './NeighborhoodExtras';
 import {
@@ -89,6 +90,7 @@ export function buildFirstNeighborhoodBlock(scene: THREE.Scene): BuiltNeighborho
   buildPlayerCompoundHouse(scene, colliders, interactables);
   buildProvisionStore(scene, colliders, interactables);
   buildFoodVendorJoint(scene, colliders, interactables);
+  buildMakolaVendorStand(scene, colliders, interactables);
   buildTrotroStopAndVehicle(scene, colliders, interactables);
   buildNeighborhoodExtras(scene, colliders, interactables);
 

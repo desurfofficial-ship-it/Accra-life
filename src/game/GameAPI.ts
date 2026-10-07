@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { EconomyManager } from './Economy/EconomyManager';
 import {
-  AddFundsParams,
   RemoveFundsParams,
   Wallet,
   WalletValidationResult
@@ -19,6 +18,7 @@ import {
   TrotroState
 } from './World/TrotroService';
 import { eventService, GameEventId } from './World/EventService';
+import { VendorService, VENDOR_JOB_ID } from './Jobs/VendorService';
 
 /**
  * GameAPI — the routing bridge between AI agent skills and the live game.
@@ -40,6 +40,11 @@ import { eventService, GameEventId } from './World/EventService';
  *   getTrotroStatus / boardPassenger / alightPassenger / getSnapshot / isFull …
  *     → src/game/World/TrotroService.ts (phase-5 lifecycle state machine:
  *       EN_ROUTE → ARRIVING → IDLE_AT_STOP → BOARDING → DEPARTING → …)
+ *   getCurrentEvent / getEventMultiplier
+ *     → src/game/World/EventService.ts (shared NORMAL ↔ RUSH_HOUR cycle)
+ *   startVendorJob / getCurrentJob
+ *     → src/game/Jobs/VendorService.ts (Makola street-vendor timed shift,
+ *       skills/vendor-system.md)
  *
  * Boot wiring (host, e.g. `src/main.ts`): construct the live systems,
  * then hand them to the factory —
@@ -59,6 +64,8 @@ export interface GameAPIOptions {
   input?: InputManager;
   interactions?: InteractionSystem;
   trotro?: TrotroService;
+  /** Makola street-vendor shift service (skills/vendor-system.md). */
+  vendor?: VendorService;
 }
 
 export class GameAPI {
@@ -68,7 +75,9 @@ export class GameAPI {
   public readonly input: InputManager;
   public readonly interactions: InteractionSystem;
   public readonly trotro: TrotroService;
+  public readonly vendor: VendorService;
   public readonly vehicleId: string = TROTRO_VEHICLE_ID;
+  public readonly vendorJobId: string = VENDOR_JOB_ID;
 
   constructor(options: GameAPIOptions = {}) {
     this.economy = options.economy ?? new EconomyManager();
@@ -83,6 +92,10 @@ export class GameAPI {
       () => undefined
     );
     this.trotro = options.trotro ?? new TrotroService();
+    // VendorService reads the Makola stand position straight from GridMap,
+    // so a headless default (no live stand builder) still enforces the
+    // same proximity gate as the wired game.
+    this.vendor = options.vendor ?? new VendorService(this.economy);
   }
 
   // ------------------------------------------------------ Wallet routing
@@ -113,8 +126,27 @@ export class GameAPI {
     });
   }
 
-  public addFunds(params: AddFundsParams): WalletValidationResult {
-    return this.wallet.addFunds(params);
+  public addFunds(params: {
+    amount: number;
+    description: string;
+    /** Defaults to 'SALE' — street-income credits (skills/vendor-system.md
+     * calls addFunds WITHOUT a category; Wallet.addFunds validates the
+     * category against ALLOWED_INCOME_CATEGORIES, so the bridge supplies
+     * one the same way spendMoney defaults 'TRANSPORT'). */
+    category?: TransactionCategory;
+    sourceEntityId?: string;
+    /** Defaults to 'CASH'. */
+    channel?: PaymentChannel;
+    isIllegalOrigin?: boolean;
+  }): WalletValidationResult {
+    return this.wallet.addFunds({
+      amount: params.amount,
+      description: params.description,
+      category: params.category ?? 'SALE',
+      sourceEntityId: params.sourceEntityId,
+      channel: params.channel ?? 'CASH',
+      isIllegalOrigin: params.isIllegalOrigin
+    });
   }
 
   public getTransactions(): ReadonlyArray<TransactionRecord> {
@@ -267,6 +299,35 @@ export class GameAPI {
    */
   public getFareDue(): number {
     return this.trotro.getFareDueGHS();
+  }
+
+  // ---------------------------------------------- VendorService routing
+  // Routed to: src/game/Jobs/VendorService.ts (skills/vendor-system.md)
+
+  /**
+   * Start a Makola street-vendor selling shift (10 s). The bridge injects
+   * the live player position into the service's proximity gate — a shift
+   * can only be started AT the stand (≤ 3.5 m from
+   * GridMap.MAKOLA_VENDOR_STAND_WORLD). Void per contract: verify the
+   * shift took with getCurrentJob() ('VENDOR_MAKOLA' while selling).
+   * The ENGINE credits the payout after 10 s through the addFunds wallet
+   * path — never call addFunds() manually for a vendor sale.
+   */
+  public startVendorJob(): void {
+    this.vendor.startVendorJob({
+      x: this.player.position.x,
+      z: this.player.position.z
+    });
+  }
+
+  /**
+   * The active street-vendor job id — 'VENDOR_MAKOLA' while a shift is
+   * selling, else null. Null after the payout lands: verify the money
+   * with getCashBalance()/getTransactions() (top row: INCOME · SALE).
+   * (JobManager walk-step shifts are a separate surface — economy_skill.)
+   */
+  public getCurrentJob(): typeof VENDOR_JOB_ID | null {
+    return this.vendor.getCurrentJob();
   }
 }
 
