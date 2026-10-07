@@ -1,23 +1,29 @@
 ---
 name: tro-tro-system
-version: 3.0.0
-domain: trotro boarding & transit (real-symbol contract + GameAPI bridge routing)
+version: 3.1.0
+domain: trotro boarding & transit (real-symbol contract + real GameAPI bridge)
 description: >
   Governs how AI agents handle Tro-tro interactions using ONLY functions
   that actually exist in lagos-life-ghana/src/game/. The [CONTRACT] lists
   exact exported TypeScript signatures from the source files; the [ROUTING]
   section maps every AI call to the file the GameAPI bridge routes it to.
+  v3.1 closes the two flagged gaps IN SRC: the fare purchase now grants a
+  real ticket item (grantOwnedItemId) and passenger/capacity state lives in
+  a real service (TrotroService, capacity 14).
 format: hybrid — [CONTRACT] real exports + [ROUTING] GameAPI bridge + [LOGIC] + [EXAMPLES]
 contract_policy: zero invented names — every symbol below is copy-exact from src
-supersedes: v2.1.0 (GridLocation spec — dropped: no grid type exists in src;
-  that disconnect is what this version fixes); v1.0.0 deep mechanics live in
-  skills/tro-tro-adapter.ts
+supersedes: v3.0.0 (real-symbol rewrite; ticket + capacity were flagged
+  not-in-src — both are now implemented in src and contracted here);
+  v2.1.0 GridLocation spec — dropped: no grid type exists in src;
+  v1.0.0 deep mechanics live in skills/tro-tro-adapter.ts
 source_files:
   - src/game/Player/PlayerController.ts
   - src/game/Economy/Wallet.ts
   - src/game/World/NeighborhoodTrotro.ts
+  - src/game/World/TrotroService.ts (NEW v3.1 — passenger/capacity state)
+  - src/game/GameAPI.ts (NEW v3.1 — the routing bridge itself)
   - src/game/Player/InteractionSystem.ts (interact trigger)
-  - src/game/Economy/EconomyManager.ts (canonical fare SKU)
+  - src/game/Economy/EconomyManager.ts (canonical fare SKU + ticket grant)
 adapter: skills/agent-adapter.ts#GameBindings + skills/tro-tro-adapter.ts
 independence: callable alone; economy binding only for the fare debit
 ---
@@ -28,9 +34,14 @@ independence: callable alone; economy binding only for the fare debit
 > `src/game/Economy/wallet.ts` and `src/game/Player/controller.ts`. The real
 > files are **`NeighborhoodTrotro.ts`**, **`Wallet.ts`** and
 > **`PlayerController.ts`** — case-sensitive, exact names below. Likewise,
-> `deductCedis`, `deductBalance`, `addToInventory`, `triggerNPCDialogue` and
+> `deductCedis`, `deductBalance`, `triggerNPCDialogue`, `addToInventory` and
 > `GridLocation` **do not exist anywhere in src/**; the real equivalents are
 > contracted in this version (see the rename table at the end of [CONTRACT]).
+> Since v3.1 the two former gaps are closed **in src itself**: a fare
+> purchase grants the real item `trotro_ticket_osu_circle`, and
+> passenger/capacity state is real (`src/game/World/TrotroService.ts`).
+> `src/game/GameAPI.ts` is also real now — the bridge the [ROUTING] section
+> describes is code, not prose.
 
 ## [CONTRACT] Real Exported Symbols (copy-exact from src)
 
@@ -162,15 +173,80 @@ export type TransactionCategory = 'WAGES' | 'JOB_PAYMENT' | 'SIDE_HUSTLE' | 'SAL
 export interface TransactionRecord { /* id, amount, category, channel, description, ... */ }
 
 // src/game/Economy/EconomyManager.ts
+export interface EverydayExpenseOption {
+  readonly id: string;
+  readonly title: string;
+  readonly description: string;
+  readonly costGHS: number;
+  readonly category: TransactionCategory;
+  readonly locationAssetId: string;
+  readonly interactableId: string;
+  readonly grantOwnedItemId?: string;   // real owned-item grant on purchase
+}
+
 export const ACCRA_EVERYDAY_EXPENSES: Record<string, EverydayExpenseOption>;
-//   EXP_TROTRO_FARE → { costGHS: 6.0, category: 'TRANSPORT', interactableId: 'trotro_stop' }
+//   EXP_TROTRO_FARE → { costGHS: 6.0, category: 'TRANSPORT',
+//     interactableId: 'trotro_stop', grantOwnedItemId: 'trotro_ticket_osu_circle' }
 export class EconomyManager {
   public canAfford(amountGHS: number, channel: PaymentChannel = 'CASH'): boolean;
   public purchaseEverydayExpense(expenseId: string): {
     success: boolean; message: string; transaction: TransactionRecord | null;
   };
+  public getOwnershipFoundations(): Readonly<PlayerOwnershipFoundations>;
+  //   .ownedItemIds gains 'trotro_ticket_osu_circle' on a successful fare purchase
   // ...
 }
+
+// src/game/World/TrotroService.ts  (NEW in src, v3.1)
+export const TROTRO_VEHICLE_ID = 'ACC_TROTRO_001';
+export const TROTRO_DEFAULT_CAPACITY = 14;
+export const TROTRO_ROUTE_EXPENSE_ID = 'EXP_TROTRO_FARE';
+export const TROTRO_TICKET_ITEM_ID = 'trotro_ticket_osu_circle';
+
+export interface TrotroPassengerSnapshot {
+  readonly vehicleId: string;
+  readonly routeExpenseId: string;
+  readonly ticketItemId: string;
+  readonly currentPassengers: number;
+  readonly capacity: number;
+  readonly seatsAvailable: number;
+  readonly isFull: boolean;
+}
+
+export class TrotroService {
+  constructor(capacity?: number /* = TROTRO_DEFAULT_CAPACITY (14) */);
+  public getCurrentPassengers(): number;
+  public getCapacity(): number;
+  public getSeatsAvailable(): number;
+  public isFull(): boolean;
+  public boardPassenger(): boolean;    // false → van full, mate refuses
+  public alightPassenger(): boolean;   // false → van already empty
+  public loadPassengers(count: number): number;
+  public resetVehicle(): void;
+  public getSnapshot(): TrotroPassengerSnapshot;
+  public getCanonicalFareGHS(): number;
+}
+
+// src/game/GameAPI.ts  (NEW in src, v3.1 — the bridge itself, not prose)
+export interface GameAPIOptions {
+  economy?: EconomyManager;
+  player?: PlayerController;
+  input?: InputManager;
+  interactions?: InteractionSystem;
+  trotro?: TrotroService;
+}
+export class GameAPI {
+  public readonly economy: EconomyManager;
+  public readonly wallet: Wallet;
+  public readonly player: PlayerController;
+  public readonly input: InputManager;
+  public readonly interactions: InteractionSystem;
+  public readonly trotro: TrotroService;
+  public get position(): THREE.Vector3;
+  public get isSprinting(): boolean;
+  // Every method delegates 1:1 to the routed target listed in [ROUTING].
+}
+export function createGameAPI(options?: GameAPIOptions): GameAPI;
 ```
 
 ### Rename table (old spec name → real symbol, effective v3.0.0)
@@ -178,17 +254,19 @@ export class EconomyManager {
 | Invented name (dropped) | Real symbol the agent uses instead |
 |---|---|
 | `deductCedis(amount)` / `deductBalance(amount)` | `wallet.spendMoney({ amount, category: 'TRANSPORT', channel: 'CASH', description })` → `TransactionRecord \| null` |
-| `addToInventory('tro-tro-ticket')` | **No real export exists.** Nearest real mechanism: `grantOwnedItemId` flow inside `EconomyManager.purchaseEverydayExpense`; until a ticket SKU ships, the returned `TransactionRecord` is the proof of payment |
+| `addToInventory('tro-tro-ticket')` | **Real since v3.1:** `purchaseEverydayExpense('EXP_TROTRO_FARE')` grants `grantOwnedItemId: 'trotro_ticket_osu_circle'` into `ownership.ownedItemIds`; verify with `hasOwnedItem('trotro_ticket_osu_circle')` |
 | `triggerNPCDialogue(npcId, dialogueKey)` | `interactions.triggerCurrentInteraction(): boolean` — surfaces the Mate's real `interactionResponse` line via `trotro_stop` |
 | `getDistance(playerPos, objectPos)` | **No real export exists.** Distance = `player.position.distanceTo(target.position)` (`THREE.Vector3`), compared against `InteractableTarget.radius` |
-| `GridLocation` / `TroTroState.capacity` | Not in src — world plane uses `THREE.Vector3`; capacity/passenger tracking is adapter-owned and declared in `skills/tro-tro-adapter.ts`, never presented as src code |
+| `GridLocation` | Not in src — world plane uses `THREE.Vector3` (unchanged since v3.0) |
+| `TroTroState.capacity` / `currentPassengers` | **Real since v3.1:** `TrotroService` (`src/game/World/TrotroService.ts`) — `capacity 14`, `isFull()`, `boardPassenger(): boolean` |
 
 ## [ROUTING] GameAPI Bridge
 
 The AI never imports `src/` directly. Every call crosses the **GameAPI
-bridge** — the host router that holds the live instances constructed during
-boot (`src/main.ts`) and exposes them through `skills/agent-adapter.ts`
-`GameBindings`. Routing rules:
+bridge** — as of v3.1 a real file: `src/game/GameAPI.ts`. Construct it at
+boot with `createGameAPI({ economy, player, input, interactions, trotro })`
+(hand it the live instances built in `src/main.ts`); every method then
+delegates 1:1 to the owning system. Routing rules:
 
 - **When the AI calls `spendMoney(params)`, the GameAPI bridge routes this to
   `Wallet.spendMoney` in `src/game/Economy/Wallet.ts`.**
@@ -197,7 +275,14 @@ boot (`src/main.ts`) and exposes them through `skills/agent-adapter.ts`
 - **When the AI calls `purchaseEverydayExpense('EXP_TROTRO_FARE')`, the
   GameAPI bridge routes this to `EconomyManager.purchaseEverydayExpense` in
   `src/game/Economy/EconomyManager.ts`** (which itself debits via
-  `Wallet.spendMoney`, same file).
+  `Wallet.spendMoney`, same file, and grants the ticket item via
+  `grantOwnedItemId`).
+- **When the AI calls `hasOwnedItem(itemId)` / `getOwnedItemIds()`, the
+  GameAPI bridge routes this to `EconomyManager.getOwnershipFoundations`
+  in `src/game/Economy/EconomyManager.ts`** (`.ownedItemIds`).
+- **When the AI calls `boardPassenger()` / `alightPassenger()` /
+  `isFull()` / `getSnapshot()`, the GameAPI bridge routes this to
+  `TrotroService` in `src/game/World/TrotroService.ts`.**
 - **When the AI reads `position` / calls `setJoystickInput(x, y)` /
   `setSprintState(active)`, the GameAPI bridge routes this to
   `PlayerController` in `src/game/Player/PlayerController.ts`.**
@@ -218,6 +303,9 @@ boot (`src/main.ts`) and exposes them through `skills/agent-adapter.ts`
 | `spendMoney(params)` | `Wallet.spendMoney` | `src/game/Economy/Wallet.ts` |
 | `getTransactions()` | `Wallet.getTransactions` | `src/game/Economy/Wallet.ts` |
 | `purchaseEverydayExpense('EXP_TROTRO_FARE')` | `EconomyManager.purchaseEverydayExpense` | `src/game/Economy/EconomyManager.ts` |
+| `hasOwnedItem('trotro_ticket_osu_circle')` | `EconomyManager.getOwnershipFoundations().ownedItemIds` | `src/game/Economy/EconomyManager.ts` |
+| `boardPassenger()` / `alightPassenger()` | `TrotroService.boardPassenger` / `.alightPassenger` | `src/game/World/TrotroService.ts` |
+| `isFull()` / `getSnapshot()` | `TrotroService.isFull` / `.getSnapshot` | `src/game/World/TrotroService.ts` |
 | `position` (read) | `PlayerController.position` | `src/game/Player/PlayerController.ts` |
 | `setJoystickInput` / `setSprintState` | `PlayerController.*` | `src/game/Player/PlayerController.ts` |
 | `triggerCurrentInteraction()` | `InteractionSystem.triggerCurrentInteraction` | `src/game/Player/InteractionSystem.ts` |
@@ -238,10 +326,13 @@ boot (`src/main.ts`) and exposes them through `skills/agent-adapter.ts`
      fares.' — the bridge may layer the Accra-flavor variants ('Circle!
      Circle! Enter well!', 'Oga, move inside make we go!') on top as host
      copy; the code-backed line is the one in `interactionResponse`.
-   - **Capacity**: `currentPassengers`/`capacity` do **not exist in src** —
-     the van is static scenery. Until the adapter ships passenger state,
-     capacity is always available and this check is a no-op (adapter-owned
-     extension declared in `skills/tro-tro-adapter.ts`).
+   - **Capacity** (real since v3.1): call `trotro.getSnapshot()` (or
+     `trotro.isFull()`) BEFORE the fare gate. IF `isFull === true` the Mate
+     refuses — 'No space! Next one!' — and boarding aborts BEFORE any
+     `spendMoney` call. On acceptance `trotro.boardPassenger()` seats the
+     passenger (`false` ⇒ full, treat as refusal); call
+     `trotro.alightPassenger()` when transit ends; `trotro.resetVehicle()`
+     when the van pulls away from the stop.
 3. **Fare & Boarding Logic**:
    - IF player requests to board, CHECK `wallet.canAfford(fare, 'CASH')`
      (real signature: `canAfford(amount: number, channel?: PaymentChannel)`,
@@ -251,34 +342,45 @@ boot (`src/main.ts`) and exposes them through `skills/agent-adapter.ts`
      `TransactionRecord | null`; `null` → abort (bridge surfaces
      `E_INSUFFICIENT_FUNDS` / `E_INTERNAL`). Canonical ₵6 route: call
      `economy.purchaseEverydayExpense('EXP_TROTRO_FARE')` instead — one real
-     call that validates, debits CASH and writes the `TRANSPORT` ledger row.
-     Then trigger the boarding animation (host surfacing of
-     `PlayerController.update` → `CharacterRig.updateAnimation`) and apply
-     the position transit (adapter-owned `arriveAt` override — no teleport
-     function exists in src).
+     call that validates, debits CASH, writes the `TRANSPORT` ledger row
+     AND grants the real ticket item `trotro_ticket_osu_circle` into
+     `ownership.ownedItemIds` (verify afterwards with
+     `hasOwnedItem('trotro_ticket_osu_circle')`). Then trigger the boarding
+     animation (host surfacing of `PlayerController.update` →
+     `CharacterRig.updateAnimation`) and apply the position transit
+     (adapter-owned `arriveAt` override — no teleport function exists in
+     src).
    - IF NO: surface the Mate's refusal ('Oga, you no get change? Abeg shift
      make others enter.'), do NOT call `spendMoney`, player stays put. Real
      recovery: `JOB_TROTRO_MATE` (₵15) via the jobs flow.
 - **Ordering is mandatory**: proximity (`getActiveTarget`) →
-  `triggerCurrentInteraction` → `canAfford` → `spendMoney` /
-  `purchaseEverydayExpense` → animation → transit. Calling `spendMoney`
-  without the Mate interaction first is a contract violation.
+  `triggerCurrentInteraction` → capacity gate (`getSnapshot().isFull`) →
+  `canAfford` → `spendMoney` / `purchaseEverydayExpense` →
+  `boardPassenger` → animation → transit. Calling `spendMoney` without the
+  Mate interaction first, or while the van `isFull()`, is a contract
+  violation.
 
 ## [EXAMPLES] Successful Execution
 
 - **Context**: Player at world `(9.0, 0, 4.5)` (inside the `trotro_stop`
-  3.5 m radius). Fare = ₵5 (adapter zone route). Balance read from
-  `wallet.getCashBalance()` = 20.
+  3.5 m radius). Fare = ₵6 canonical (read via `trotro.getCanonicalFareGHS()`).
+  Balance read from `wallet.getCashBalance()` = 20. Van snapshot:
+  `currentPassengers 12 / capacity 14`.
 - **Agent Action**:
   1. `interactions.getActiveTarget()` → `trotro_stop`; then
      `interactions.triggerCurrentInteraction()` → `true` (Mate greets).
-  2. `wallet.canAfford(5, 'CASH')` → `true`.
-  3. `wallet.spendMoney({ amount: 5, category: 'TRANSPORT', channel: 'CASH',
-     description: "Trotro fare (Mate's van)" })` → `TransactionRecord`.
-  4. Boarding animation plays; adapter-owned transit overrides the zone.
-- **Result**: `wallet.getCashBalance()` = 15;
-  `wallet.getTransactions()[0]` shows the `TRANSPORT` row; player position
-  now resolves to the destination zone.
+  2. `trotro.getSnapshot()` → `isFull: false` (seats available: 2).
+  3. `wallet.canAfford(6, 'CASH')` → `true`.
+  4. `economy.purchaseEverydayExpense('EXP_TROTRO_FARE')` → `success: true`
+     — debits ₵6 CASH, writes the `TRANSPORT` ledger row, and grants
+     `trotro_ticket_osu_circle` into `ownership.ownedItemIds`.
+  5. `hasOwnedItem('trotro_ticket_osu_circle')` → `true` (ticket held).
+  6. `trotro.boardPassenger()` → `true` (12 → 13 seated).
+  7. Boarding animation plays; adapter-owned transit overrides the zone.
+- **Result**: `wallet.getCashBalance()` = 14;
+  `wallet.getTransactions()[0]` shows the `TRANSPORT` row;
+  `getOwnedItemIds()` contains `trotro_ticket_osu_circle`; van snapshot
+  `13/14`; player position now resolves to the destination zone.
 
 ```json
 [
@@ -287,38 +389,58 @@ boot (`src/main.ts`) and exposes them through `skills/agent-adapter.ts`
     "responseLine": "Osu–Circle station — mate collecting fares." } },
 
   { "skill": "tro-tro", "op": "pay_and_board",
-    "params": { "amountGHS": 5, "routeId": "CIRCLE_TO_KANESHIE" } },
-  { "ok": true, "result": { "phase": "BOARDED", "balanceAfterGHS": 15,
-    "transaction": { "category": "TRANSPORT", "amount": -5, "channel": "CASH" } } }
+    "params": { "expenseId": "EXP_TROTRO_FARE", "routeId": "CIRCLE_TO_KANESHIE" } },
+  { "ok": true, "result": { "phase": "BOARDED", "balanceAfterGHS": 14,
+    "transaction": { "category": "TRANSPORT", "amount": -6, "channel": "CASH" },
+    "ticketItemId": "trotro_ticket_osu_circle",
+    "ticketOwned": true,
+    "passengersAfter": 13, "capacity": 14 } }
 ]
 ```
 
 ## [EXAMPLES] Failed Execution
 
-- **Context**: `wallet.getCashBalance()` = 2. Fare = ₵5.
+- **Context**: `wallet.getCashBalance()` = 2. Fare = ₵6
+  (`trotro.getCanonicalFareGHS()`).
 - **Agent Action**:
-  1. `wallet.canAfford(5, 'CASH')` → `false`.
-  2. Surface the Mate's refusal via the interaction channel.
-  3. Abort boarding — **no `spendMoney` call is made**.
+  1. `trotro.getSnapshot()` → `isFull: false` (capacity gate passes).
+  2. `wallet.canAfford(6, 'CASH')` → `false`.
+  3. Surface the Mate's refusal via the interaction channel.
+  4. Abort boarding — **no `spendMoney` call is made**, no seat taken
+     (`boardPassenger()` NOT called).
 - **Result**: `wallet.getCashBalance()` still 2; `wallet.getTransactions()`
-  unchanged; player remains at the stop; rejection dialogue played.
+  unchanged; `hasOwnedItem('trotro_ticket_osu_circle')` still `false`;
+  van snapshot unchanged (12/14); player remains at the stop; rejection
+  dialogue played.
 
 ```json
 [
   { "skill": "tro-tro", "op": "pay_and_board",
-    "params": { "amountGHS": 5, "routeId": "CIRCLE_TO_KANESHIE" } },
+    "params": { "expenseId": "EXP_TROTRO_FARE", "routeId": "CIRCLE_TO_KANESHIE" } },
   { "ok": false, "error": { "code": "E_INSUFFICIENT_FUNDS", "retryable": false,
     "message": "Mate: 'Oga, you no get change? Abeg shift make others enter.'",
-    "details": { "requiredGHS": 5, "cashGHS": 2 } } },
+    "details": { "requiredGHS": 6, "cashGHS": 2 } } },
 
   { "skill": "economy", "op": "accept_work", "params": { "workId": "JOB_TROTRO_MATE" } },
   { "ok": true, "result": { "success": true, "message": "Collecting fares with the Mate (₵15)." } }
 ]
 ```
 
+**Capacity refusal variant (E_VAN_FULL)**: same call when
+`trotro.getSnapshot().isFull === true` →
+
+```json
+{ "ok": false, "error": { "code": "E_VAN_FULL", "retryable": true,
+  "message": "Mate: 'No space! Next one!'",
+  "details": { "currentPassengers": 14, "capacity": 14 } } }
+```
+
+Wait for `alightPassenger()` turnover at the next stop (van resets via
+`resetVehicle()` when it pulls away), then retry the sequence.
+
 **Agent recovery plan after the failure**: run `JOB_TROTRO_MATE` (₵15, 30 s
 cooldown) at the same stop, then re-run the successful sequence once
-`wallet.canAfford(fare, 'CASH')` returns `true`.
+`wallet.canAfford(trotro.getCanonicalFareGHS(), 'CASH')` returns `true`.
 
 ## Extended mechanics (adapter reference)
 

@@ -35,6 +35,15 @@ import type { NeedsSystem } from '../src/game/Needs/NeedsSystem';
 import type { HomeSystem } from '../src/game/Home/HomeSystem';
 import type { LocationChatManager } from '../src/game/Multiplayer/LocationChatManager';
 import type { TroTroSystem } from './tro-tro-adapter';
+import type { TrotroService, TrotroPassengerSnapshot } from '../src/game/World/TrotroService';
+
+// The concrete routing bridge (real file in src). Hosts may construct it and
+// derive GameBindings from its public fields:
+//   const api = createGameAPI({ economy, player, input, interactions, trotro });
+export type {
+  GameAPI,
+  GameAPIOptions
+} from '../src/game/GameAPI';
 
 // ------------------------------------------------------------------ envelope
 
@@ -60,7 +69,7 @@ export type ErrorCode =
   | 'E_NOT_AT_LOCATION' | 'E_COOLDOWN' | 'E_RATE_LIMITED'
   | 'E_INSUFFICIENT_FUNDS' | 'E_REQUIREMENTS_UNMET' | 'E_BUSY'
   | 'E_GUEST_READONLY' | 'E_ARRESTED' | 'E_WORLD_BOUNDS'
-  | 'E_STORE_FULL' | 'E_INTERNAL';
+  | 'E_STORE_FULL' | 'E_VAN_FULL' | 'E_INTERNAL';
 
 export interface SkillError {
   code: ErrorCode;
@@ -278,6 +287,12 @@ export interface GameBindings {
   getTargets(): ReadonlyArray<InteractableTarget>;
   /** Convenience expense catalog passthrough. */
   expenses: Readonly<Record<string, EverydayExpenseOption>>;
+  /** Real passenger/capacity state for ACC_TROTRO_001 (tro-tro-system.md
+   *  v3.1). Optional so existing host wiring keeps compiling; when omitted,
+   *  treat capacity as always available. */
+  trotroService?: TrotroService;
+  /** Passenger/capacity snapshot type re-export for host routers. */
+  trotroSnapshot?: TrotroPassengerSnapshot;
 }
 
 /**
