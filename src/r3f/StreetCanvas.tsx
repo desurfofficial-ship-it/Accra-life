@@ -20,6 +20,7 @@ import * as THREE from 'three';
 import { AccraCityGrid, TOTAL_SIZE, cellCenter } from './AccraCityGrid';
 import { MarketStalls } from './MarketStalls';
 import { CityTrees } from './CityTrees';
+import { LandscapeProps } from './LandscapeProps';
 import { TroTroBoarding } from './TroTroBoarding';
 
 // ── Player Avatar ────────────────────────────────────────────────────────────
@@ -134,6 +135,9 @@ export function StreetCanvas() {
 
       {/* Craftpix trees + bushes — greenery along roads */}
       <CityTrees />
+
+      {/* Landscape v2a office buildings + farm FBX */}
+      <LandscapeProps />
 
       {/* Tro-tro boarding system at Circle Station */}
       <TroTroBoarding
