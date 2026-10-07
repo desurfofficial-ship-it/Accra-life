@@ -1,6 +1,6 @@
 ---
 name: tro-tro-system
-version: 4.9.0
+version: 4.10.0
 domain: trotro boarding & transit (GameAPI contract on the
   live custom grid map, incl. the van lifecycle state machine and the
   NORMAL/RUSH_HOUR world-event surface)
@@ -25,10 +25,20 @@ description: >
   the Mate barks the chaos line 'Circle! Circle! Rush hour o! No time to
   argue, enter or stay!'. The [ROUTING]
   section maps each method to the src/game/ file that actually executes it.
-format: hybrid — [CONTRACT] GameAPI methods + [ROUTING] + [LOGIC] + [EXAMPLES] (TypeScript)
+  v4.10 adds the [ASSETS] section: the real GLB models behind the contract
+  (the small_van.glb trio in src/r3f/LivingTrotro.tsx), the procedural Mate
+  character + stop sign (NO GLB yet), and the pointers to
+  docs/ASSET_MAPPING.md + assets/registry.json that stop agents from
+  reverting the van to a box or inventing asset paths.
+format: hybrid — [CONTRACT] GameAPI methods + [ROUTING] + [ASSETS] + [LOGIC] +
+  [EXAMPLES] (TypeScript)
 contract_policy: nine-method surface (six core + three v4.9 event
   methods), copy-exact from src/game/GameAPI.ts
-supersedes: v4.8.0 (Mate-voice culture pass: route barks + DWELL
+supersedes: v4.9.0 (RUSH_HOUR world-event contract:
+  getCurrentEvent/getEventMultiplier/getFareDue, surged ₵7.5 door fare,
+  chaos Mate voice, faster van rhythm — unchanged; v4.10 adds the
+  [ASSETS] asset-path section);
+  v4.8.0 (Mate-voice culture pass: route barks + DWELL
   fill-up barks — unchanged; v4.9 adds the EventService world-event
   cycle, the getCurrentEvent/getFareDue/getEventMultiplier bridge
   methods, the surged door fare and the rush-hour Mate voice);
@@ -56,7 +66,9 @@ source_files:
     auto-timers 2 s / dwell 8 s / 5 s / 8 s, MATE_LINES incl. MISSED and
     NOT_AT_STOP)
   - src/r3f/LivingTrotro.tsx (drives startCycle(), renders every state,
-    plays MATE_LINES shout/bubble per transition)
+    plays MATE_LINES shout/bubble per transition; owns VAN_PATHS — the
+    real van GLBs — and the procedural MateCharacter + ProceduralVan
+    fallback)
   - src/r3f/StreetCanvas.tsx (adopts window.GameAPI.trotro at boot — the
     visible van and the AI bridge share ONE TrotroService instance)
   - src/game/World/GridMap.ts (canonical 5x5 grid: cells, districts,
@@ -365,6 +377,39 @@ is the canonical module both the visuals and the game systems consume.
   live — simulation (movement, interactions, NPC rigs) continues, only
   the hidden canvas draw is skipped (GPU headroom); `window.__phase1Scene`
   exposes the scene for debug.
+
+## [ASSETS] The Real Models Behind This Contract (v4.10)
+
+The van the player boards is NOT a box — it is a real GLB vehicle. The
+paths below are copy-exact from `src/r3f/LivingTrotro.tsx` (`VAN_PATHS`)
+and serve from the Vite `public/` root (URL `/assets/…` ↔ file
+`public/assets/…`). The master object → asset map is
+**`docs/ASSET_MAPPING.md`**; the provenance/licensing ledger is
+**`assets/registry.json`**. Two hard rules for every agent: (1) never
+downgrade a mapped model back to a box/capsule; (2) never invent an asset
+path — if it is not in the map below or in docs/ASSET_MAPPING.md, it does
+not exist.
+
+| Contract object | Asset | Path (copy-exact) | Loaded by |
+|---|---|---|---|
+| The trotro van (ACC_TROTRO_001) | `small_van.glb` (2.7 MB) — **PRIMARY**, default `vanModel` | `/assets/glb/vehicles/small_van.glb` | `LivingTrotro.tsx` `GLBVan` — useGLTF, scale 0.5, tinted MTN yellow `#f59e0b` (roughness 0.5), door mesh auto-detected by name (`door`/`slide`/`passenger`) and swung −108° open during IDLE_AT_STOP/BOARDING |
+| Alt van variant | `european_delivery_van.glb` (35 MB) | `/assets/glb/vehicles/european_delivery_van.glb` | same component via `<LivingTrotro vanModel="european_delivery_van">` (scale 0.3; NOT preloaded — streams on demand) |
+| Alt van variant | `retro_anime_vintage_volkswagen_van.glb` (2.6 MB) | `/assets/glb/vehicles/retro_anime_vintage_volkswagen_van.glb` | same component via `vanModel="retro_vw"` (scale 0.4) |
+| The Mate — visual | **NO GLB YET** — procedural | — | `LivingTrotro.tsx` `MateCharacter` (capsule body + sphere head + yellow vest box at [1.5, 0.9, 1.5] beside the door; idle bob / boarding bounce via useFrame) — mounted only in IDLE_AT_STOP + BOARDING |
+| The Mate — voice | Web Speech API (no file) | — | `LivingTrotro.tsx` `playMateShout()` (rate 1.2, pitch 0.9, volume 0.7) + the `[trotro] Mate shouts: "…"` console line |
+| The tro-tro stop sign | **NO GLB YET** — procedural | — | `src/r3f/TroTroStop.tsx` (steel post + emissive yellow cylinder panel) + `src/game/World/NeighborhoodTrotro.ts` (ACC_PROP_001 shelter + boarding pad on the station cell) |
+| Loading fallback | procedural box van | — | `LivingTrotro.tsx` `ProceduralVan` — the Suspense fallback while the GLB streams (same door animation, same stripes); a fallback, never a replacement |
+
+**Preload list** (module scope of `LivingTrotro.tsx`): `small_van.glb` +
+`retro_anime_…van.glb` — the 35 MB delivery van is deliberately not
+preloaded.
+
+**Planned drops (paths RESERVED, files DO NOT exist — never reference
+them):** `TrotroService.loadTrotroAssets()` keeps null slots for
+`'/assets/glb/trotro_mate.glb'` (mate) and a dedicated trotro van GLB;
+the registry roadmap targets hand-crafted Accra art under
+`assets/accra/vehicles/` + `assets/accra/props/`. Until those land, the
+table above is the whole truth — and the Mate stays procedural.
 
 ## [LOGIC] Behavioral Instructions
 

@@ -1,6 +1,6 @@
 ---
 name: vendor-system
-version: 1.0.0
+version: 1.1.0
 domain: Makola street-vendor job (GameAPI contract for the timed
   selling shift at the Makola Market vendor stand, on the live
   custom grid map, incl. the NORMAL/RUSH_HOUR payout tiers)
@@ -15,11 +15,18 @@ description: >
   credits the wallet itself through the addFunds path — the agent never
   moves the money. The [CONTRACT] is the owner-issued surface — every
   call is a real method on src/game/GameAPI.ts, runtime smoke-tested.
-format: hybrid — [CONTRACT] GameAPI methods + [ROUTING] + [LOGIC] +
-  [EXAMPLES] (TypeScript)
+  v1.1 adds the [ASSETS] section: the procedural vendor stand (NO GLB
+  yet), the market food GLB stalls and the vendor water bottle that
+  dress the Makola cell, and the pointers to docs/ASSET_MAPPING.md +
+  assets/registry.json that stop agents from inventing asset paths or
+  replacing the stand with unregistered props.
+format: hybrid — [CONTRACT] GameAPI methods + [ROUTING] + [ASSETS] +
+  [LOGIC] + [EXAMPLES] (TypeScript)
 contract_policy: four-method surface (startVendorJob, getCurrentJob,
   addFunds, getCurrentEvent), copy-exact from src/game/GameAPI.ts
-supersedes: none (initial release — v1.0.0)
+supersedes: v1.0.0 (initial release — four-method contract, engine-pays
+  shift, ₵10/₵15 event tiers; unchanged; v1.1 adds the [ASSETS]
+  asset-path section)
 source_files:
   - src/game/GameAPI.ts (the bridge — startVendorJob injects the live
     player position into the service's proximity gate; addFunds defaults
@@ -36,7 +43,8 @@ source_files:
   - src/game/World/NeighborhoodMarket.ts (hidden-layer
     'makola_vendor_stand' interactable, radius 3.5)
   - src/r3f/LivingVendor.tsx (the visible stand — [E] listener,
-    dialogue bubble, 10 s shift bar, sale chime, '+₵' payout float)
+    dialogue bubble, 10 s shift bar, sale chime, '+₵' payout float;
+    fully procedural — NO GLB stand model yet)
   - src/r3f/StreetCanvas.tsx (mounts LivingVendor at
     MAKOLA_VENDOR_STAND_WORLD; adopts window.GameAPI.vendor)
   - src/main.ts (vendorService instance → createGameAPI;
@@ -151,6 +159,36 @@ HUD balance and the ledger row appear with no extra agent work. Do not
 confuse the world event (`EventService`, drives the ₵15 tier) with the
 multiplayer `LiveEventsSystem` banner ('Rush Hour · +35% Job Pay') —
 different system, different multiplier, different file.
+
+## [ASSETS] The Stand, the Market and the Props (v1.1)
+
+The Makola stand is procedural ON PURPOSE — no vendor-stall GLB exists
+in the repo, and an agent that swaps in an unregistered model (or a raw
+cube) breaks the visual contract either way. Everything that IS a real
+model around the stand is listed below. Paths are copy-exact and serve
+from the Vite `public/` root (URL `/assets/…` ↔ file `public/assets/…`).
+The master object → asset map is **`docs/ASSET_MAPPING.md`**; the
+provenance/licensing ledger is **`assets/registry.json`**. Two hard
+rules: (1) never replace a mapped GLB with a box; (2) never invent an
+asset path — if it is not in this table or in the master map, it does
+not exist.
+
+| Contract object | Asset | Path (copy-exact) | Loaded by |
+|---|---|---|---|
+| The vendor stand (visible) | **NO GLB YET** — procedural | — | `src/r3f/LivingVendor.tsx` — wooden table + legs, tomato spheres, yam cylinders, crate, umbrella pole at `MAKOLA_VENDOR_STAND_WORLD` [-12.6, 2.6]; the [E] prompt, dialogue bubble, 10 s shift bar and '+₵' float are DOM overlays on this group |
+| The hidden interactable | no asset — pure data | — | `src/game/World/NeighborhoodMarket.ts` — `makola_vendor_stand` interactable, radius 3.5 (the systems-layer twin of the visible stand) |
+| Market stall produce (dressing around the stand) | 9 food GLBs: `banana`, `apple`, `bread`, `beet`, `avocado`, `barrel`, `bowl`, `bottle-ketchup`, `bag` | `/assets/glb/food/{file}.glb` | `src/r3f/MarketStalls.tsx` — 2 stalls × 9 items on cells [1,1] + [2,2] (Makola), procedural `StallTable`, per-item scale 0.6–0.8, all preloaded at module scope |
+| The vendor water bottle | `plastic_water_bottle.glb` (303 KB) | `/assets/glb/props/plastic_water_bottle.glb` | `src/r3f/BuildingAssets.tsx` — Makola cell [1,1] offset [+2, 0.8, −1], scale 0.5, preloaded |
+| Food GLB textures (dependency) | `colormap.png` | `/assets/glb/food/Textures/colormap.png` | required by every food GLB internally — ships with the pack; if the folder is moved the textures 404 silently (v4.4 tro-tro fix) |
+| Sale-complete feedback | WebAudio chime + DOM float (no file) | — | `LivingVendor.tsx` — chime + '+₵15'/'₵10' float + 'Sales counted — ₵… in hand!' PAID beat; verified via `getCashBalance()`/`getTransactions()`, not the animation |
+
+**Planned drops (paths RESERVED under the registry's
+`assets/accra/props/` layout, files DO NOT exist — never reference
+them):** a hand-crafted Accra vendor stall GLB (wooden kiosk + umbrella
++ waakye pot), local food props (waakye plates, kelewele pans, sachet
+water racks) and Makola signage. When one lands, register it in
+`assets/registry.json` first, add it to `docs/ASSET_MAPPING.md` second,
+and only then wire it into `LivingVendor.tsx`.
 
 ## [LOGIC] The Vendor Behavior
 

@@ -10,6 +10,14 @@ Main-agent orchestration protocol for the independently callable skills:
 | [`tro-tro-system.md`](./tro-tro-system.md) | Trotro boarding, Mate fare negotiation, zone pricing, door chase | `src/game/World/NeighborhoodTrotro.ts` + reference implementation [`tro-tro-adapter.ts`](./tro-tro-adapter.ts) |
 | [`vendor-system.md`](./vendor-system.md) | Makola street-vendor timed shift — NORMAL ₵10 / RUSH_HOUR ₵15 tiers, engine-owned payout | `src/game/Jobs/VendorService.ts`, `src/r3f/LivingVendor.tsx`, `src/game/World/EventService.ts` |
 
+**Asset paths (v4.10 / v1.1):** every model path an agent may reference lives
+in [`docs/ASSET_MAPPING.md`](../docs/ASSET_MAPPING.md) (master object → asset
+map) and [`assets/registry.json`](../assets/registry.json) (provenance +
+licensing). The skill files' `[ASSETS]` sections quote the same paths —
+never invent one, never downgrade a mapped model back to a box/capsule, and
+never load a RESERVED path (`/assets/glb/trotro_mate.glb`, `assets/accra/**`)
+until its file actually exists.
+
 **Live custom map (v4.5):** the game world is the custom 5x5 Accra grid —
 `src/game/World/GridMap.ts` (canonical cells/districts/zone→LocationId map) +
 `src/r3f/StreetCanvas.tsx` (visible world). The R3F avatar is driven by the real
