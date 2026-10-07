@@ -104,7 +104,13 @@ const nearbyStrip = document.getElementById('nearbyStrip');
 const currentLocationPill = document.getElementById('currentLocationPill');
 const liveEventPillEl = document.getElementById('liveEventPill');
 const liveEventTextEl = document.getElementById('liveEventText');
+const placeRecoveryBtn = document.getElementById('placeRecoveryBtn') as HTMLButtonElement | null;
 let currentLocationId: LocationId = 'adabraka_neighborhood';
+
+// ---- Place-tied recovery actions (per-location food/rest chip) ----
+// actionId → epoch ms when the action becomes usable again.
+const recoveryCooldownUntil = new Map<string, number>();
+let recoveryRenderedLocId: LocationId | null = null;
 
 // ---- Friends + home visiting module refs ----
 let friendsSystem: FriendsSystem | null = null;
@@ -1538,6 +1544,10 @@ function startGame(profile: OnboardingResult): void {
       }
     });
 
+    // ── Place-tied recovery chip: sync to spawn location + wire clicks ────
+    placeRecoveryBtn?.addEventListener('click', performPlaceRecoveryAction);
+    updatePlaceRecoveryButton(true);
+
     // ── Housing cloud sync: push home changes to Firestore (accounts) ──────
     homeSystem.onUpdate((state) => scheduleHousingCloudSync(state));
 
@@ -1578,6 +1588,7 @@ function startGame(profile: OnboardingResult): void {
       if (now - lastCooldownUiTickMs >= 500) {
         lastCooldownUiTickMs = now;
         updateLiveJobModalCooldowns();
+        updatePlaceRecoveryButton();
       }
       requestAnimationFrame(tick);
     };
@@ -1796,6 +1807,27 @@ function initFriends(profile: OnboardingResult): void {
     };
     (window as unknown as Record<string, unknown>).__accraShowcase = {
       setOverride: setDevShowcaseOverride
+    };
+    (window as unknown as Record<string, unknown>).__accraDev = {
+      /** Read the live player world position (x, y, z). */
+      pos: () => {
+        const p = phase1SceneRef?.player.position;
+        return p ? { x: p.x, y: p.y, z: p.z } : null;
+      },
+      /** Teleport the player to (x, z) and snap the camera behind them. */
+      teleport: (x: number, z: number) => {
+        if (!phase1SceneRef) return null;
+        phase1SceneRef.player.position.set(x, 0.08, z);
+        phase1SceneRef.thirdPersonCamera.resetBehindPlayer(
+          phase1SceneRef.player.rotationY
+        );
+        return { x, z };
+      },
+      /** Which location def the given (or current) position resolves to. */
+      loc: (x?: number, z?: number) => {
+        const p = phase1SceneRef?.player.position;
+        return getLocationAt(x ?? p!.x, z ?? p!.z).id;
+      }
     };
   }
 }
@@ -2310,6 +2342,7 @@ function initMultiplayer(profile: OnboardingResult, phase1: Phase1Scene): void {
       presenceManager?.updateLocation(newLoc.id);
       chatManager?.switchLocation(newLoc.id);
       setCurrentLocationPill(newLoc.id, true);
+      updatePlaceRecoveryButton(true);
       if (chatSheetTitle) chatSheetTitle.textContent = `At ${newLoc.displayName}`;
       if (chatSheetSub) {
         chatSheetSub.textContent = isAccountMode
@@ -2427,6 +2460,96 @@ function setCurrentLocationPill(locId: LocationId, flash: boolean): void {
     void currentLocationPill.offsetWidth;
     currentLocationPill.classList.add('flash');
   }
+}
+
+/**
+ * Syncs the place-recovery HUD chip to the current location's action.
+ * While a cooldown is active, shows a live "icon + seconds" countdown;
+ * once idle, restores the action's short pill label. Called on the 500ms
+ * UI cadence and forced on location change / boot — the idle fast path
+ * skips DOM writes entirely when the chip already matches this location.
+ */
+function updatePlaceRecoveryButton(force = false): void {
+  if (!placeRecoveryBtn) return;
+  const action = getLocationDef(currentLocationId).recoveryAction;
+  const cooldownLeftMs = Math.max(0, (recoveryCooldownUntil.get(action.id) ?? 0) - Date.now());
+  const cooldownLeftSecs = Math.ceil(cooldownLeftMs / 1000);
+  if (
+    !force &&
+    cooldownLeftMs <= 0 &&
+    recoveryRenderedLocId === currentLocationId &&
+    !placeRecoveryBtn.disabled
+  ) {
+    return;
+  }
+  if (cooldownLeftMs > 0) {
+    placeRecoveryBtn.disabled = true;
+    placeRecoveryBtn.textContent = `${action.icon} ${cooldownLeftSecs}s`;
+    placeRecoveryBtn.title = `${action.label} — ready in ${cooldownLeftSecs}s`;
+  } else {
+    placeRecoveryBtn.disabled = false;
+    placeRecoveryBtn.textContent = action.shortPillLabel;
+    placeRecoveryBtn.title = `${action.label} · cooldown ${action.cooldownSeconds}s`;
+    recoveryRenderedLocId = currentLocationId;
+  }
+}
+
+/**
+ * Runs the current location's recovery action: pays (if it costs), restores
+ * hunger/energy, sheds heat, then starts the action's cooldown. Refuses
+ * gracefully (no charge) when the player is already full/rested or broke.
+ */
+function performPlaceRecoveryAction(): void {
+  const action = getLocationDef(currentLocationId).recoveryAction;
+  const nowMs = Date.now();
+  const cooldownLeftMs = Math.max(0, (recoveryCooldownUntil.get(action.id) ?? 0) - nowMs);
+  if (cooldownLeftMs > 0) {
+    showInteractionFeedback(`Wait ${Math.ceil(cooldownLeftMs / 1000)}s first.`, true);
+    return;
+  }
+
+  // Mirror the systems' own refusal thresholds so the player is never
+  // charged for a no-op (eatMeal refuses at hunger≥96+energy≥96,
+  // restLight refuses at energy≥95).
+  if (action.hungerRestore > 0) {
+    const n = needsSystem.getState();
+    if (n.hunger >= 96 && n.energy >= 96) {
+      showInteractionFeedback('You’re full and rested — no need right now.', true);
+      return;
+    }
+  } else if (action.energyRestore > 0) {
+    if (needsSystem.getState().energy >= 95) {
+      showInteractionFeedback('Already rested.', true);
+      return;
+    }
+  }
+
+  if (action.costGHS > 0) {
+    const wallet = economyManager.wallet;
+    if (!wallet.canAfford(action.costGHS)) {
+      showInteractionFeedback(`Need ₵${action.costGHS} for that.`, true);
+      return;
+    }
+    wallet.spendMoney({
+      amount: action.costGHS,
+      category: 'FOOD',
+      description: action.label
+    });
+    syncEconomyHUD();
+  }
+
+  if (action.hungerRestore > 0) {
+    needsSystem.eatMeal(action.label, action.hungerRestore, action.energyRestore);
+  } else if (action.energyRestore > 0) {
+    needsSystem.restLight(action.energyRestore, action.label);
+  }
+  if (action.heatReduction > 0) {
+    crimeSystem.reduceHeatBy(action.heatReduction);
+  }
+
+  recoveryCooldownUntil.set(action.id, nowMs + action.cooldownSeconds * 1000);
+  showInteractionFeedback(action.feedbackText);
+  updatePlaceRecoveryButton(true);
 }
 
 function updateChatBadge(): void {

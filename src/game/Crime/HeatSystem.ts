@@ -251,6 +251,17 @@ export class HeatSystem {
     return this.policeStatus;
   }
 
+  /**
+   * Immediately sheds heat (0–100 scale) — used by place-tied recovery
+   * actions (veranda nap, neem shade rest). Recomputes wanted status so
+   * cooling off below a threshold downgrades the police pill live.
+   */
+  public reduceHeatBy(amount: number): void {
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    this.heatLevel = Math.max(0, this.heatLevel - amount);
+    this.recomputePoliceStatus();
+  }
+
   public startIllegalHustle(
     hustleId: string,
     hasActiveLegalWork: boolean
