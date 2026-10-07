@@ -1573,7 +1573,12 @@ body.hud-minimal-mode .identity-card {
 </style>
 </head>
 <body>
-<div id="viewportContainer" data-testid="viewport-container"></div>
+<div id="viewportContainer" data-testid="viewport-container">
+  <!-- Phase-1 R3F Bridge: R3F Canvas renders here (behind the HUD overlay).
+       The HUD elements above/below this div in the DOM stay fixed while
+       the 3D plane inside the Canvas can be rotated via OrbitControls. -->
+  <div id="r3f-root" style="position:absolute;inset:0;z-index:1"></div>
+</div>
 
 <!-- Onboarding Overlay -->
 <div id="onboardingOverlay">
@@ -1881,5 +1886,7 @@ body.hud-minimal-mode .identity-card {
 </div>
 
 <script type="module" src="./src/main.ts"></script>
+<!-- Phase-1 R3F Bridge: mounts the StreetCanvas into #r3f-root -->
+<script type="module" src="./src/r3f/main.tsx"></script>
 </body>
 </html>
