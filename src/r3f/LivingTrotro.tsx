@@ -236,9 +236,15 @@ export function LivingTrotro({ position, trotroService, vanModel = 'small_van' }
           playMateShout(line);
           break;
         }
-        case 'IDLE_AT_STOP':
-          setDialogue(`${trotroService.getSeatsAvailable()} seats. Fare ₵${trotroService.getCanonicalFareGHS()}`);
+        case 'IDLE_AT_STOP': {
+          // v4.8 culture pass: the dwell is when a real Mate is LOUDEST —
+          // bark a change-call / fill-up grumble instead of a dry seats readout
+          // (fare + balance stay on the GTA prompt and the Mate panel).
+          const dwell = MATE_LINES.DWELL[Math.floor(Math.random() * MATE_LINES.DWELL.length)];
+          setDialogue(dwell);
+          playMateShout(dwell);
           break;
+        }
         case 'BOARDING':
           setDialogue(MATE_LINES.BOARDED);
           break;

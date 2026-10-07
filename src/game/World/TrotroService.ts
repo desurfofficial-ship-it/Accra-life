@@ -47,7 +47,23 @@ const DEPARTING_TO_EN_ROUTE_MS = 8000; // 8s — van arrives at next stop
 // ── Mate dialogue lines (authentic Accra flavor per spec) ──────────────────
 
 export const MATE_LINES = {
-  ARRIVING: ['Circle! Circle! Enter well!', 'Oga, move inside make we go!', 'Last stop! Enter make we move!'],
+  // v4.8 culture pass: real Mates bark the route with intermediate stops and
+  // the iconic change call — passengers with big notes get the cold shoulder.
+  ARRIVING: [
+    'Circle! Circle! Enter well!',
+    'Oga, move inside make we go!',
+    'Last stop! Enter make we move!',
+    'Osu! Circle! Osu! Circle!',
+    'Enter with your change o!',
+  ],
+  // v4.8 dwell culture: the van is docked but NOT leaving until it fills —
+  // real Mates keep barking while they wait ("we dey wait one more person").
+  DWELL: [
+    'One more person make we move!',
+    'Enter with your change!',
+    'Two for the front seat, workers!',
+    'We dey go soon — make you enter with your change!',
+  ],
   FULL: 'No space! Next one!',
   INSUFFICIENT: 'Oga, you no get change? Abeg shift make others enter.',
   BOARDED: 'Make you sit well. We dey go!',
