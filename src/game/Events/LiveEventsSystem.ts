@@ -168,9 +168,39 @@ export class LiveEventsSystem {
   private startedAtMs = Date.now();
   private expiresAtMs = Date.now() + ACCRA_LIVE_EVENTS[0].durationSeconds * 1000;
   private listeners = new Set<LiveEventListener>();
+  /**
+   * Optional skip-predicate (wired from main.ts composition root): when it
+   * returns true for a candidate event, the cycler skips it. Used so the
+   * 'trotro_rush_hour' job-pay pill never displays alongside the world-level
+   * RUSH_HOUR (EventService — trotro fare surge + top EventBanner): two
+   * same-named banners at once read as a duplicate to the player.
+   */
+  private blockPredicate: ((ev: LiveEventDef) => boolean) | null = null;
 
   constructor() {
     this.startEventByIndex(0);
+  }
+
+  /**
+   * Set/clear the skip-predicate (composition-root wiring — keeps this class
+   * decoupled from EventService). Passing null restores unfiltered cycling.
+   */
+  public setBlockPredicate(p: ((ev: LiveEventDef) => boolean) | null): void {
+    this.blockPredicate = p;
+  }
+
+  /**
+   * Next index after `from`, skipping blocked events. Full-cycle safe —
+   * if every event is blocked the original successor is returned.
+   */
+  private pickNextIndex(from: number): number {
+    const len = ACCRA_LIVE_EVENTS.length;
+    let idx = (from + 1) % len;
+    for (let i = 0; i < len && this.blockPredicate; i++) {
+      if (!this.blockPredicate(ACCRA_LIVE_EVENTS[idx])) return idx;
+      idx = (idx + 1) % len;
+    }
+    return idx;
   }
 
   public getActiveEvent(): ActiveLiveEventState {
@@ -189,8 +219,7 @@ export class LiveEventsSystem {
 
   public tick(): ActiveLiveEventState {
     if (Date.now() >= this.expiresAtMs) {
-      const nextIndex = (this.currentIndex + 1) % ACCRA_LIVE_EVENTS.length;
-      this.startEventByIndex(nextIndex);
+      this.startEventByIndex(this.pickNextIndex(this.currentIndex));
     }
     const state = this.getActiveEvent();
     this.notify(state);
@@ -198,8 +227,7 @@ export class LiveEventsSystem {
   }
 
   public triggerNextEvent(): ActiveLiveEventState {
-    const nextIndex = (this.currentIndex + 1) % ACCRA_LIVE_EVENTS.length;
-    this.startEventByIndex(nextIndex);
+    this.startEventByIndex(this.pickNextIndex(this.currentIndex));
     const state = this.getActiveEvent();
     this.notify(state);
     return state;

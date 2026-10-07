@@ -187,7 +187,10 @@ export function StreetCanvas() {
       const visible = Math.sqrt(dx * dx + dz * dz) < TROTRO_PROMPT_RANGE;
       const api = getGameAPI();
       const balance = api ? api.getCashBalance() : DEMO_START_BALANCE;
-      const fare = api ? api.getCanonicalFareGHS() : DEMO_FARE;
+      // v4.11: quote the DOOR price (base × event surge) — the same number
+      // TroTroBoarding charges. getCanonicalFareGHS() (base only) made the
+      // prompt show ₵5 while the door took ₵7.5 during RUSH_HOUR.
+      const fare = api ? api.getFareDue() : DEMO_FARE;
       setPromptState(prev =>
         prev.visible === visible && prev.balance === balance && prev.fare === fare
           ? prev
@@ -199,8 +202,12 @@ export function StreetCanvas() {
 
   return (
     <>
-      <Canvas
-      shadows
+      {/* v4.11: 'percentage' = PCFShadowMap. Bare `shadows` mapped to
+        PCFSoftShadowMap, which newer three removed (it logged a
+        deprecation warning each boot and downgraded to PCFShadowMap
+        anyway — so this is the same rendering, minus the warning). */}
+    <Canvas
+      shadows="percentage"
       dpr={[1, 2]}
       style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
       gl={{ antialias: true }}

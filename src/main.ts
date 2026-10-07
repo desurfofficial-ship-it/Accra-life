@@ -1647,6 +1647,25 @@ function startGame(profile: OnboardingResult): void {
     // onUpdate listener updates the pill + toasts new events.
     liveEvents = new LiveEventsSystem();
     liveEvents.onUpdate((state) => updateLiveEventPill(state));
+    // Rush Hour dedup (v4.11): the world-level RUSH_HOUR (EventService —
+    // trotro fare surge + the top EventBanner) and the live-event pill's
+    // 'trotro_rush_hour' (job-pay boost) are different systems, but both
+    // say "Rush Hour" — showing both at once reads as a duplicate. While
+    // the world event is active the pill cycle skips the look-alike, and
+    // if it is mid-display when the world event fires we advance
+    // immediately to the next neighborhood event.
+    liveEvents.setBlockPredicate(
+      (ev) => ev.id === 'trotro_rush_hour' && eventService.getCurrentEvent() === 'RUSH_HOUR'
+    );
+    eventService.onEventChange((evt) => {
+      if (
+        evt === 'RUSH_HOUR' &&
+        liveEvents &&
+        liveEvents.getActiveEvent().event.id === 'trotro_rush_hour'
+      ) {
+        liveEvents.triggerNextEvent();
+      }
+    });
     liveEventPillEl?.addEventListener('click', () => {
       const ev = liveEvents?.getActiveEvent();
       if (ev) {

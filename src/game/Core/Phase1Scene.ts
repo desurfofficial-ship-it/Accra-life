@@ -44,7 +44,10 @@ export class Phase1Scene {
 
   private readonly container: HTMLElement;
   private colliders: ColliderBox[] = [];
-  private clock = new THREE.Clock();
+  // v4.11: performance.now() delta replaces THREE.Clock (deprecated in newer
+  // three — it logged a console warning on every boot). Same semantics:
+  // seconds since previous frame, clamped to 0.1s.
+  private lastFrameMs = performance.now();
   private callbacks: Phase1Callbacks;
   private usingFallback = false;
   private sunLight: THREE.DirectionalLight | null = null;
@@ -131,7 +134,10 @@ export class Phase1Scene {
         webgl.setSize(width, height);
         webgl.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
         webgl.shadowMap.enabled = true;
-        webgl.shadowMap.type = THREE.PCFSoftShadowMap;
+        // v4.11: PCFSoftShadowMap was removed in newer three — setting it
+        // logged a deprecation warning on every boot (three already fell
+        // back to PCFShadowMap internally, so this is behavior-identical).
+        webgl.shadowMap.type = THREE.PCFShadowMap;
         webgl.toneMapping = THREE.ACESFilmicToneMapping;
         webgl.toneMappingExposure = 1.1;
 
@@ -196,7 +202,9 @@ export class Phase1Scene {
   private animate = (): void => {
     requestAnimationFrame(this.animate);
 
-    const dt = Math.min(this.clock.getDelta(), 0.1);
+    const nowMs = performance.now();
+    const dt = Math.min((nowMs - this.lastFrameMs) / 1000, 0.1);
+    this.lastFrameMs = nowMs;
 
     this.player.update(dt, this.thirdPersonCamera.yaw, this.colliders);
 
