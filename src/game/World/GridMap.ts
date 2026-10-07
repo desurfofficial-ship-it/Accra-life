@@ -218,6 +218,41 @@ export const FOOD_VENDOR_ANCHOR: VenueAnchor = makeVenueAnchor({
   zone: 'makola'
 }); // world [0, -16]
 
+/**
+ * MTN MoMo street agent (ACC_MOMO_UMBRELLA / momo_agent) — osu cell
+ * [row 3, col 4]. A mobile-money kiosk on the Osu Oxford Street corner:
+ * walking there resolves to the real osu_oxford_street LocationId pill.
+ */
+export const MOMO_AGENT_ANCHOR: VenueAnchor = makeVenueAnchor({
+  x: 4,
+  z: 3,
+  zone: 'osu'
+}); // world [32, 16]
+
+/**
+ * Daily Susu kiosk (ACC_SUSU_KIOSK / susu_collector) — mixed cell
+ * [row 3, col 0], the northwest community block (all makola/adabraka
+ * cells already host venues). The zone records the served community
+ * (adabraka); the pill at this mixed cell falls back to legacy bounds,
+ * same as before the grid migration.
+ */
+export const SUSU_COLLECTOR_ANCHOR: VenueAnchor = makeVenueAnchor({
+  x: 0,
+  z: 3,
+  zone: 'adabraka'
+}); // world [-32, 16]
+
+/**
+ * Chale Wote mural wall (ACC_CHALE_WOTE_PANEL / chale_wote_panel) — osu
+ * cell [row 4, col 3], the Osu street-art corner (the festival itself is
+ * Jamestown; Osu carries the mural on the custom map).
+ */
+export const CHALE_WOTE_ANCHOR: VenueAnchor = makeVenueAnchor({
+  x: 3,
+  z: 4,
+  zone: 'osu'
+}); // world [16, 32]
+
 /** Tro-tro travel destinations — arrival anchor cell per destination. */
 export const TROTRO_DESTINATIONS: readonly TrotroDestination[] = [
   { id: 'circle', name: 'Circle', row: 3, col: 2, locationId: 'circle_trotro_stop' },

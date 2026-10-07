@@ -9,7 +9,7 @@ Main-agent orchestration protocol for the independently callable skills:
 | [`economy_skill.md`](./economy_skill.md) | Wallet, jobs, hustles, crime heat, housing spend | `src/game/Economy/*`, `src/game/Jobs/*`, `src/game/Crime/HeatSystem.ts`, `src/game/Home/HomeSystem.ts` |
 | [`tro-tro-system.md`](./tro-tro-system.md) | Trotro boarding, Mate fare negotiation, zone pricing, door chase | `src/game/World/NeighborhoodTrotro.ts` + reference implementation [`tro-tro-adapter.ts`](./tro-tro-adapter.ts) |
 
-**Live custom map (v4.2):** the game world is the custom 5x5 Accra grid —
+**Live custom map (v4.3):** the game world is the custom 5x5 Accra grid —
 `src/game/World/GridMap.ts` (canonical cells/districts/zone→LocationId map) +
 `src/r3f/StreetCanvas.tsx` (visible world). The R3F avatar is driven by the real
 `InputManager` and mirrors position/rotation into `PlayerController`; the
@@ -18,7 +18,10 @@ on-map boarding panel routes the same five GameAPI methods. Station cell:
 The [E] key at the station routes into the R3F Mate panel
 (`handleWorldTargetInteracted` → `TROTRO_BOARD_EVENT` → `TroTroBoarding.tsx`),
 every venue sits on its matching grid cell (`provision_shop` on Adabraka
-`[0,1]`, `food_vendor` on Makola `[1,2]`, street NPCs on their cells), and the
+`[0,1]`, `food_vendor` on Makola `[1,2]`, `momo_agent` on Osu `[3,4]`,
+`susu_collector` on the NW community block `[3,0]`, `chale_wote_panel` on Osu
+`[4,3]`, street NPCs on their cells), the user's furniture + beach GLB packs
+are mounted on the Adabraka/Labadi cells, and the
 systems-layer scene stops rendering behind the map (`renderEnabled = false` —
 simulation continues).
 
