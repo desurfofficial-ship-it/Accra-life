@@ -9,7 +9,7 @@ Main-agent orchestration protocol for the independently callable skills:
 | [`economy_skill.md`](./economy_skill.md) | Wallet, jobs, hustles, crime heat, housing spend | `src/game/Economy/*`, `src/game/Jobs/*`, `src/game/Crime/HeatSystem.ts`, `src/game/Home/HomeSystem.ts` |
 | [`tro-tro-system.md`](./tro-tro-system.md) | Trotro boarding, Mate fare negotiation, zone pricing, door chase | `src/game/World/NeighborhoodTrotro.ts` + reference implementation [`tro-tro-adapter.ts`](./tro-tro-adapter.ts) |
 
-**Live custom map (v4.4):** the game world is the custom 5x5 Accra grid —
+**Live custom map (v4.5):** the game world is the custom 5x5 Accra grid —
 `src/game/World/GridMap.ts` (canonical cells/districts/zone→LocationId map) +
 `src/r3f/StreetCanvas.tsx` (visible world). The R3F avatar is driven by the real
 `InputManager` and mirrors position/rotation into `PlayerController`; the
@@ -28,7 +28,13 @@ diorama on cell `[3,1]`, the furniture lineup packs are auto-fitted into the
 Adabraka yards, the beach packs hold the Labadi cells, all food GLBs resolve
 their `Textures/colormap.png`, and the
 systems-layer scene stops rendering behind the map (`renderEnabled = false` —
-simulation continues).
+simulation continues). v4.5 closes the location/coordinate pass: the
+provision store and waakye joint have fine-grained pills + recovery actions
+again (`Locations.getLocationAt` venue-proximity zones beat district
+shadowing), `WorldSurface` elevations are anchor-derived (flat grid,
+compound courtyard/step/interior), and the last pre-map coordinates are
+gone — placement room origin, arrest respawn and home-visit gate teleports
+all derive from `HOME_COMPOUND_ANCHOR` (`COMPOUND_GATE_SPAWN`).
 
 These skills factor the game's hardcoded interaction prompts (`promptLabel` /
 `interactionResponse` on every vendor, NPC, station and door) into a uniform
