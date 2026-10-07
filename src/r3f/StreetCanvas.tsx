@@ -18,7 +18,14 @@ import { OrthographicCamera, OrbitControls } from '@react-three/drei';
 import { useRef, useEffect, type RefObject } from 'react';
 import * as THREE from 'three';
 import { AccraCityGrid, TOTAL_SIZE, cellCenter } from './AccraCityGrid';
+import { MarketStalls } from './MarketStalls';
+import { CityTrees } from './CityTrees';
+import { LandscapeProps } from './LandscapeProps';
+import { SuburbHouses } from './SuburbHouses';
+import { BeachProps } from './BeachProps';
+import { InteriorFurniture } from './InteriorFurniture';
 import { TroTroBoarding } from './TroTroBoarding';
+import { TroTroPrompt } from '../ui/TroTroPrompt';
 
 // ── Player Avatar ────────────────────────────────────────────────────────────
 
@@ -126,6 +133,24 @@ export function StreetCanvas() {
 
       {/* Custom Accra city grid — 5x5 blocks with roads + buildings + landmarks */}
       <AccraCityGrid />
+
+      {/* Kenney Food Kit GLBs — market stalls in Makola Market */}
+      <MarketStalls />
+
+      {/* Craftpix trees + bushes — greenery along roads */}
+      <CityTrees />
+
+      {/* Landscape v2a office buildings + farm FBX */}
+      <LandscapeProps />
+
+      {/* Suburb houses in Adabraka residential district */}
+      <SuburbHouses />
+
+      {/* Beach GLBs in Labadi district */}
+      <BeachProps />
+
+      {/* Furniture GLBs in Adabraka houses */}
+      <InteriorFurniture />
 
       {/* Tro-tro boarding system at Circle Station */}
       <TroTroBoarding
