@@ -2,8 +2,10 @@
  * Lagos Life Ghana — Agent Skill Adapter (interface contract)
  * ============================================================
  *
- * Declares the TypeScript surface that backs the three skill files in this
- * folder (`movement_skill.md`, `dialogue_skill.md`, `economy_skill.md`).
+ * Declares the TypeScript surface that backs the skill files in this
+ * folder (`movement_skill.md`, `dialogue_skill.md`, `economy_skill.md`,
+ * `tro-tro-system.md`). The tro-tro skill additionally ships a reference
+ * runtime implementation in `tro-tro-adapter.ts`.
  *
  * The main agent speaks JSON envelopes (see `skills/README.md` §2); the host
  * game implements `createSkills(bindings)` below to translate envelopes into
@@ -32,10 +34,11 @@ import type { HeatSystem } from '../src/game/Crime/HeatSystem';
 import type { NeedsSystem } from '../src/game/Needs/NeedsSystem';
 import type { HomeSystem } from '../src/game/Home/HomeSystem';
 import type { LocationChatManager } from '../src/game/Multiplayer/LocationChatManager';
+import type { TroTroSystem } from './tro-tro-adapter';
 
 // ------------------------------------------------------------------ envelope
 
-export type SkillName = 'movement' | 'dialogue' | 'economy';
+export type SkillName = 'movement' | 'dialogue' | 'economy' | 'tro-tro';
 
 export interface AgentCallContext {
   sessionId: string;
@@ -277,9 +280,14 @@ export interface GameBindings {
   expenses: Readonly<Record<string, EverydayExpenseOption>>;
 }
 
-/** Host factory: returns the three independently callable skills. */
+/**
+ * Host factory: returns the independently callable skills. For `troTrot` the
+ * host can either implement `TroTroSystem` itself or reuse the reference
+ * implementation: `createTroTroSystem(bindings)` from `tro-tro-adapter.ts`.
+ */
 export declare function createSkills(bindings: GameBindings): {
   movement: MovementSkill;
   dialogue: DialogueSkill;
   economy: EconomySkill;
+  troTrot: TroTroSystem;
 };

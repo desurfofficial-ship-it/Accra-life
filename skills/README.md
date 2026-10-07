@@ -1,12 +1,13 @@
 # Lagos Life Ghana — Agent Skill Layer
 
-Main-agent orchestration protocol for the three independently callable skills:
+Main-agent orchestration protocol for the independently callable skills:
 
 | Skill file | Domain | Extracted from |
 |---|---|---|
 | [`movement_skill.md`](./movement_skill.md) | Locomotion, approach, trotro travel | `src/game/Player/*`, `src/game/World/Locations.ts` |
 | [`dialogue_skill.md`](./dialogue_skill.md) | Interactions, NPC talk, location chat | `src/game/Player/InteractionSystem.ts`, `src/game/Multiplayer/LocationChatManager.ts` |
 | [`economy_skill.md`](./economy_skill.md) | Wallet, jobs, hustles, crime heat, housing spend | `src/game/Economy/*`, `src/game/Jobs/*`, `src/game/Crime/HeatSystem.ts`, `src/game/Home/HomeSystem.ts` |
+| [`tro-tro-system.md`](./tro-tro-system.md) | Trotro boarding, Mate fare negotiation, zone pricing, door chase | `src/game/World/NeighborhoodTrotro.ts` + reference implementation [`tro-tro-adapter.ts`](./tro-tro-adapter.ts) |
 
 These skills factor the game's hardcoded interaction prompts (`promptLabel` /
 `interactionResponse` on every vendor, NPC, station and door) into a uniform
@@ -27,13 +28,13 @@ or systems code directly. The TypeScript surface the skills wrap is declared in
                            ▼
                  ┌────────────────────────────┐
                  │      AgentSkillAdapter     │   skills/agent-adapter.ts
-                 │  movement │ dialogue │ economy
-                 └─────┬──────────┬─────────┬─┘
-                       ▼          ▼         ▼
-              PlayerController  InteractionSystem + LocationChatManager
-              Locations/Trotro  Firestore /location_chats
-                                 EconomyManager + Wallet + JobManager
-                                 HeatSystem + NeedsSystem + HomeSystem
+                 │ movement│dialogue│economy│tro-tro
+                 └─────┬────────┬────────┬────┬┘
+                       ▼        ▼        ▼    ▼
+              PlayerController  InteractionSystem   NeighborhoodTrotro
+              Locations/Trotro  Firestore /location_chats   (tro-tro-adapter.ts)
+                                EconomyManager + Wallet + JobManager
+                                HeatSystem + NeedsSystem + HomeSystem
 ```
 
 Rules of engagement:
@@ -136,6 +137,10 @@ On failure `ok:false` and `error` is populated:
 | "Go to the waakye joint" | `movement.approach_interactable("food_vendor")` |
 | "Talk to Kojo" | `movement.approach_interactable("npc_male_001")` → `dialogue.interact` |
 | "Get to Makola Market" | `movement.travel("makola_market")` (auto-pays fare via economy) |
+| "Catch a trotro to 37 Station" | `movement.approach_interactable("trotro_stop")` → `tro-tro.negotiate_fare("CIRCLE_TO_37")` → `tro-tro.pay_and_board` |
+| "The fare is too high" | `tro-tro.contest_fare` (max 2 rounds, −₵1 each, base-fare floor) |
+| "The van is pulling away!" | `tro-tro.chase_and_board` (sprint 7.3 > van 5.5 m/s, hold 2.2 m for 1.2 s) |
+| "No cash for the fare" | `economy.accept_work("JOB_TROTRO_MATE")` at the stop → retry after 30 s van cycle |
 | "Earn money" | `economy.list_jobs` → `economy.accept_job` → loop `economy.advance_work` at each step target |
 | "Buy waakye" | stand at `food_vendor` → `economy.purchase_expense("EXP_WAAKYE_MEAL")` |
 | "Say something in location chat" | `dialogue.chat_send` (1–500 chars, signed-in only) |
@@ -181,6 +186,11 @@ On failure `ok:false` and `error` is populated:
   ids `makola_market` / `labadi_beach` are **UI-shell stage**: long-distance
   travel op exists in the movement skill but currently behaves as fare-payment
   + location override until the teleport landing zones ship.
+- Trotro fares are **CASH-only by game rule** (the mate does not move for
+  less): zone routes debit `Wallet.spendMoney({category:'TRANSPORT',
+  channel:'CASH'})`, the canonical ₵6 signboard fare routes through
+  `purchaseEverydayExpense('EXP_TROTRO_FARE')` — the adapter enforces both and
+  never teleports past payment (`tro-tro-adapter.ts`).
 
 ---
 
@@ -193,7 +203,11 @@ to the live systems:
 - `DialogueSkill` ← `InteractionSystem` + `LocationChatManager`
 - `EconomySkill` ← `EconomyManager` + `Wallet` + `JobManager` + `HeatSystem` +
   `NeedsSystem` + `HomeSystem`
+- `TroTroSystem` ← `NeighborhoodTrotro` geometry + `Wallet` (CASH-only) +
+  `InputManager` chase steering — reference implementation provided in
+  `tro-tro-adapter.ts` (`createTroTroSystem(bindings)`), driven per-frame via
+  `tick(dtMs)` and per-call via `handleOp(op, params)`
 
 Host integration is one call: `createSkills(bindings)` receives the constructed
-game systems and returns the three skill objects that (de)serialize the JSON
+game systems and returns the four skill objects that (de)serialize the JSON
 envelope. See the header of `agent-adapter.ts` for the binding contract.
