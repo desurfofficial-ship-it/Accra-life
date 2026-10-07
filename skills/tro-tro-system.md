@@ -1,6 +1,6 @@
 ---
 name: tro-tro-system
-version: 4.3.0
+version: 4.4.0
 domain: trotro boarding & transit (GameAPI five-method contract on the
   live custom grid map)
 description: >
@@ -11,10 +11,14 @@ description: >
   each method to the src/game/ file that actually executes it.
 format: hybrid — [CONTRACT] GameAPI methods + [ROUTING] + [LOGIC] + [EXAMPLES] (TypeScript)
 contract_policy: five-method surface, copy-exact from src/game/GameAPI.ts
-supersedes: v4.2.0 (map layer — unchanged; v4.3 completes the venue
-  migration: momo_agent / susu_collector / chale_wote_panel moved onto
-  canonical GridMap anchors, and the user's InteriorFurniture + BeachProps
-  GLB packs are mounted into StreetCanvas);
+supersedes: v4.3.0 (venue migration + GLB packs — unchanged; v4.4 adds
+  the home compound anchor (grid cell [2,0]) with all systems-layer
+  placement derived from it, mounts the residential scene.gltf as a
+  showroom diorama on cell [3,1], auto-fits the furniture lineup packs
+  into the Adabraka yards, and fixes the food-GLB Textures/colormap.png
+  path);
+  v4.3 momo_agent / susu_collector / chale_wote_panel anchors + GLB pack
+  mounts — unchanged;
   v4.2 [E]-key Mate panel routing + provision/waakye/NPC cell anchors +
   systems-layer render pause — unchanged;
   v4.0.0 five-method contract — unchanged;
@@ -28,9 +32,14 @@ source_files:
   - src/game/World/GridMap.ts (canonical 5x5 grid: cells, districts,
     zone->LocationId, TROTRO_STATION_GRID, TROTRO_DESTINATIONS,
     PROVISION_STORE_ANCHOR, FOOD_VENDOR_ANCHOR, MOMO_AGENT_ANCHOR,
-    SUSU_COLLECTOR_ANCHOR, CHALE_WOTE_ANCHOR)
+    SUSU_COLLECTOR_ANCHOR, CHALE_WOTE_ANCHOR, HOME_COMPOUND_ANCHOR)
   - src/r3f/StreetCanvas.tsx + src/r3f/TroTroBoarding.tsx (the visible
     custom map world — avatar, station, boarding panel, [E] listener)
+  - src/game/World/PlayerCompound.ts (home compound — group, colliders,
+    cutaway zones, home_door interactable, all derived from
+    HOME_COMPOUND_ANCHOR)
+  - src/r3f/HomeCompound.tsx + src/r3f/ResidentialShowroom.tsx (visible
+    compound landmark + residential scene.gltf diorama on cell [3,1])
   - src/main.ts#handleWorldTargetInteracted ([E] key → TROTRO_BOARD_EVENT)
 adapter: skills/agent-adapter.ts#GameBindings + skills/tro-tro-adapter.ts
 independence: callable alone; needs only the five methods below
@@ -159,6 +168,42 @@ is the canonical module both the visuals and the game systems consume.
   `[row 4, col 3]` (`CHALE_WOTE_ANCHOR`, world [16, 32]), Kojo on Makola
   `[2,1]`, Ama on Makola `[2,2]`, Uncle Mensah on the Adabraka corner
   `[1,1]` — colliders moved with them.
+- **The player's home compound sits on mixed cell `[row 2, col 0]`**
+  (v4.4, `HOME_COMPOUND_ANCHOR`, world [-32, 0], just north of the
+  suburb-house cells — Adabraka cells [0,0]/[1,0] host houses, [0,1] the
+  provision store, [1,1] the stalls). The cell is deliberately MIXED so
+  `getLocationAt` falls through to the fine-grained `home_compound`
+  bounds (Locations.ts, also anchor-derived): the pill reads
+  'Home Compound' and the veranda-nap recovery action stays reachable.
+  Everything in `PlayerCompound.ts` (group origin, 6 perimeter colliders,
+  dynamic room-shell wall colliders, cutaway hysteresis zones, the
+  `home_door` interactable 'Home · Rest & Upgrade') plus the housing
+  `ROOM_ORIGIN` in `main.ts` and the `HomeFurnitureVisuals` slots derive
+  from the anchor — walking into the compound at [-32, 0] triggers the
+  home sheet exactly like the old-world compound did. The visible
+  landmark (`src/r3f/HomeCompound.tsx`) mirrors the systems-layer
+  geometry (courtyard slab, breeze-block walls + gate, house shell,
+  hipped roof, polytank tower) so the home is findable on the map.
+- **The residential scene.gltf is mounted as a showroom diorama** (v4.4):
+  `src/r3f/ResidentialShowroom.tsx` loads the 50 MB
+  `/assets/glb/residential/scene.gltf` (ATD-London, CC-BY-4.0) on mixed
+  cell `[row 3, col 1]` (world [-16, 16]) and footprint-fits it to 11 m
+  via a runtime Box3 measure (the pack is a floor-plan-style layout —
+  0.2 m tall at this scale, like an architectural model).
+  `AccraCityGrid.RESERVED_CELLS` (`'2,0'`, `'3,1'`) skips the generic
+  district buildings on both cells so nothing intersects the landmarks.
+- **The furniture GLB packs are auto-fitted yard displays** (v4.4): the
+  three Adabraka packs are showcase LINEUPS, not compact clusters —
+  measured 39 m (furniture_set, one merged mesh), ~159 m (some_furniture,
+  previously sticking ~148 m off the south map edge) and 16 m
+  (chair_table_wardrobe) at their old fixed scales. `InteriorFurniture`
+  now Box3-measures each model at load and uniformly fits it to 7/10/6 m
+  into the yard strips of cells [0,0]/[1,0], clear of the SuburbHouses
+  footprints.
+- **Food GLB texture path fixed** (v4.4): all 200 market food packs
+  internally reference `Textures/colormap.png`; the file now ships at
+  `public/assets/glb/food/Textures/colormap.png` (was only at the pack
+  root — every food model 404'd its only texture since PR #4).
 - **The user's GLB asset packs are mounted on the map** (v4.3):
   `StreetCanvas` renders `<InteriorFurniture />` (three furniture GLB
   sets on the Adabraka house cells `[0,0]`/`[1,0]`) and
