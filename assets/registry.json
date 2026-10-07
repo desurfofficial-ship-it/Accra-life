@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$comment": "Accra Life — Asset Registry. Single source of truth for every visual asset in the project. Update this whenever a new asset is added, replaced, or retired. Schema fields are documented in assets/README.md.",
-  "version": 1,
-  "updated_at": "2026-10-06",
+  "version": 2,
+  "updated_at": "2026-10-08",
   "strategy": {
     "principle": "Use generic CC0 assets to build the system first, then replace/augment with culturally specific Accra art as the product develops. Do not allow generic asset packs to define Accra Life's visual identity. Priority: playable + coherent Accra Life over an enormous asset collection.",
     "approved_sources": [
@@ -260,6 +260,18 @@
     "food": "Waakye pots, kelewele frying pans, banku + tilapia platters, sachet water racks.",
     "landmarks": "Independence Arch, Black Star Square, Jamestown Lighthouse, Kwame Nkrumah Mausoleum.",
     "props": "MoMo umbrellas, hawker tables, cool chests, susu kiosks, benches, signage, bollards, planters."
+  },
+  "runtime_assets": {
+    "$comment": "v2 — the shipped model packs under public/ that src/ actually loads at runtime (URL /assets/...). The per-object mapping (object -> file -> loader -> placement) lives in docs/ASSET_MAPPING.md; keep the two in sync.",
+    "glb_vehicles": { "root": "public/assets/glb/vehicles/", "loaded_by": "src/r3f/LivingTrotro.tsx", "files_in_use": ["small_van.glb (PRIMARY trotro, scale 0.5)", "retro_anime_vintage_volkswagen_van.glb (alt, preloaded)", "european_delivery_van.glb (alt, on-demand)"] },
+    "glb_buildings_interior_props": { "root": "public/assets/glb/{buildings,interior,props}/", "loaded_by": "src/r3f/BuildingAssets.tsx", "files_in_use": ["house_exterior.glb", "room_apartment_furniture.glb", "room_bathroom.glb", "house_1f_interior.glb", "building_office_room_window.glb", "building_office_room_curtain.glb", "cinemamovie_theater_seat.glb", "plastic_water_bottle.glb"] },
+    "glb_food": { "root": "public/assets/glb/food/", "loaded_by": "src/r3f/MarketStalls.tsx", "files_in_use": ["banana.glb", "apple.glb", "bread.glb", "beet.glb", "avocado.glb", "barrel.glb", "bowl.glb", "bottle-ketchup.glb", "bag.glb"], "notes": "~200 models shipped, 9 wired; every food GLB internally references Textures/colormap.png — the folder must stay together." },
+    "glb_furniture": { "root": "public/assets/glb/furniture/", "loaded_by": "src/r3f/InteriorFurniture.tsx", "files_in_use": ["furniture_set.glb", "some_furniture.glb", "chair_table_wardrobe_suitcase_furniture.glb"], "notes": "Box3 auto-fitted to 7/10/6 m yard lineups." },
+    "glb_beach": { "root": "public/assets/glb/beach/", "loaded_by": "src/r3f/BeachProps.tsx", "files_in_use": ["beach_ball.glb", "beach_table.glb", "beach_kit.glb", "beach_reef.glb"] },
+    "gltf_residential": { "root": "public/assets/glb/residential/", "loaded_by": "src/r3f/ResidentialShowroom.tsx", "files_in_use": ["scene.gltf + scene.bin (~50 MB)"], "license": "CC-BY-4.0 — 'Residential Furniture' by ATD-London, attribution REQUIRED (credit in ResidentialShowroom.tsx header, license.txt ships beside the model)" },
+    "fbx_trees_farm": { "root": "public/assets/fbx/", "loaded_by": "src/r3f/CityTrees.tsx + src/r3f/LandscapeProps.tsx", "files_in_use": ["trees/Tree_temp_climate_001/003/005/007/009.FBX", "trees/Bush_temp_climate_001/003/005.fbx", "farm/farm2_textured.FBX"] },
+    "obj_houses_landscape": { "root": "public/assets/obj/", "loaded_by": "src/r3f/SuburbHouses.tsx + src/r3f/LandscapeProps.tsx", "files_in_use": ["houses/house-small|house-mid|house-modern|house-luxurious|gas-station (.obj+.mtl)", "landscape/building-office-small (.obj+.mtl)"] },
+    "characters_audio": { "status": "NONE — every character is procedural (CharacterBuilder.ts / StreetCanvas PlayerAvatar / LivingTrotro MateCharacter); audio is Web Speech + WebAudio. Reserved future paths (DO NOT load yet): /assets/glb/trotro_van.glb, /assets/glb/trotro_mate.glb, assets/accra/** — see docs/ASSET_MAPPING.md section 12." }
   },
   "directory_layout": {
     "assets/registry.json": "this file",

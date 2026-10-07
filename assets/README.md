@@ -83,8 +83,12 @@ assets/
 
 See `registry.json` for the complete inventory. Quick counts:
 
-- **Procedural assets** (built in `src/game/` via Three.js geometry): all current world props + 4 character rigs
-- **External assets**: 0 currently integrated (3 planned: Kenney City Kit, OpenGameArt street props, itch.io low-poly street)
+- **Procedural assets** (built in `src/game/` via Three.js geometry): all current world props + 4 character rigs (the Mate and the visible R3F player avatar are procedural too — no character GLB exists yet)
+- **Runtime model packs** (shipped under `public/assets/`, loaded by `src/r3f/*`): GLB vehicles (trotro van trio), buildings/interiors/props, 9 market food GLBs, furniture, beach, ~50 MB residential showroom (CC-BY-4.0 — attribution required), FBX trees/farm, OBJ houses/offices
+
+**Object → file mapping:** every runtime asset is mapped per game object in
+[`docs/ASSET_MAPPING.md`](../docs/ASSET_MAPPING.md) — check it before any
+visual work; never invent a path and never revert a mapped model to a box.
 
 ## Important note about the legacy `assets/index-*.js`
 
