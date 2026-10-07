@@ -16,6 +16,11 @@ import { ColliderBox } from '../Player/PlayerController';
 import { InteractableTarget } from '../Player/InteractionSystem';
 import { sharedArtLibrary } from '../Art/AssetRegistry';
 import { getSurfaceHeightAt } from './WorldSurface';
+import {
+  CHALE_WOTE_ANCHOR,
+  MOMO_AGENT_ANCHOR,
+  SUSU_COLLECTOR_ANCHOR
+} from './GridMap';
 
 export function buildNeighborhoodExtras(
   scene: THREE.Scene,
@@ -42,8 +47,11 @@ function buildMoMoUmbrella(
 ): void {
   const group = new THREE.Group();
   group.name = 'ACC_MOMO_UMBRELLA';
-  group.position.set(-5.0, 0, -8.5);
-  const baseY = getSurfaceHeightAt(-5.0, -8.5);
+  // Custom map integration: the kiosk stands on its Osu Oxford Street cell
+  // [row 3, col 4] (GridMap.MOMO_AGENT_ANCHOR = world [32, 16]) so the
+  // interactable coincides with the visible R3F map cell.
+  group.position.set(MOMO_AGENT_ANCHOR.world[0], 0, MOMO_AGENT_ANCHOR.world[1]);
+  const baseY = getSurfaceHeightAt(MOMO_AGENT_ANCHOR.world[0], MOMO_AGENT_ANCHOR.world[1]);
 
   const matYellow = sharedArtLibrary.getMaterial('momo_yellow_v2', { color: 0xffcc00, roughness: 0.35, metalness: 0.05 });
   const matBlue = sharedArtLibrary.getMaterial('momo_blue_v2', { color: 0x005bb5, roughness: 0.4 });
@@ -126,8 +134,8 @@ function buildMoMoUmbrella(
 
   colliders.push({
     id: 'ACC_MOMO_UMBRELLA',
-    minX: -5.55, maxX: -4.45,
-    minZ: -9.05, maxZ: -7.95,
+    minX: MOMO_AGENT_ANCHOR.world[0] - 0.55, maxX: MOMO_AGENT_ANCHOR.world[0] + 0.55,
+    minZ: MOMO_AGENT_ANCHOR.world[1] - 0.55, maxZ: MOMO_AGENT_ANCHOR.world[1] + 0.55,
     height: 1.5
   });
 
@@ -137,8 +145,8 @@ function buildMoMoUmbrella(
     title: 'MoMo Agent',
     promptLabel: 'MoMo',
     interactionResponse: 'Mobile money agent — send cash to friends across Accra.',
-    position: new THREE.Vector3(-5.0, baseY + 0.14, -7.6),
-    lookAtPosition: new THREE.Vector3(-5.0, baseY + 0.14, -8.4),
+    position: new THREE.Vector3(MOMO_AGENT_ANCHOR.world[0], baseY + 0.14, MOMO_AGENT_ANCHOR.world[1] + 0.9),
+    lookAtPosition: new THREE.Vector3(MOMO_AGENT_ANCHOR.world[0], baseY + 0.14, MOMO_AGENT_ANCHOR.world[1] + 0.1),
     radius: 2.5
   });
 }
@@ -336,8 +344,11 @@ function buildSusuKiosk(
 ): void {
   const group = new THREE.Group();
   group.name = 'ACC_SUSU_KIOSK';
-  group.position.set(-4.5, 0, 7.5);
-  const baseY = getSurfaceHeightAt(-4.5, 7.5);
+  // Custom map integration: the kiosk stands on the northwest community
+  // block cell [row 3, col 0] (GridMap.SUSU_COLLECTOR_ANCHOR = world
+  // [-32, 16]) so the interactable sits on a deliberate grid cell.
+  group.position.set(SUSU_COLLECTOR_ANCHOR.world[0], 0, SUSU_COLLECTOR_ANCHOR.world[1]);
+  const baseY = getSurfaceHeightAt(SUSU_COLLECTOR_ANCHOR.world[0], SUSU_COLLECTOR_ANCHOR.world[1]);
 
   const matWood = sharedArtLibrary.getMaterial('susu_wood_v2', { color: 0x92400e, roughness: 0.68 });
   const matRoof = sharedArtLibrary.getMaterial('susu_roof_v2', { color: 0x475569, roughness: 0.55, metalness: 0.3 });
@@ -416,8 +427,8 @@ function buildSusuKiosk(
 
   colliders.push({
     id: 'ACC_SUSU_KIOSK',
-    minX: -5.25, maxX: -3.75,
-    minZ: 6.85, maxZ: 8.15,
+    minX: SUSU_COLLECTOR_ANCHOR.world[0] - 0.75, maxX: SUSU_COLLECTOR_ANCHOR.world[0] + 0.75,
+    minZ: SUSU_COLLECTOR_ANCHOR.world[1] - 0.65, maxZ: SUSU_COLLECTOR_ANCHOR.world[1] + 0.65,
     height: 2.4
   });
 
@@ -427,8 +438,8 @@ function buildSusuKiosk(
     title: 'Susu Collector',
     promptLabel: 'Susu',
     interactionResponse: 'Susu collector — save daily with the community bank.',
-    position: new THREE.Vector3(-4.5, baseY + 0.14, 7.0),
-    lookAtPosition: new THREE.Vector3(-4.5, baseY + 0.14, 7.5),
+    position: new THREE.Vector3(SUSU_COLLECTOR_ANCHOR.world[0], baseY + 0.14, SUSU_COLLECTOR_ANCHOR.world[1] - 0.5),
+    lookAtPosition: new THREE.Vector3(SUSU_COLLECTOR_ANCHOR.world[0], baseY + 0.14, SUSU_COLLECTOR_ANCHOR.world[1]),
     radius: 2.6
   });
 }
@@ -497,8 +508,11 @@ function buildChaleWotePanel(
 ): void {
   const group = new THREE.Group();
   group.name = 'ACC_CHALE_WOTE_PANEL';
-  group.position.set(-22.5, 0, -7.5);
-  const baseY = getSurfaceHeightAt(-22.5, -7.5);
+  // Custom map integration: the mural wall stands on its Osu street-art
+  // corner cell [row 4, col 3] (GridMap.CHALE_WOTE_ANCHOR = world
+  // [16, 32]) so the interactable sits on a deliberate grid cell.
+  group.position.set(CHALE_WOTE_ANCHOR.world[0], 0, CHALE_WOTE_ANCHOR.world[1]);
+  const baseY = getSurfaceHeightAt(CHALE_WOTE_ANCHOR.world[0], CHALE_WOTE_ANCHOR.world[1]);
 
   const matConcrete = sharedArtLibrary.getMaterial('wote_wall_v2', { color: 0x6b7280, roughness: 0.95 });
   const matRed = sharedArtLibrary.getBasicMaterial('wote_red_v2', { color: 0xdc2626 });
@@ -585,8 +599,8 @@ function buildChaleWotePanel(
 
   colliders.push({
     id: 'ACC_CHALE_WOTE_PANEL',
-    minX: -22.85, maxX: -22.15,
-    minZ: -10.2, maxZ: -4.8,
+    minX: CHALE_WOTE_ANCHOR.world[0] - 0.35, maxX: CHALE_WOTE_ANCHOR.world[0] + 0.35,
+    minZ: CHALE_WOTE_ANCHOR.world[1] - 2.7, maxZ: CHALE_WOTE_ANCHOR.world[1] + 2.7,
     height: 3.2
   });
 
@@ -596,8 +610,8 @@ function buildChaleWotePanel(
     title: 'Chale Wote Mural',
     promptLabel: 'View Art',
     interactionResponse: 'Street art inspired by the Chale Wote festival in Jamestown.',
-    position: new THREE.Vector3(-21.5, baseY + 0.14, -7.5),
-    lookAtPosition: new THREE.Vector3(-22.4, baseY + 1.0, -7.5),
+    position: new THREE.Vector3(CHALE_WOTE_ANCHOR.world[0] + 1.0, baseY + 0.14, CHALE_WOTE_ANCHOR.world[1]),
+    lookAtPosition: new THREE.Vector3(CHALE_WOTE_ANCHOR.world[0] + 0.1, baseY + 1.0, CHALE_WOTE_ANCHOR.world[1]),
     radius: 3.0
   });
 }

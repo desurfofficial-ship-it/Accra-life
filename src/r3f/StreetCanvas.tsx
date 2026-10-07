@@ -24,6 +24,8 @@ import { MarketStalls } from './MarketStalls';
 import { CityTrees } from './CityTrees';
 import { LandscapeProps } from './LandscapeProps';
 import { SuburbHouses } from './SuburbHouses';
+import { InteriorFurniture } from './InteriorFurniture';
+import { BeachProps } from './BeachProps';
 import { TroTroBoarding } from './TroTroBoarding';
 import { TroTroPrompt } from '../ui/TroTroPrompt';
 import { getGameAPI } from './gameAPIBridge';
@@ -291,13 +293,15 @@ export function StreetCanvas() {
         {/* ── The custom 5x5 Accra grid map ──
             District blocks, roads, landmarks (AccraCityGrid) + the asset
             packs placed on grid cells (stalls, trees, offices, farm,
-            suburb houses). These were previously unmounted — the map is
-            now the live game world. */}
+            suburb houses, furniture, beach props). These were previously
+            unmounted — the map is now the live game world. */}
         <AccraCityGrid />
         <MarketStalls />
         <CityTrees />
         <LandscapeProps />
         <SuburbHouses />
+        <InteriorFurniture />
+        <BeachProps />
 
         <AccraStreetPlane />
 
