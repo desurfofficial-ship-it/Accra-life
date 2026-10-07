@@ -10,6 +10,9 @@ import { ACCRA_EVERYDAY_EXPENSES } from '../Economy/EconomyManager';
  *
  * The state machine auto-transitions:
  *   - ARRIVING → IDLE_AT_STOP after 2s (van arrives, doors open, mate greets)
+ *   - IDLE_AT_STOP → DEPARTING after 8s dwell if nobody boards (van waits a
+ *     few seconds for fares, then pulls away on its own — the "Ah! You
+ *     missed it!" window is real)
  *   - BOARDING → DEPARTING after 5s (passengers seated, doors close, van pulls away)
  *   - DEPARTING → EN_ROUTE after 8s (van arrives at next stop, cycle repeats)
  *
@@ -37,6 +40,7 @@ export type TrotroStateListener = (change: TrotroStateChange) => void;
 // ── Auto-transition timings (ms) ────────────────────────────────────────────
 
 const ARRIVING_TO_IDLE_MS = 2000;     // 2s — van arrives, doors open
+const IDLE_DWELL_TO_DEPARTING_MS = 8000; // 8s — fare dwell, then departs unboarded
 const BOARDING_TO_DEPARTING_MS = 5000; // 5s — passengers board
 const DEPARTING_TO_EN_ROUTE_MS = 8000; // 8s — van arrives at next stop
 
@@ -141,6 +145,12 @@ export class TrotroService {
       case 'ARRIVING':
         // After 2s, van arrives → doors open → mate greets → IDLE
         this.stateTimer = setTimeout(() => this.transitionTo('IDLE_AT_STOP'), ARRIVING_TO_IDLE_MS);
+        break;
+      case 'IDLE_AT_STOP':
+        // Fare dwell: the van waits a few seconds for passengers; if nobody
+        // boards it pulls away on its own (real trotro behavior — the
+        // DEPARTING "missed it" window exists without any boarding).
+        this.stateTimer = setTimeout(() => this.transitionTo('DEPARTING'), IDLE_DWELL_TO_DEPARTING_MS);
         break;
       case 'BOARDING':
         // After 5s, passengers seated → doors close → DEPARTING

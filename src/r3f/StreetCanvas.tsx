@@ -109,6 +109,16 @@ function PlayerAvatar({ groupRef }: PlayerAvatarProps) {
 export function StreetCanvas() {
   const playerGroupRef = useRef<THREE.Group>(null);
 
+  // Dev/debug handle — mirrors the window.__phase1Scene pattern in main.ts:
+  // exposes the R3F player group so devtools / agent hosts can read or set
+  // the custom-map player position without touching game internals.
+  useEffect(() => {
+    (window as unknown as { __r3fPlayer?: RefObject<THREE.Group | null> }).__r3fPlayer = playerGroupRef;
+    return () => {
+      delete (window as unknown as { __r3fPlayer?: RefObject<THREE.Group | null> }).__r3fPlayer;
+    };
+  }, []);
+
   // Tro-tro stop position = Circle Station (cell [3,2])
   const [troTroX, troTroZ] = cellCenter(3, 2);
   const trotroStopPosition: [number, number, number] = [troTroX, 0, troTroZ];
