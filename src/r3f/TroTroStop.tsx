@@ -17,6 +17,7 @@
  */
 
 import { forwardRef, type ReactNode } from 'react';
+import type * as THREE from 'three';
 
 export interface TroTroStopProps {
   position?: [number, number, number];

@@ -381,6 +381,13 @@ needsSystem.onUpdate(() => syncNeedsHUD());
 
 function updateInteractionPromptUI(target: InteractableTarget | null): void {
   if (!promptEl || !promptTitleEl) return;
+  // Custom map integration: the R3F layer renders its own GTA-style
+  // boarding prompt + Mate panel for the tro-tro stop (bottom-center,
+  // same position as this DOM prompt) — keep this one hidden for it.
+  if (target && target.id === 'trotro_stop') {
+    promptEl.classList.remove('visible', 'objective-match');
+    return;
+  }
   if (target) {
     const obj = getActiveObjectiveInfo();
     const match = obj && obj.targetInteractableId === target.id;
@@ -1429,7 +1436,13 @@ function startGame(profile: OnboardingResult): void {
   }
 
   if (container) {
+    // Custom map integration: #r3f-root hosts the live 5x5 Accra grid
+    // (src/r3f — the player-facing world). Preserve it across the wipe so
+    // the custom map keeps rendering above the systems-hosting scene.
+    const r3fRoot = document.getElementById('r3f-root');
+    if (r3fRoot) r3fRoot.remove();
     container.innerHTML = '';
+    if (r3fRoot) container.appendChild(r3fRoot);
     const phase1 = new Phase1Scene(
       container,
       {

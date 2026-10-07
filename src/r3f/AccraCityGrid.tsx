@@ -24,22 +24,25 @@
  * Each cell is CELL_SIZE meters (default 12m). Roads are ROAD_WIDTH
  * meters wide (default 4m) between cells. Total map size:
  *   5 * CELL_SIZE + 6 * ROAD_WIDTH = 5*12 + 6*4 = 84m
+ *
+ * Geometry + district logic live in src/game/World/GridMap.ts (canonical
+ * module shared with the game systems — locations, chat, presence, travel);
+ * this component renders the visuals from it.
  */
 
 import { useMemo } from 'react';
 import * as THREE from 'three';
+import {
+  GRID_SIZE,
+  CELL_SIZE,
+  ROAD_WIDTH,
+  TOTAL_SIZE,
+  HALF,
+  cellCenter,
+  districtAt
+} from '../game/World/GridMap';
 
-// ── Grid constants ──────────────────────────────────────────────────────────
-
-const GRID_SIZE = 5;           // 5x5
-const CELL_SIZE = 12;          // meters per city block
-const ROAD_WIDTH = 4;          // meters of road between cells
-const TOTAL_SIZE = GRID_SIZE * CELL_SIZE + (GRID_SIZE + 1) * ROAD_WIDTH;
-const HALF = TOTAL_SIZE / 2;
-
-// ── District definitions ────────────────────────────────────────────────────
-
-type DistrictId = 'adabraka' | 'makola' | 'circle' | 'osu' | 'labadi' | 'mixed';
+// ── District definitions (visual palettes keyed by GridDistrictId) ──────────
 
 interface District {
   name: string;
@@ -89,28 +92,9 @@ const DISTRICTS: Record<string, District> = {
   },
 };
 
-/** Map each cell [row, col] to a district. */
+/** Map each cell [row, col] to its district visuals (logic: GridMap.districtAt). */
 function getDistrict(row: number, col: number): District {
-  // Adabraka: bottom-left corner (residential, home area)
-  if (row <= 1 && col <= 1) return DISTRICTS.adabraka;
-  // Makola Market: center 2x2 area (cells [1,1] to [2,2])
-  if (row >= 1 && row <= 2 && col >= 1 && col <= 2) return DISTRICTS.makola;
-  // Circle Tro-tro Station: cell [3,2]
-  if (row === 3 && col === 2) return DISTRICTS.circle;
-  // Osu: top-right corner (nightlife district)
-  if (row >= 3 && col >= 3) return DISTRICTS.osu;
-  // Labadi: top-left (beach area)
-  if (row >= 4 && col <= 1) return DISTRICTS.labadi;
-  return DISTRICTS.mixed;
-}
-
-// ── Cell position helper ──────────────────────────────────────────────────────
-
-/** Returns the world-space center [x, z] of a grid cell [row, col]. */
-function cellCenter(row: number, col: number): [number, number] {
-  const x = -HALF + ROAD_WIDTH + col * (CELL_SIZE + ROAD_WIDTH) + CELL_SIZE / 2;
-  const z = -HALF + ROAD_WIDTH + row * (CELL_SIZE + ROAD_WIDTH) + CELL_SIZE / 2;
-  return [x, z];
+  return DISTRICTS[districtAt(row, col)];
 }
 
 // ── Road component ───────────────────────────────────────────────────────────
@@ -354,4 +338,4 @@ export function AccraCityGrid() {
 
 // ── Export constants for external use (player movement bounds, etc.) ────────
 
-export { TOTAL_SIZE, HALF, CELL_SIZE, ROAD_WIDTH, cellCenter };
+export { TOTAL_SIZE, HALF, CELL_SIZE, ROAD_WIDTH, cellCenter, districtAt };

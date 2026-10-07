@@ -10,7 +10,10 @@ export function buildTrotroStopAndVehicle(
 ): void {
   const group = new THREE.Group();
   group.name = 'ACC_PROP_001';
-  group.position.set(9.0, 0, 6.2);
+  // Custom map integration: the stop stands at the Circle station cell
+  // [row 3, col 2] of the 5x5 Accra grid (GridMap.TROTRO_STATION_WORLD =
+  // [0, 16]) — the same spot the R3F interactive stop renders at.
+  group.position.set(0.0, 0, 16.0);
 
   const matConcretePad = sharedArtLibrary.getMaterial('trotro_pad_concrete', {
     color: 0x94a3b8,
@@ -133,7 +136,7 @@ export function buildTrotroStopAndVehicle(
   group.add(signBacking, shelterSignFront, shelterSignBack);
 
   // 2. Stationary Accra Trotro Sprinter Minibus (`ACC_TROTRO_001`)
-  // Parked directly in front of the Trotro Stop shelter at Local X = 0.0, Local Z = -3.65 (World X = 9.0, Z = 2.55)
+  // Parked directly in front of the Trotro Stop shelter at Local X = 0.0, Local Z = -3.65 (World X = 0.0, Z = 12.35 — Circle station cell)
   // Facing West (-X) so its curb-side sliding passenger door (+Z) opens toward the shelter!
   const van = new THREE.Group();
   van.name = 'ACC_TROTRO_001';
@@ -281,22 +284,24 @@ export function buildTrotroStopAndVehicle(
 
   scene.add(group);
 
-  // Colliders for both the shelter (world X: [6.4, 11.6], Z: [5.45, 7.6]) and the parked Trotro minibus (world X: [6.3, 11.6], Z: [1.45, 3.65])
+  // Colliders for the shelter and the parked Trotro minibus, now anchored to
+  // the Circle station cell (world center [0, 16]): shelter X: [-2.6, 2.6], Z: [15.25, 17.4];
+  // minibus X: [-2.7, 2.6], Z: [11.25, 13.45]
   colliders.push(
     {
       id: 'ACC_PROP_001_SHELTER',
-      minX: 6.4,
-      maxX: 11.6,
-      minZ: 5.45,
-      maxZ: 7.6,
+      minX: -2.6,
+      maxX: 2.6,
+      minZ: 15.25,
+      maxZ: 17.4,
       height: 3.1
     },
     {
       id: 'ACC_TROTRO_001',
-      minX: 6.3,
-      maxX: 11.6,
-      minZ: 1.45,
-      maxZ: 3.65,
+      minX: -2.7,
+      maxX: 2.6,
+      minZ: 11.25,
+      maxZ: 13.45,
       height: 2.7
     }
   );
@@ -307,8 +312,8 @@ export function buildTrotroStopAndVehicle(
     title: 'Osu–Circle Trotro Station',
     promptLabel: 'Trotro',
     interactionResponse: 'Osu–Circle station — mate collecting fares.',
-    position: new THREE.Vector3(9.0, 0.14, 4.9),
-    lookAtPosition: new THREE.Vector3(9.0, 0.14, 3.2),
+    position: new THREE.Vector3(0.0, 0.14, 16.0),
+    lookAtPosition: new THREE.Vector3(0.0, 0.14, 14.3),
     radius: 3.5
   });
 }

@@ -50,7 +50,8 @@ function srand(seed: number): number {
 }
 
 // Generate placements: trees at road intersections, bushes near trees
-const PLACEMENTS: TreePlacement[] = useMemo(() => {
+// (plain module-level IIFE — deterministic data, no hooks at module scope)
+const PLACEMENTS: TreePlacement[] = (() => {
   const items: TreePlacement[] = [];
   const HALF = TOTAL_SIZE / 2;
 
@@ -95,7 +96,7 @@ const PLACEMENTS: TreePlacement[] = useMemo(() => {
   });
 
   return items;
-}, []);
+})();
 
 // ── FBX loader component ─────────────────────────────────────────────────────
 
