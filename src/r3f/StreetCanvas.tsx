@@ -25,11 +25,14 @@ import { SuburbHouses } from './SuburbHouses';
 import { BeachProps } from './BeachProps';
 import { InteriorFurniture } from './InteriorFurniture';
 import { BuildingAssets } from './BuildingAssets';
-import { TroTroBoarding } from './TroTroBoarding';
+import { TroTroBoarding, DEMO_FARE, DEMO_START_BALANCE } from './TroTroBoarding';
 import { LivingTrotro } from './LivingTrotro';
 import { TrotroService } from '../game/World/TrotroService';
 import { getGameAPI } from './gameAPIBridge';
 import { TroTroPrompt } from '../ui/TroTroPrompt';
+
+/** Prompt range — matches the systems-layer trotro_stop radius (3.5 m). */
+const TROTRO_PROMPT_RANGE = 3.5;
 
 // ── Player Avatar ────────────────────────────────────────────────────────────
 
@@ -166,8 +169,34 @@ export function StreetCanvas() {
     return () => { cancelled = true; window.clearInterval(poll); };
   }, []);
 
+  // ── GTA-style [E] prompt (DOM overlay above the Canvas) ──
+  // Visible while the on-screen avatar is near the stop; shows the real
+  // Wallet balance (green when the fare is affordable, red when not).
+  // Polls at 5 Hz and bails out of setState when nothing changed so the
+  // R3F tree does not re-render while the values are static.
+  const [promptState, setPromptState] = useState({ visible: false, balance: DEMO_START_BALANCE, fare: DEMO_FARE });
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const player = playerGroupRef.current;
+      if (!player) return;
+      const dx = player.position.x - troTroX;
+      const dz = player.position.z - troTroZ;
+      const visible = Math.sqrt(dx * dx + dz * dz) < TROTRO_PROMPT_RANGE;
+      const api = getGameAPI();
+      const balance = api ? api.getCashBalance() : DEMO_START_BALANCE;
+      const fare = api ? api.getCanonicalFareGHS() : DEMO_FARE;
+      setPromptState(prev =>
+        prev.visible === visible && prev.balance === balance && prev.fare === fare
+          ? prev
+          : { visible, balance, fare }
+      );
+    }, 200);
+    return () => window.clearInterval(id);
+  }, [troTroX, troTroZ]);
+
   return (
-    <Canvas
+    <>
+      <Canvas
       shadows
       dpr={[1, 2]}
       style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
@@ -226,6 +255,16 @@ export function StreetCanvas() {
         minPolarAngle={0.1}
         maxPolarAngle={Math.PI / 2.1}
       />
-    </Canvas>
+      </Canvas>
+
+      {/* GTA-style [E] Board Tro-tro prompt — fixed bottom-center, above
+          the Canvas. Shows the real Cedi balance from the live Wallet
+          (green = affordable, red = cannot afford). */}
+      <TroTroPrompt
+        fare={promptState.fare}
+        playerBalance={promptState.balance}
+        visible={promptState.visible}
+      />
+    </>
   );
 }

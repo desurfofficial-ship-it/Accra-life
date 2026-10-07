@@ -41,7 +41,7 @@ export const ACCRA_EVERYDAY_EXPENSES: Record<string, EverydayExpenseOption> = {
     id: 'EXP_TROTRO_FARE',
     title: 'Osu – Circle Trotro Fare',
     description: 'Pay the trotro mate for a commercial minibus trip along the Osu–Circle route.',
-    costGHS: 6.0,
+    costGHS: 5.0,
     category: 'TRANSPORT',
     locationAssetId: 'ACC_PROP_001',
     interactableId: 'trotro_stop',

@@ -43,7 +43,12 @@ import { MATE_LINES } from '../game/World/TrotroService';
 const CAPACITY = 14;                     // Sprinter van seats (TrotroService)
 const INTERACTION_RANGE = 3.0;           // meters — spec Rule 1
 const VAN_CYCLE_MS = 30_000;            // 30s — next van arrives if full
-const DEMO_FARE = 6;                     // demo canonical fare (pre-boot)
+/** [E] range on the visible map — matches the GTA prompt radius (3.5 m). */
+const E_KEY_RANGE = 3.5;
+/** Demo canonical fare (pre-boot fallback — mirrors EXP_TROTRO_FARE ₵5). */
+export const DEMO_FARE = 5;
+/** Demo starting balance (pre-boot fallback — matches INITIAL_STATE below). */
+export const DEMO_START_BALANCE = 20;
 const TROTRO_TICKET_ITEM_ID = 'trotro_ticket_osu_circle';
 
 // ── Mate dialogue lines (authentic Accra flavor per spec) ───────────────────
@@ -98,6 +103,13 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
   useEffect(() => {
     phaseRef.current = state.phase;
   }, [state.phase]);
+
+  // Reactive stop-sign glow (restored phase-4 behaviour, lost in the map
+  // migration): the yellow sign panel lerps its emissiveIntensity up while
+  // the player is in range and back down when they leave. The material is
+  // found once by traversing the stop group for a non-black emissive.
+  const stopRef = useRef<THREE.Group>(null);
+  const signMatRef = useRef<THREE.MeshStandardMaterial | null>(null);
 
   /** Canonical fare — real EXP_TROTRO_FARE when the bridge is live. */
   const canonicalFare = useCallback(() => {
@@ -213,7 +225,18 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
       // Step 6: real seat accounting (false = van filled up in the meantime)
       const seated = api.boardPassenger();
       if (!seated) {
-        setState(s => ({ ...s, phase: 'rejected', dialogue: MATE_DIALOGUE.full, vanDepartedAt: performance.now() }));
+        // Defensive: unreachable after the Step-0 gate (single-threaded JS —
+        // no state timer can interleave between isTrotroFull/boardPassenger),
+        // but a failed seat must NEVER strand the player's money.
+        const fare = api.getCanonicalFareGHS();
+        const refund = api.addFunds({
+          amount: fare,
+          category: 'TRANSPORT',
+          description: 'Trotro fare refund — seat lost after payment',
+          channel: 'CASH',
+        });
+        console.log(`[tro-tro] seat lost after payment — refunded ₵${fare} (success=${refund.success})`);
+        setState(s => ({ ...s, phase: 'rejected', dialogue: MATE_DIALOGUE.full, vanDepartedAt: performance.now(), playerBalance: api.getCashBalance() }));
         return;
       }
       console.log(`[tro-tro] purchaseEverydayExpense('EXP_TROTRO_FARE') ok · ticket=${ticketOwned} · balance ₵${api.getCashBalance()} · van ${api.getCurrentPassengers()}/${api.getCapacity()}`);
@@ -292,6 +315,28 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
     return () => window.removeEventListener(TROTRO_BOARD_EVENT, onBoardRequest);
   }, [startGreeting, checkCapacity]);
 
+  // ── [E]-key on the VISIBLE map ───────────────────────────────────────────
+  // The systems-layer InteractionSystem only sees the hidden legacy world,
+  // so pressing E near the on-screen stop did nothing (the GTA prompt
+  // advertises [E] — it must work). The R3F layer binds its own KeyE: when
+  // the on-screen avatar is in range and no sequence is running, E starts
+  // the Mate sequence. Idempotent with the systems-layer route.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'KeyE' || e.repeat) return;
+      if (phaseRef.current !== 'idle') return;
+      const player = playerRef?.current;
+      if (!player) return;
+      const dx = player.position.x - stopPosition[0];
+      const dz = player.position.z - stopPosition[2];
+      if (Math.sqrt(dx * dx + dz * dz) > E_KEY_RANGE) return;
+      startGreeting();
+      window.setTimeout(() => checkCapacity(), 1500);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [playerRef, stopPosition, startGreeting, checkCapacity]);
+
   // ── useFrame: proximity check (Rule 1) ────────────────────────────────────
   useFrame(() => {
     if (!playerRef?.current) return;
@@ -301,6 +346,25 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
     const distance = playerPos.distanceTo(stopPos);
 
     const inRange = distance < INTERACTION_RANGE;
+
+    // Reactive stop-sign glow: lerp the sign panel's emissiveIntensity
+    // toward a bright target while the player is in range, back to the
+    // faint idle glow when they leave (restored phase-4 behaviour).
+    if (stopRef.current && !signMatRef.current) {
+      stopRef.current.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) {
+          const mat = obj.material as THREE.MeshStandardMaterial;
+          if (mat && mat.emissive && (mat.emissive.r > 0 || mat.emissive.g > 0 || mat.emissive.b > 0)) {
+            signMatRef.current = mat;
+          }
+        }
+      });
+    }
+    if (signMatRef.current) {
+      const targetGlow = inRange ? 0.9 : 0.15;
+      const mat = signMatRef.current;
+      mat.emissiveIntensity += (targetGlow - mat.emissiveIntensity) * 0.12;
+    }
 
     if (inRange && !wasInRangeRef.current) {
       // ENTERING range — start the 7-step sequence from Step 1
@@ -321,9 +385,23 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
     // → IDLE_AT_STOP). We deliberately do NOT call api.resetVehicle() here
     // — on the shared machine it would stall the van at EN_ROUTE with no
     // timer and desync the visible van from the AI bridge (v4.6).
-    if (state.phase === 'rejected' && state.vanDepartedAt) {
-      if (performance.now() - state.vanDepartedAt > VAN_CYCLE_MS) {
-        const api = getGameAPI();
+    //
+    //   a) The van docks again before the cooldown ends (getTrotroStatus
+    //      back in the skill-legal window) → clear the rejection early so
+    //      the player can retry without waiting out the full cycle.
+    //   b) Still not boardable after 30s → reset the panel (the van keeps
+    //      cycling on its own; no vehicle reset from the UI layer).
+    if (state.phase === 'rejected') {
+      const api = getGameAPI();
+      const docked = api ? (api.getTrotroStatus() === 'IDLE_AT_STOP' || api.getTrotroStatus() === 'BOARDING') : false;
+      if (docked) {
+        // Van docked again → clear the rejection immediately. No vanDepartedAt
+        // guard here: NOT_AT_STOP rejections keep the previous (possibly null)
+        // timestamp, and a null-timestamp rejection must still recover once
+        // the van physically returns.
+        setState(s => ({ ...s, phase: 'idle', dialogue: '', vanDepartedAt: null }));
+        console.log('[tro-tro] Van docked at the stop. Press [E] to board.');
+      } else if (state.vanDepartedAt && performance.now() - state.vanDepartedAt > VAN_CYCLE_MS) {
         setState(s => ({ ...s, phase: 'idle', dialogue: '', currentPassengers: api ? api.getCurrentPassengers() : 8 + Math.floor(Math.random() * 5), vanDepartedAt: null }));
         console.log('[tro-tro] Next van cycle — re-approach the stop to board.');
       }
@@ -334,8 +412,8 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
 
   return (
     <group position={stopPosition}>
-      {/* The yellow Tro-tro Stop sign */}
-      <TroTroStop position={[0, 0, 0]} />
+      {/* The yellow Tro-tro Stop sign (reactive glow via stopRef) */}
+      <TroTroStop ref={stopRef} position={[0, 0, 0]} />
 
       {/* Interaction zone — visible wireframe sphere (radius = INTERACTION_RANGE) */}
       {state.phase !== 'idle' && state.phase !== 'arrived' && (
