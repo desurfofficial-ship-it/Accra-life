@@ -61,12 +61,25 @@ function PlayerAvatar({ groupRef }: PlayerAvatarProps) {
 
   useFrame((_state, delta) => {
     if (!groupRef.current) return;
-    const keys = keysRef.current;
+    // Movement source (v4.8): when the systems layer is live, the avatar
+    // consumes the REAL InputManager movement vector — keyboard WASD
+    // (KeyW codes) plus the agent-facing virtual joystick
+    // (gameAPI.setJoystickInput), the joystick overriding the keys exactly
+    // like PlayerController does. Before the bridge boots, fall back to
+    // the local keyboard listener so the map is still walkable.
+    const api = getGameAPI();
     let dx = 0, dz = 0;
-    if (keys['w'] || keys['arrowup']) dz -= 1;
-    if (keys['s'] || keys['arrowdown']) dz += 1;
-    if (keys['a'] || keys['arrowleft']) dx -= 1;
-    if (keys['d'] || keys['arrowright']) dx += 1;
+    if (api) {
+      const input = api.input.getMovementInput();
+      dx = input.moveX;
+      dz = input.moveZ;
+    } else {
+      const keys = keysRef.current;
+      if (keys['w'] || keys['arrowup']) dz -= 1;
+      if (keys['s'] || keys['arrowdown']) dz += 1;
+      if (keys['a'] || keys['arrowleft']) dx -= 1;
+      if (keys['d'] || keys['arrowright']) dx += 1;
+    }
     if (dx !== 0 || dz !== 0) { const len = Math.sqrt(dx*dx + dz*dz); dx /= len; dz /= len; }
     const moveDist = MOVE_SPEED * delta;
     groupRef.current.position.x += dx * moveDist;

@@ -5,6 +5,7 @@ import { ThirdPersonCamera } from '../Player/ThirdPersonCamera';
 import { InteractableTarget, InteractionSystem } from '../Player/InteractionSystem';
 import { buildFirstNeighborhoodBlock } from '../World/NeighborhoodBlock';
 import { updatePlayerCompoundCutaway } from '../World/PlayerCompound';
+import { getSurfaceHeightAt } from '../World/WorldSurface';
 import { CharacterRig, type PlayerLookOptions } from '../Art/CharacterBuilder';
 import { Canvas3DFallbackRenderer } from './Canvas3DFallbackRenderer';
 
@@ -198,6 +199,32 @@ export class Phase1Scene {
     const dt = Math.min(this.clock.getDelta(), 0.1);
 
     this.player.update(dt, this.thirdPersonCamera.yaw, this.colliders);
+
+    // ── Custom-map player mirror ─────────────────────────────────────────
+    // When the R3F map layer is live, the VISIBLE avatar is authoritative:
+    // copy its position + facing into the systems player every frame so
+    // gameAPI.position, getActiveTarget(), getLocationAt(), the location
+    // pill, presence and the compound cutaway all follow the avatar the
+    // player actually sees (and that TroTroBoarding's proximity reads).
+    // Without this mirror the hidden player and the visible avatar drift
+    // apart — the AI would read positions/targets for a player nobody
+    // can see on the map. The hidden controller's own integration result
+    // is discarded (velocity zeroed); the avatar drives everything.
+    const r3fPlayer = (window as unknown as {
+      __r3fPlayer?: { current: { position: THREE.Vector3; rotation: { y: number } } | null };
+    }).__r3fPlayer;
+    const visibleAvatar = r3fPlayer?.current ?? null;
+    if (visibleAvatar) {
+      this.player.position.set(
+        visibleAvatar.position.x,
+        getSurfaceHeightAt(visibleAvatar.position.x, visibleAvatar.position.z),
+        visibleAvatar.position.z
+      );
+      this.player.rotationY = visibleAvatar.rotation.y;
+      this.player.group.rotation.y = visibleAvatar.rotation.y;
+      this.player.velocity.set(0, 0, 0);
+    }
+
     updatePlayerCompoundCutaway(this.player.position);
 
     if (this.sunLight) {
