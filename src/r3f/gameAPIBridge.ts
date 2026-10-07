@@ -11,6 +11,14 @@
 
 import type { GameAPI } from '../game/GameAPI';
 
+/**
+ * DOM event that routes the [E] key press at the tro-tro stop from the
+ * systems layer into the R3F boarding panel. Fired by main.ts's
+ * handleWorldTargetInteracted('trotro_stop') — the InteractionSystem path —
+ * and handled by src/r3f/TroTroBoarding.tsx, which starts the Mate sequence.
+ */
+export const TROTRO_BOARD_EVENT = 'lagos-life:trotro-board';
+
 export function getGameAPI(): GameAPI | null {
   return (window as unknown as { GameAPI?: GameAPI }).GameAPI ?? null;
 }

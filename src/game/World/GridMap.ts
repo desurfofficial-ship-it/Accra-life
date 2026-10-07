@@ -186,6 +186,39 @@ export interface TrotroDestination {
   locationId: LocationId;
 }
 
+// ── Venue anchors (custom map integration) ──────────────────────────────────
+
+/**
+ * World venues on the custom grid. The hidden systems layer (Phase1Scene
+ * world builders) places each venue's group, collider and interactable AT
+ * these anchors so interactable positions coincide with the visible R3F
+ * map cells and resolve to the matching district LocationId.
+ */
+export interface VenueAnchor {
+  grid: GridLocation;
+  /** World-space [x, z] of the venue's group origin (cell center). */
+  world: [number, number];
+}
+
+function makeVenueAnchor(grid: GridLocation): VenueAnchor {
+  return { grid, world: cellCenter(grid.z, grid.x) };
+}
+
+/** Adabraka Provision Store & MoMo (ACC_SHOP_001 / provision_shop) — adabraka cell [row 0, col 1]. */
+export const PROVISION_STORE_ANCHOR: VenueAnchor = makeVenueAnchor({
+  x: 1,
+  z: 0,
+  zone: 'adabraka'
+}); // world [-16, -32]
+
+/** Sister Akosua's Waakye & Jollof Joint (ACC_RESTAURANT_001 / food_vendor) — makola cell [row 1, col 2]. */
+export const FOOD_VENDOR_ANCHOR: VenueAnchor = makeVenueAnchor({
+  x: 2,
+  z: 1,
+  zone: 'makola'
+}); // world [0, -16]
+
+/** Tro-tro travel destinations — arrival anchor cell per destination. */
 export const TROTRO_DESTINATIONS: readonly TrotroDestination[] = [
   { id: 'circle', name: 'Circle', row: 3, col: 2, locationId: 'circle_trotro_stop' },
   { id: 'makola', name: 'Makola Market', row: 2, col: 2, locationId: 'makola_market' },

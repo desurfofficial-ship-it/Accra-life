@@ -23,10 +23,10 @@
 
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
-import { useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { TroTroStop } from './TroTroStop';
-import { getGameAPI } from './gameAPIBridge';
+import { getGameAPI, TROTRO_BOARD_EVENT } from './gameAPIBridge';
 import {
   TROTRO_DESTINATIONS,
   destinationArrival,
@@ -88,6 +88,11 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
   const wasInRangeRef = useRef(false);
   const stepTimerRef = useRef<number>(0);
   const selectedDestinationRef = useRef<string>('circle');
+  // Mirrors state.phase for the [E]-key listener (no stale closures).
+  const phaseRef = useRef(state.phase);
+  useEffect(() => {
+    phaseRef.current = state.phase;
+  }, [state.phase]);
 
   /** Canonical fare — real EXP_TROTRO_FARE when the bridge is live. */
   const canonicalFare = useCallback(() => {
@@ -237,6 +242,22 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
       };
     });
   }, [onArriveAt, playerRef, syncFromAPI]);
+
+  // ── [E]-key routing from the systems layer ──────────────────────────────────
+  // main.ts's handleWorldTargetInteracted('trotro_stop') dispatches
+  // TROTRO_BOARD_EVENT when the player presses E inside the InteractionSystem
+  // radius (3.5 m — slightly wider than this panel's 3 m auto-trigger).
+  // Starts the same Mate sequence as the proximity path; idempotent while a
+  // sequence is already running.
+  useEffect(() => {
+    const onBoardRequest = () => {
+      if (phaseRef.current !== 'idle') return;
+      startGreeting();
+      window.setTimeout(() => checkCapacity(), 1500);
+    };
+    window.addEventListener(TROTRO_BOARD_EVENT, onBoardRequest);
+    return () => window.removeEventListener(TROTRO_BOARD_EVENT, onBoardRequest);
+  }, [startGreeting, checkCapacity]);
 
   // ── useFrame: proximity check (Rule 1) ────────────────────────────────────
   useFrame(() => {

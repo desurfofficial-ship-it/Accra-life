@@ -40,6 +40,7 @@ import { LocationChatManager } from './game/Multiplayer/LocationChatManager';
 import { FriendsSystem, type FriendEntry, type InboxMessageView } from './game/Multiplayer/FriendsSystem';
 import type { NearbyPlayer, ChatMessageView } from './game/Multiplayer/types';
 import { getLocationAt, getLocationDef, type LocationId } from './game/World/Locations';
+import { TROTRO_BOARD_EVENT } from './r3f/gameAPIBridge';
 
 const container = document.getElementById('viewportContainer');
 const promptEl = document.getElementById('interactionPrompt');
@@ -1353,6 +1354,15 @@ function hidePlacementHud(): void {
 }
 
 function handleWorldTargetInteracted(target: InteractableTarget): void {
+  // Custom map integration: the R3F layer (src/r3f/TroTroBoarding.tsx) owns
+  // tro-tro boarding UI — the Mate panel, fare gates and seat state. Route
+  // the [E] key into that panel instead of the DOM modals
+  // (skills/tro-tro-system.md [ROUTING], live bridge row).
+  if (target.id === 'trotro_stop') {
+    window.dispatchEvent(new CustomEvent(TROTRO_BOARD_EVENT));
+    return;
+  }
+
   const illegalAdvance = crimeSystem.tryAdvanceAtInteractable(target.id, target.assetId);
   if (illegalAdvance.handled) {
     showInteractionFeedback(illegalAdvance.message, illegalAdvance.arrested);
@@ -1464,6 +1474,14 @@ function startGame(profile: OnboardingResult): void {
       trotro: trotroService
     });
     (window as unknown as { GameAPI?: GameAPI }).GameAPI = gameAPI;
+    // Custom map: the R3F canvas owns the visible view — keep this scene
+    // SIMULATING (movement, interactions, NPC rigs) but skip its renderer
+    // to save GPU. Falls back to rendering if the R3F root is missing.
+    if (document.getElementById('r3f-root')) {
+      phase1.renderEnabled = false;
+    }
+    // Dev/debug handle — mirrors the window.__r3fScene/__r3fCamera pattern.
+    (window as unknown as { __phase1Scene?: Phase1Scene }).__phase1Scene = phase1;
     rebuildPlayerCompoundForTier(homeSystem.getHousingTierId());
     homeVisuals = new HomeFurnitureVisuals(phase1.scene);
     // Fixed-slot rendering disabled — PlacementEngine is the sole furniture renderer;
