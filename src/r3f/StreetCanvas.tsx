@@ -33,6 +33,7 @@ import { TrotroService } from '../game/World/TrotroService';
 import { MAKOLA_VENDOR_STAND_WORLD } from '../game/World/GridMap';
 import { getGameAPI } from './gameAPIBridge';
 import { TroTroPrompt } from '../ui/TroTroPrompt';
+import { EventBanner } from '../ui/EventBanner';
 
 /** Prompt range — matches the systems-layer trotro_stop radius (3.5 m). */
 const TROTRO_PROMPT_RANGE = 3.5;
@@ -275,6 +276,12 @@ export function StreetCanvas() {
         playerBalance={promptState.balance}
         visible={promptState.visible}
       />
+
+      {/* Phase 6+ follow-up: GTA-style Rush Hour alert banner — slides down
+          from the top whenever eventService.getCurrentEvent() === 'RUSH_HOUR'.
+          Subscribes to eventService.onEventChange internally; shows the
+          live in-game clock alongside the alert text. */}
+      <EventBanner />
     </>
   );
 }

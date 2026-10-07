@@ -22,6 +22,8 @@ import {
 import { createGameAPI, GameAPI } from './game/GameAPI';
 import { TrotroService } from './game/World/TrotroService';
 import { eventService } from './game/World/EventService';
+import { eventScheduler } from './game/Events/EventScheduler';
+import { gameClock } from './game/Time/GameClock';
 import { JobManager } from './game/Jobs/JobManager';
 import { VendorService } from './game/Jobs/VendorService';
 import {
@@ -1509,10 +1511,24 @@ function startGame(profile: OnboardingResult): void {
     (window as unknown as { GameAPI?: GameAPI }).GameAPI = gameAPI;
     // v4.9: arm the shared world-event cycle (NORMAL ↔ RUSH_HOUR) — both
     // TrotroService layers and the GameAPI bridge read the same singleton.
-    eventService.start();
+    // Phase 6+ follow-up: instead of EventService's real-time 90s/45s
+    // auto-cycle, hand control to EventScheduler which fires Rush Hour at
+    // in-game hours 7 (morning) + 17 (evening) — matches Accra's real
+    // commute pattern. EventScheduler.init() calls eventService.stop()
+    // then subscribes to GameClock hour changes + takes over.
+    eventScheduler.init();
+    // Start the GameClock at in-game hour 6 (dawn) so the first morning
+    // rush fires ~1 min after game start (1 real sec = 1 in-game min at
+    // default 60× scale → 24-min real day → 7 AM fires at in-game hour 7
+    // = 1 real min after game start).
+    gameClock.setHour(6);
     // Debug handle (mirrors __phase1Scene): lets devtools / QA force the
     // event via __eventService.setEvent('RUSH_HOUR').
     (window as unknown as { __eventService?: typeof eventService }).__eventService = eventService;
+    // Phase 6+ follow-up: expose GameClock + EventScheduler on window for
+    // dev console / AI / future admin panel access.
+    (window as unknown as { __gameClock?: typeof gameClock }).__gameClock = gameClock;
+    (window as unknown as { __eventScheduler?: typeof eventScheduler }).__eventScheduler = eventScheduler;
     // Custom map: the R3F canvas owns the visible view — keep this scene
     // SIMULATING (movement, interactions, NPC rigs) but skip its renderer
     // to save GPU. Falls back to rendering if the R3F root is missing.
@@ -1665,7 +1681,11 @@ function startGame(profile: OnboardingResult): void {
       phase1.player.rotationY = 0;
     });
 
+    let lastTickMs = performance.now();
     const tick = () => {
+      const tickStartMs = performance.now();
+      const realDeltaMs = tickStartMs - lastTickMs;
+      lastTickMs = tickStartMs;
       crimeSystem.tickHeatDecay(1 / 60);
       // Apply passive gameplay-effect multipliers from placed furniture.
       // These compound with the existing fatigueReductionPct (housing-tier
@@ -1677,6 +1697,10 @@ function startGame(profile: OnboardingResult): void {
       });
       // Live events cycle + 3D nearby-player avatar interpolation.
       liveEvents?.tick();
+      // Phase 6+ follow-up: advance in-game time. GameClock fires
+      // hour-change listeners when the in-game hour increments, which
+      // the EventScheduler catches + auto-fires Rush Hour at 7 AM + 5 PM.
+      gameClock.tick(realDeltaMs);
       nearbyAvatars?.update(1 / 60);
       if (homeVisuals) {
         homeVisuals.setCutawayMode(isPlayerInCompoundCutaway());
