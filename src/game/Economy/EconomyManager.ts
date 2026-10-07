@@ -43,7 +43,8 @@ export const ACCRA_EVERYDAY_EXPENSES: Record<string, EverydayExpenseOption> = {
     costGHS: 6.0,
     category: 'TRANSPORT',
     locationAssetId: 'ACC_PROP_001',
-    interactableId: 'trotro_stop'
+    interactableId: 'trotro_stop',
+    grantOwnedItemId: 'trotro_ticket_osu_circle'
   },
   EXP_PROVISION_BUNDLE: {
     id: 'EXP_PROVISION_BUNDLE',
