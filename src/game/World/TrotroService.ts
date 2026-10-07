@@ -1,30 +1,78 @@
 import { ACCRA_EVERYDAY_EXPENSES } from '../Economy/EconomyManager';
 
 /**
- * TrotroService — real passenger/capacity state for the Accra trotro van.
+ * TrotroService — real passenger/capacity state + living state machine.
  * ============================================================
  *
- * Backs the `ACC_TROTRO_001` Sprinter built by `buildTrotroStopAndVehicle`
- * (this folder, `NeighborhoodTrotro.ts`), which is static scenery: the
- * meshes and colliders live here, but seat state never did. This service
- * owns that state so the AI agent contracts in `skills/tro-tro-system.md`
- * can gate boarding on a real capacity check instead of an adapter-owned
- * fiction.
+ * Phase 5: Living Trotro — the van now has a lifecycle state machine:
  *
- * Canon: a standard Accra trotro Sprinter seats 14 passengers plus the
- * driver and the mate. The van loads at the `trotro_stop` interactable
- * (the Osu–Circle station) and the mate refuses additional passengers
- * once `isFull()` is true.
+ *   EN_ROUTE → ARRIVING → IDLE_AT_STOP → BOARDING → DEPARTING → EN_ROUTE ...
  *
- * The canonical fare expense is `EXP_TROTRO_FARE` in
- * `../Economy/EconomyManager.ts`, whose purchase now also grants the
- * owned item id `trotro_ticket_osu_circle` (see `grantOwnedItemId`).
+ * The state machine auto-transitions:
+ *   - ARRIVING → IDLE_AT_STOP after 2s (van arrives, doors open, mate greets)
+ *   - BOARDING → DEPARTING after 5s (passengers seated, doors close, van pulls away)
+ *   - DEPARTING → EN_ROUTE after 8s (van arrives at next stop, cycle repeats)
+ *
+ * Listeners receive { state, prevState, van } on every transition so
+ * the R3F renderer can play animations, swap meshes, trigger audio, etc.
  */
 
 export const TROTRO_VEHICLE_ID = 'ACC_TROTRO_001';
 export const TROTRO_DEFAULT_CAPACITY = 14;
 export const TROTRO_ROUTE_EXPENSE_ID = 'EXP_TROTRO_FARE';
 export const TROTRO_TICKET_ITEM_ID = 'trotro_ticket_osu_circle';
+
+// ── State machine types ────────────────────────────────────────────────────
+
+export type TrotroState = 'EN_ROUTE' | 'ARRIVING' | 'IDLE_AT_STOP' | 'BOARDING' | 'DEPARTING';
+
+export interface TrotroStateChange {
+  state: TrotroState;
+  prevState: TrotroState | null;
+  timestamp: number;
+}
+
+export type TrotroStateListener = (change: TrotroStateChange) => void;
+
+// ── Auto-transition timings (ms) ────────────────────────────────────────────
+
+const ARRIVING_TO_IDLE_MS = 2000;     // 2s — van arrives, doors open
+const BOARDING_TO_DEPARTING_MS = 5000; // 5s — passengers board
+const DEPARTING_TO_EN_ROUTE_MS = 8000; // 8s — van arrives at next stop
+
+// ── Mate dialogue lines (authentic Accra flavor per spec) ──────────────────
+
+export const MATE_LINES = {
+  ARRIVING: ['Circle! Circle! Enter well!', 'Oga, move inside make we go!', 'Last stop! Enter make we move!'],
+  FULL: 'No space! Next one!',
+  INSUFFICIENT: 'Oga, you no get change? Abeg shift make others enter.',
+  BOARDED: 'Make you sit well. We dey go!',
+  DEPARTING: 'Hold tight! We dey move!',
+} as const;
+
+// ── Asset loading ────────────────────────────────────────────────────────────
+
+export interface TrotroLoadedAssets {
+  vanModelUrl: string | null;
+  mateModelUrl: string | null;
+  loaded: boolean;
+}
+
+/**
+ * loadTrotroAssets — fetches GLTF/GLB models for the trotro van and mate.
+ *
+ * In production this would fetch from the asset registry. For now it
+ * returns placeholder URLs (procedural geometry is used in the R3F
+ * renderer since no dedicated van/mate GLBs were uploaded).
+ */
+export async function loadTrotroAssets(): Promise<TrotroLoadedAssets> {
+  // Check if a dedicated van GLB exists in the public assets
+  const vanModelUrl = null; // '/assets/glb/trotro_van.glb' when available
+  const mateModelUrl = null; // '/assets/glb/trotro_mate.glb' when available
+  return { vanModelUrl, mateModelUrl, loaded: true };
+}
+
+// ── Snapshot (existing, preserved) ─────────────────────────────────────────
 
 export interface TrotroPassengerSnapshot {
   readonly vehicleId: string;
@@ -34,11 +82,17 @@ export interface TrotroPassengerSnapshot {
   readonly capacity: number;
   readonly seatsAvailable: number;
   readonly isFull: boolean;
+  readonly state: TrotroState;
 }
+
+// ── Service class ────────────────────────────────────────────────────────────
 
 export class TrotroService {
   private currentPassengers = 0;
   private readonly capacity: number;
+  private state: TrotroState = 'EN_ROUTE';
+  private stateTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly listeners = new Set<TrotroStateListener>();
 
   constructor(capacity: number = TROTRO_DEFAULT_CAPACITY) {
     if (capacity < 0 || !Number.isFinite(capacity)) {
@@ -47,50 +101,91 @@ export class TrotroService {
     this.capacity = Math.floor(capacity);
   }
 
-  public getCurrentPassengers(): number {
-    return this.currentPassengers;
+  // ── State machine ─────────────────────────────────────────────────────────
+
+  public getState(): TrotroState { return this.state; }
+
+  public onStateChange(listener: TrotroStateListener): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
   }
 
-  public getCapacity(): number {
-    return this.capacity;
+  /** Force a state transition (for testing or scripted events). */
+  public setState(newState: TrotroState): void {
+    if (newState === this.state) return;
+    this.transitionTo(newState);
   }
 
-  public getSeatsAvailable(): number {
-    return this.capacity - this.currentPassengers;
+  /** Start the van cycle — van begins arriving at the stop. */
+  public startCycle(): void {
+    this.transitionTo('ARRIVING');
   }
 
-  public isFull(): boolean {
-    return this.currentPassengers >= this.capacity;
+  private transitionTo(newState: TrotroState): void {
+    const prev = this.state;
+    this.state = newState;
+    if (this.stateTimer) { clearTimeout(this.stateTimer); this.stateTimer = null; }
+
+    const change: TrotroStateChange = { state: newState, prevState: prev, timestamp: Date.now() };
+    for (const l of this.listeners) {
+      try { l(change); } catch { /* listener errors shouldn't crash */ }
+    }
+
+    // Auto-transitions
+    switch (newState) {
+      case 'ARRIVING':
+        // After 2s, van arrives → doors open → mate greets → IDLE
+        this.stateTimer = setTimeout(() => this.transitionTo('IDLE_AT_STOP'), ARRIVING_TO_IDLE_MS);
+        break;
+      case 'BOARDING':
+        // After 5s, passengers seated → doors close → DEPARTING
+        this.stateTimer = setTimeout(() => this.transitionTo('DEPARTING'), BOARDING_TO_DEPARTING_MS);
+        break;
+      case 'DEPARTING':
+        // After 8s, van arrives at next stop → cycle resets → EN_ROUTE → ARRIVING
+        this.stateTimer = setTimeout(() => {
+          this.transitionTo('EN_ROUTE');
+          // Brief EN_ROUTE then arrive again
+          this.stateTimer = setTimeout(() => this.transitionTo('ARRIVING'), 1000);
+        }, DEPARTING_TO_EN_ROUTE_MS);
+        break;
+    }
   }
+
+  // ── Boarding (triggers BOARDING state) ─────────────────────────────────────
 
   /**
-   * Attempt to seat one passenger. Returns `true` when a seat was taken,
-   * `false` when the van is full (mate refuses: "No space! Next one!").
+   * Attempt to board a passenger. If IDLE_AT_STOP and not full,
+   * transitions to BOARDING state + seats the passenger.
+   * Returns true if boarding succeeded.
    */
   public boardPassenger(): boolean {
+    if (this.state !== 'IDLE_AT_STOP' && this.state !== 'BOARDING') {
+      return false; // Can't board when van isn't at the stop
+    }
     if (this.isFull()) {
       return false;
+    }
+    if (this.state === 'IDLE_AT_STOP') {
+      this.transitionTo('BOARDING');
     }
     this.currentPassengers += 1;
     return true;
   }
 
-  /**
-   * Drop one passenger (destination reached). Returns `true` when a
-   * passenger alighted, `false` when the van was already empty.
-   */
+  // ── Existing capacity methods (preserved) ──────────────────────────────────
+
+  public getCurrentPassengers(): number { return this.currentPassengers; }
+  public getCapacity(): number { return this.capacity; }
+  public getSeatsAvailable(): number { return this.capacity - this.currentPassengers; }
+  public isFull(): boolean { return this.currentPassengers >= this.capacity; }
+
   public alightPassenger(): boolean {
-    if (this.currentPassengers <= 0) {
-      return false;
-    }
+    if (this.currentPassengers <= 0) return false;
     this.currentPassengers -= 1;
     return true;
   }
 
-  /**
-   * Bulk load (e.g. rebuilding world state). Returns the number of
-   * passengers actually loaded, clamped to capacity.
-   */
   public loadPassengers(count: number): number {
     if (count <= 0) return 0;
     const before = this.currentPassengers;
@@ -98,9 +193,10 @@ export class TrotroService {
     return this.currentPassengers - before;
   }
 
-  /** Van pulls away / depot reset — empties the vehicle. */
   public resetVehicle(): void {
     this.currentPassengers = 0;
+    if (this.stateTimer) { clearTimeout(this.stateTimer); this.stateTimer = null; }
+    this.state = 'EN_ROUTE';
   }
 
   public getSnapshot(): TrotroPassengerSnapshot {
@@ -111,11 +207,11 @@ export class TrotroService {
       currentPassengers: this.currentPassengers,
       capacity: this.capacity,
       seatsAvailable: this.getSeatsAvailable(),
-      isFull: this.isFull()
+      isFull: this.isFull(),
+      state: this.state,
     };
   }
 
-  /** Canonical fare for the Osu–Circle route, read from the real SKU table. */
   public getCanonicalFareGHS(): number {
     return ACCRA_EVERYDAY_EXPENSES[TROTRO_ROUTE_EXPENSE_ID].costGHS;
   }

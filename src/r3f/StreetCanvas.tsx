@@ -26,6 +26,8 @@ import { BeachProps } from './BeachProps';
 import { InteriorFurniture } from './InteriorFurniture';
 import { BuildingAssets } from './BuildingAssets';
 import { TroTroBoarding } from './TroTroBoarding';
+import { LivingTrotro } from './LivingTrotro';
+import { TrotroService } from '../game/World/TrotroService';
 import { TroTroPrompt } from '../ui/TroTroPrompt';
 
 // ── Player Avatar ────────────────────────────────────────────────────────────
@@ -110,6 +112,12 @@ export function StreetCanvas() {
   const [troTroX, troTroZ] = cellCenter(3, 2);
   const trotroStopPosition: [number, number, number] = [troTroX, 0, troTroZ];
 
+  // Living trotro service — state machine drives the van lifecycle
+  const trotroServiceRef = useRef<TrotroService | null>(null);
+  if (!trotroServiceRef.current) {
+    trotroServiceRef.current = new TrotroService(14); // 14-seat Sprinter
+  }
+
   return (
     <Canvas
       shadows
@@ -149,6 +157,12 @@ export function StreetCanvas() {
         stopPosition={trotroStopPosition}
         playerRef={playerGroupRef}
         onArriveAt={(destId) => console.log(`[tro-tro] Arrived at ${destId}`)}
+      />
+
+      {/* Living trotro van — state machine drives arrive/idle/board/depart */}
+      <LivingTrotro
+        position={trotroStopPosition}
+        trotroService={trotroServiceRef.current}
       />
 
       {/* Player avatar — spawns at Adabraka (home), walks with WASD */}
