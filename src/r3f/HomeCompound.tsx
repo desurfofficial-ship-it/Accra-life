@@ -6,8 +6,8 @@
  * stopped rendering when the custom map took over the visible canvas
  * (phase1.renderEnabled = false). This component draws a lightweight
  * look-alike ON the custom map at the exact same anchor so players can
- * FIND home: GridMap.HOME_COMPOUND_ANCHOR — adabraka cell [row 0, col 1],
- * world [-16, -32].
+ * FIND home: GridMap.HOME_COMPOUND_ANCHOR — mixed cell [row 2, col 0],
+ * world [-32, 0] (relocated there in the venue-polish pass).
  *
  * Geometry mirrors the systems-layer compound's dimensions so the marker
  * reads truthfully:

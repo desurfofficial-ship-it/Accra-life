@@ -6,17 +6,32 @@
  * The player's current location is derived from their live position via
  * `getLocationAt(x, z)`.
  *
- * Resolution order (custom map integration, phase-1-custom-map):
+ * Resolution order (custom map integration, venue-proximity pass):
+ *   0. Venue proximity zones — the provision store and waakye joint stand
+ *      INSIDE named district cells (adabraka [0,1] / makola [1,2]), so the
+ *      district resolution below would shadow their fine-grained zones
+ *      forever. Standing within VENUE_PROXIMITY_HALF_METERS of those
+ *      anchors (and the tro-tro station, for uniformity) resolves to the
+ *      real fine-grained LocationId — restoring the Adabraka Provisions /
+ *      Osu Waakye Joint pills and their place-tied recovery actions.
  *   1. Custom 5x5 Accra grid map (World/GridMap.ts) — named districts
- *      (Makola, Circle station, Osu, Labadi, Adabraka) resolve FIRST so the
- *      location pill, chat rooms, presence and recovery actions follow the
- *      custom map's geography.
- *   2. Legacy world-space bounds below — still authoritative for
- *      fine-grained zones (home compound, provisions, waakye joint) and for
- *      roads / mixed-use grid cells where the grid has no named zone.
+ *      (Makola, Circle station, Osu, Labadi, Adabraka) so the location
+ *      pill, chat rooms, presence and recovery actions follow the custom
+ *      map's geography everywhere else in a district.
+ *   2. Legacy world-space bounds below — now anchor-derived rects (the
+ *      home compound keeps its mixed-cell fallthrough; the provision /
+ *      waakye / station rects derive from their GridMap anchors, which
+ *      also removed the phantom pre-map zones on today's roads), plus the
+ *      fallback for roads / mixed-use cells.
  */
 
-import { resolveLocationIdOnGrid, HOME_COMPOUND_ANCHOR } from './GridMap';
+import {
+  resolveLocationIdOnGrid,
+  HOME_COMPOUND_ANCHOR,
+  PROVISION_STORE_ANCHOR,
+  FOOD_VENDOR_ANCHOR,
+  TROTRO_STATION_WORLD
+} from './GridMap';
 
 /** Stable string id for a location. Rules validate this matches ^[a-z0-9_]+$. */
 export type LocationId =
@@ -64,6 +79,36 @@ export interface LocationDef {
   recoveryAction: PlaceRecoveryAction;
 }
 
+// ── Venue proximity zones (fine-grained venues inside district cells) ───────
+
+// NOTE: declared BEFORE the LOCATIONS array — the LocationDef bounds below
+// call anchorRect() at module-initializer time, so these bindings must
+// already be live when that runs (const TDZ otherwise).
+
+/**
+ * Half-extent (meters) of a venue's fine-grained zone around its anchor.
+ * 5 m keeps the rect inside the venue's 12 m cell (cell center ± 5 < ± 6),
+ * so the pill flips to the venue only around the venue itself — the rest
+ * of the cell still reads as its district.
+ */
+const VENUE_PROXIMITY_HALF_METERS = 5;
+
+/** Fine-grained venues that would be shadowed by their district cells. */
+const VENUE_PROXIMITY_ZONES: ReadonlyArray<{
+  locationId: LocationId;
+  center: readonly [number, number];
+}> = [
+  { locationId: 'adabraka_provisions', center: PROVISION_STORE_ANCHOR.world },
+  { locationId: 'osu_waakye_joint', center: FOOD_VENDOR_ANCHOR.world },
+  { locationId: 'circle_trotro_stop', center: TROTRO_STATION_WORLD }
+];
+
+/** Square bounds rect of VENUE_PROXIMITY_HALF_METERS around a venue anchor. */
+function anchorRect(center: readonly [number, number]): Bounds2D {
+  const h = VENUE_PROXIMITY_HALF_METERS;
+  return { minX: center[0] - h, maxX: center[0] + h, minZ: center[1] - h, maxZ: center[1] + h };
+}
+
 /**
  * Ordered list of locations. `getLocationAt` returns the FIRST match, so the
  * most specific zones must come before `adabraka_neighborhood` (the fallback).
@@ -94,10 +139,14 @@ export const LOCATIONS: readonly LocationDef[] = [
     }
   },
   {
+    // Bounds derive from the provision store's GridMap anchor (cell [0,1],
+    // world [-16, -32]) — the venue moved there in the custom map
+    // integration, so the rect moved with it (was a pre-map roadside spot
+    // that today phantom-matches road strips near the map center).
     id: 'adabraka_provisions',
     displayName: 'Adabraka Provisions',
     flavor: 'Milo, Peak milk, MoMo, cold drinks.',
-    bounds: { minX: -13.0, maxX: -5.5, minZ: -13.0, maxZ: -7.7 },
+    bounds: anchorRect(PROVISION_STORE_ANCHOR.world),
     icon: '🏪',
     recoveryAction: {
       id: 'rec_provisions_voltic_bofrot',
@@ -113,10 +162,12 @@ export const LOCATIONS: readonly LocationDef[] = [
     }
   },
   {
+    // Bounds derive from the waakye joint's GridMap anchor (cell [1,2],
+    // world [0, -16]) — same venue-relocation story as the provisions.
     id: 'osu_waakye_joint',
     displayName: 'Osu Waakye Joint',
     flavor: 'Sister Akosua’s waakye — rice, beans, shito, egg.',
-    bounds: { minX: 5.5, maxX: 12.0, minZ: -13.0, maxZ: -7.7 },
+    bounds: anchorRect(FOOD_VENDOR_ANCHOR.world),
     icon: '🍲',
     recoveryAction: {
       id: 'rec_waakye_sobolo_special',
@@ -132,10 +183,13 @@ export const LOCATIONS: readonly LocationDef[] = [
     }
   },
   {
+    // Bounds derive from the station's GridMap cell (world [0, 16]) — the
+    // rect now sits on the real station cell instead of the pre-map
+    // roadside spot near the old spawn.
     id: 'circle_trotro_stop',
     displayName: 'Circle Trotro Stop',
     flavor: 'Osu–Circle station — mate collecting.',
-    bounds: { minX: 5.5, maxX: 12.0, minZ: 4.0, maxZ: 12.0 },
+    bounds: anchorRect(TROTRO_STATION_WORLD),
     icon: '🚐',
     recoveryAction: {
       id: 'rec_trotro_fanice_chips',
@@ -241,12 +295,24 @@ const LOCATION_BY_ID: Record<LocationId, LocationDef> = Object.fromEntries(
 
 /** Returns the location the player is currently "at" for the given world position. */
 export function getLocationAt(x: number, z: number): LocationDef {
-  // 1. Custom 5x5 grid map first — named districts are authoritative on the
+  // 0. Fine-grained venue zones first — the provision store, waakye joint
+  //    and station sit INSIDE district cells, so the district resolution
+  //    below would shadow them. Near the venue, the venue wins.
+  for (const zone of VENUE_PROXIMITY_ZONES) {
+    if (
+      Math.abs(x - zone.center[0]) <= VENUE_PROXIMITY_HALF_METERS &&
+      Math.abs(z - zone.center[1]) <= VENUE_PROXIMITY_HALF_METERS
+    ) {
+      return LOCATION_BY_ID[zone.locationId];
+    }
+  }
+  // 1. Custom 5x5 grid map — named districts are authoritative on the
   //    live custom map (Adabraka, Makola, Circle station, Osu, Labadi).
   const gridId = resolveLocationIdOnGrid(x, z);
   if (gridId) return LOCATION_BY_ID[gridId];
-  // 2. Legacy bounds — fine-grained zones (home compound, provisions, waakye
-  //    joint, Oxford street strip) + fallback for roads/mixed cells.
+  // 2. Legacy bounds — fine-grained zones (home compound via its mixed
+  //    cell, plus the anchor-derived venue rects for non-district spots)
+  //    + fallback for roads/mixed cells.
   for (const loc of LOCATIONS) {
     const b = loc.bounds;
     if (x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ) {

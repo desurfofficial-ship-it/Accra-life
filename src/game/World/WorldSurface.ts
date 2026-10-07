@@ -1,74 +1,67 @@
 /**
- * Independent world surface elevation module for the CHALÉ LIFE neighborhood slice.
+ * Independent world surface elevation module for ACCRA LIFE.
  * Kept strictly free of imports from PlayerController or NeighborhoodBlock to
- * maintain a clean one-way dependency graph:
- *   WorldSurface -> PlayerController / NeighborhoodBlock
+ * maintain a clean one-way dependency graph (its only import is GridMap,
+ * a pure-constants module whose Locations import is type-only):
+ *   WorldSurface -> GridMap -> (type-only) Locations
+ *
+ * CUSTOM MAP ERA (phase-1-custom-map + venue-polish pass):
+ * The live world is the 5x5 Accra grid (World/GridMap.ts), which plays
+ * FLAT at y = 0 — the visible R3F canvas draws flat cell pads and the
+ * visible avatar walks at y = 0. The pre-grid elevation tiers (old main
+ * road, sidewalks, gutter crossovers, venue pads at pre-map coordinates)
+ * were phantom geometry on today's map and are gone.
+ *
+ * The ONE raised walkable surface left is the player's home compound,
+ * whose regions derive from GridMap.HOME_COMPOUND_ANCHOR — the same
+ * anchor the systems-layer PlayerCompound (colliders, veranda step,
+ * interior floor) and the visible R3F landmark (HomeCompound.tsx) use,
+ * so walking the courtyard never sinks or floats:
+ *   gate apron 0.10 -> veranda step 0.16 -> courtyard slab 0.10
+ *   -> house interior floor 0.24 (matches ROOM_ORIGIN.y in main.ts).
  */
+
+import { HOME_COMPOUND_ANCHOR } from './GridMap';
+
+const CX = HOME_COMPOUND_ANCHOR.world[0];
+const CZ = HOME_COMPOUND_ANCHOR.world[1];
 
 /**
  * Returns the exact top surface elevation (Y in meters) at world (x, z)
- * so the player, NPCs, vehicles, and street props rest naturally on top of
- * sidewalks, crossover slabs, compound courtyards, veranda steps, interior room floors,
- * shop pads, or the asphalt road without sinking or hovering.
+ * so the player, NPCs, vehicles, and street props rest naturally on the
+ * compound courtyard, veranda step, or interior room floor without
+ * sinking or hovering — and walk flat everywhere else on the grid.
  */
 export function getSurfaceHeightAt(x: number, z: number): number {
-  // 1. Player Compound House Courtyard & Entrance Gate Apron (X in [-15.3, -5.7], Z in [7.7, 16.3])
-  if (x >= -15.3 && x <= -5.7 && z >= 7.7 && z <= 16.3) {
-    // Raised Veranda Terrace & Walkable Interior Room Floor (X in [-14.9, -6.1], Z in [9.08, 15.85])
-    if (x >= -14.9 && x <= -6.1 && z >= 9.08 && z <= 15.85) {
-      return 0.24;
-    }
-    // Center Veranda Entrance Step (X in [-11.65, -9.35], Z in [8.65, 9.08])
-    if (x >= -11.65 && x <= -9.35 && z >= 8.65 && z < 9.08) {
-      return 0.16;
-    }
+  const dx = x - CX;
+  const dz = z - CZ;
+
+  // 1. House interior floor (inside the room shell, north half of the
+  //    compound; checked before the courtyard which contains it).
+  //    Footprint matches PlayerCompound's room shell zone (local z
+  //    -1.6..2.9, half-width 2.8) and R3F HomeCompound's plinth.
+  if (Math.abs(dx) <= 2.8 && dz >= -1.6 && dz <= 2.9) {
+    return 0.24;
+  }
+
+  // 2. Veranda entrance step — through the gate, in front of the door
+  //    (PlayerCompound verandaStep: local z -3.58..-3.06, half-width 1.15).
+  if (Math.abs(dx) <= 1.15 && dz >= -3.58 && dz <= -3.06) {
+    return 0.16;
+  }
+
+  // 3. Compound courtyard slab 9.6 x 8.2 (PlayerCompound courtyard +
+  //    R3F landmark; top face at 0.10).
+  if (Math.abs(dx) <= 4.8 && dz >= -4.1 && dz <= 4.1) {
     return 0.10;
   }
 
-  // 2. Provision Store Concrete Pad (X in [-12.7, -6.3], Z in [-12.8, -7.6])
-  if (x >= -12.7 && x <= -6.3 && z >= -12.8 && z <= -7.6) {
+  // 4. Gate apron slab just outside the front wall (R3F apron: local
+  //    z -4.6..-4.05, half-width 1.7).
+  if (Math.abs(dx) <= 1.7 && dz >= -4.6 && dz <= -4.05) {
     return 0.10;
   }
 
-  // 3. Waakye & Jollof Dining Patio Slab (X in [4.8, 12.2], Z in [-13.1, -7.2])
-  if (x >= 4.8 && x <= 12.2 && z >= -13.1 && z <= -7.2) {
-    return 0.10;
-  }
-
-  // 4. Trotro Stop Boarding Pad (X in [6.6, 11.4], Z in [4.8, 7.65])
-  if (x >= 6.6 && x <= 11.4 && z >= 4.8 && z <= 7.65) {
-    return 0.10;
-  }
-
-  // 5. North & South Pedestrian Sidewalks (Z in [-7.7, -4.4] or [4.4, 7.7])
-  if ((z >= -7.7 && z <= -4.4) || (z >= 4.4 && z <= 7.7)) {
-    return 0.08;
-  }
-
-  // 6. Concrete Entrance Crossover Bridges across the Storm Gutter (Z in [-4.48, -3.62] or [3.62, 4.48])
-  if ((z >= -4.48 && z <= -3.62) || (z >= 3.62 && z <= 4.48)) {
-    const onNorthCrossover =
-      z < 0 &&
-      ((x >= -11.3 && x <= -7.7) ||
-        (x >= -1.5 && x <= 1.5) ||
-        (x >= 6.5 && x <= 10.5));
-    const onSouthCrossover =
-      z > 0 &&
-      ((x >= -12.3 && x <= -8.7) ||
-        (x >= -1.5 && x <= 1.5) ||
-        (x >= 6.8 && x <= 11.2));
-
-    if (onNorthCrossover || onSouthCrossover) {
-      return 0.085;
-    }
-    return 0.02;
-  }
-
-  // 7. Main Asphalt Road & Shoulders (Z in [-3.8, 3.8])
-  if (z >= -3.8 && z <= 3.8) {
-    return 0.02;
-  }
-
-  // 8. Surrounding Laterite Earth Ground
+  // 5. Everywhere else on the custom 5x5 grid: flat ground.
   return 0.0;
 }

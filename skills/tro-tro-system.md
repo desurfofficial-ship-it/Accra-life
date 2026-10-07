@@ -1,6 +1,6 @@
 ---
 name: tro-tro-system
-version: 4.4.0
+version: 4.5.0
 domain: trotro boarding & transit (GameAPI five-method contract on the
   live custom grid map)
 description: >
@@ -11,12 +11,13 @@ description: >
   each method to the src/game/ file that actually executes it.
 format: hybrid — [CONTRACT] GameAPI methods + [ROUTING] + [LOGIC] + [EXAMPLES] (TypeScript)
 contract_policy: five-method surface, copy-exact from src/game/GameAPI.ts
-supersedes: v4.3.0 (venue migration + GLB packs — unchanged; v4.4 adds
-  the home compound anchor (grid cell [2,0]) with all systems-layer
-  placement derived from it, mounts the residential scene.gltf as a
-  showroom diorama on cell [3,1], auto-fits the furniture lineup packs
-  into the Adabraka yards, and fixes the food-GLB Textures/colormap.png
-  path);
+supersedes: v4.4.0 (compound anchor cell [2,0], residential showroom,
+  furniture auto-fit, food texture path — unchanged; v4.5 adds the
+  venue-proximity location pass so fine-grained venue pills/recovery
+  actions win over district cells, anchor-derived WorldSurface
+  elevations, and fixes the last five pre-map coordinate leftovers:
+  placement room origin x2, arrest respawn, visit enter/leave gate
+  teleports);
   v4.3 momo_agent / susu_collector / chale_wote_panel anchors + GLB pack
   mounts — unchanged;
   v4.2 [E]-key Mate panel routing + provision/waakye/NPC cell anchors +
@@ -35,6 +36,10 @@ source_files:
     SUSU_COLLECTOR_ANCHOR, CHALE_WOTE_ANCHOR, HOME_COMPOUND_ANCHOR)
   - src/r3f/StreetCanvas.tsx + src/r3f/TroTroBoarding.tsx (the visible
     custom map world — avatar, station, boarding panel, [E] listener)
+  - src/game/World/Locations.ts (getLocationAt: venue-proximity zones →
+    grid districts → legacy bounds; anchor-derived venue rects)
+  - src/game/World/WorldSurface.ts (surface elevations: anchor-derived
+    compound courtyard/step/interior, flat 0 everywhere else on the grid)
   - src/game/World/PlayerCompound.ts (home compound — group, colliders,
     cutaway zones, home_door interactable, all derived from
     HOME_COMPOUND_ANCHOR)
@@ -127,10 +132,32 @@ is the canonical module both the visuals and the game systems consume.
   the hidden world's `trotro_stop` interactable (radius 3.5) and the Mate
   panel all sit on the same cell.
 - **Zones map 1:1 onto real LocationIds** (`GridMap.resolveLocationIdOnGrid`,
-  consumed first by `Locations.getLocationAt`): adabraka →
-  `adabraka_neighborhood`, makola → `makola_market`, circle_station →
-  `circle_trotro_stop`, osu → `osu_oxford_street`, labadi →
-  `labadi_beach`. Roads/mixed cells fall through to legacy bounds.
+  consumed by `Locations.getLocationAt` AFTER the venue-proximity pass):
+  adabraka → `adabraka_neighborhood`, makola → `makola_market`,
+  circle_station → `circle_trotro_stop`, osu → `osu_oxford_street`, labadi
+  → `labadi_beach`. Roads/mixed cells fall through to legacy bounds.
+- **Venue-proximity pass restores the fine-grained venue pills** (v4.5):
+  the provision store and waakye joint stand INSIDE district cells, so the
+  district resolution used to shadow their zones forever — standing at the
+  kiosk read 'Adabraka'/'Makola Market' with no recovery action.
+  `Locations.getLocationAt` now checks `VENUE_PROXIMITY_ZONES` FIRST
+  (provisions anchor [-16,-32] → `adabraka_provisions`, waakye anchor
+  [0,-16] → `osu_waakye_joint`, station [0,16] → `circle_trotro_stop`;
+  half-extent 5 m so the pill flips only around the venue, not the whole
+  cell). The legacy rects for those three zones are anchor-derived too,
+  which also deleted the phantom pre-map zones that still matched road
+  strips near the map center (e.g. the old (-13..-5.5, -13..-7.7)
+  provisions rect). Runtime-verified: pill '🏪Adabraka Provisions' +
+  '🧊 Voltic & Bofrot · ₵4' chip at the store, '🍲Osu Waakye Joint' +
+  '🍲 Waakye & Sobolo · ₵10' at the joint.
+- **Surface elevations are anchor-derived and the grid plays flat** (v4.5):
+  `WorldSurface.getSurfaceHeightAt` now returns 0 everywhere except the
+  compound regions derived from `HOME_COMPOUND_ANCHOR` (gate apron 0.10 →
+  veranda step 0.16 → courtyard 0.10 → interior floor 0.24, matching
+  `ROOM_ORIGIN.y` and the R3F landmark slabs). The pre-grid tiers (old
+  main road, sidewalks, gutter crossovers, and the provision/waakye/
+  trotro pads at pre-map coordinates — phantom 0.08–0.24 m floats on
+  today's map) are gone.
 - **The visible player is the R3F avatar** (`StreetCanvas.PlayerAvatar`):
   movement input comes from the real `InputManager` (keyboard WASD **and**
   agent `gameAPI.setJoystickInput`), speeds are canon (4.5 walk / 7.3
@@ -184,6 +211,30 @@ is the canonical module both the visuals and the game systems consume.
   landmark (`src/r3f/HomeCompound.tsx`) mirrors the systems-layer
   geometry (courtyard slab, breeze-block walls + gate, house shell,
   hipped roof, polytank tower) so the home is findable on the map.
+- **All compound teleports + the placement room origin derive from the
+  anchor** (v4.5, last pre-map coordinate leftovers fixed):
+  `main.ts` `COMPOUND_GATE_SPAWN` (world [-32, -5.2], 0.9 m clear of the
+  front-wall gate colliders, rotationY 0 = facing the courtyard — the old
+  code's Math.PI faced away) is shared by the arrest respawn and the
+  home-visit enter/leave teleports, which previously dumped arrestees and
+  visitors ~22 m away on the pre-map compound spot (-10.5, 6.2).
+  `enterPlacementMode` + `initHousingEngine` now call
+  `placementEngine.setRoomOrigin(ROOM_ORIGIN…)` instead of the hardcoded
+  (-10.5, 0.24, 11.1) — furniture ghosts and validity checks evaluate at
+  the real compound; runtime-verified: bought a plastic chair via the
+  Home Store and the ghost spawned at world [-32, 0.24, -1.6] with
+  '✓ Valid placement', confirmed, and rendered at the compound.
+- **Home visit mode passes its E2E pass** (v4.5): with a dev showcase
+  override (`__accraShowcase.setOverride`, dev-only seam in
+  `HomeShowcase.ts`), `__accraVisit.enter('host-smoke-1', 'Kwame')` →
+  banner '🏠 Visiting Kwame — Single Room — Starter' visible, three
+  host furniture meshes built at the anchor-derived `ROOM_ORIGIN`, and
+  `__accraVisit.leave()` restores the own compound, furniture and HUD
+  with zero leftover meshes. NOTE for harnesses: anonymous sign-in is
+  disabled in this Firebase project (ADMIN_ONLY_OPERATION), so the
+  friends uid is null for guests — the smoke sets the dev-handle uid
+  (`__accraFriends.uid = '…'`) to exercise the visit machinery; the auth
+  gate itself is Firebase-console config, not code.
 - **The residential scene.gltf is mounted as a showroom diorama** (v4.4):
   `src/r3f/ResidentialShowroom.tsx` loads the 50 MB
   `/assets/glb/residential/scene.gltf` (ATD-London, CC-BY-4.0) on mixed
