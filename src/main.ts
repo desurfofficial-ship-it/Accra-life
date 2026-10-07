@@ -19,6 +19,8 @@ import {
   ACCRA_EVERYDAY_EXPENSES,
   EconomyManager
 } from './game/Economy/EconomyManager';
+import { createGameAPI, GameAPI } from './game/GameAPI';
+import { TrotroService } from './game/World/TrotroService';
 import { JobManager } from './game/Jobs/JobManager';
 import {
   ACCRA_LEGAL_JOBS,
@@ -81,6 +83,8 @@ let sprintToggled = false;
 let currentModalTab: ModalTabId = 'jobs';
 let currentFocusedInteractableId: string | null = null;
 let phase1SceneRef: Phase1Scene | null = null;
+/** Live GameAPI bridge (AI-agent skill layer routing, skills/tro-tro-system.md). */
+let gameAPI: GameAPI | null = null;
 
 // ---- Multiplayer (presence + chat) module refs ----
 let presenceManager: PresenceManager | null = null;
@@ -145,6 +149,14 @@ const visitFurnitureMeshes: THREE.Object3D[] = [];
 const visitPingSentFor = new Set<string>();
 
 const economyManager = new EconomyManager();
+/** Real passenger/capacity state for the ACC_TROTRO_001 van (skills v3.1). */
+const trotroService = new TrotroService();
+// Persist ACC_TROTRO_001 seat counts inside the economy snapshot (and
+// restore them on loadFromPersistence).
+economyManager.bindTrotroPassengerState(
+  () => trotroService.getSnapshot(),
+  (n) => trotroService.loadPassengers(n)
+);
 const jobSystem = new JobManager(economyManager);
 const crimeSystem = new HeatSystem(economyManager);
 const needsSystem = new NeedsSystem();
@@ -1427,6 +1439,18 @@ function startGame(profile: OnboardingResult): void {
       { look: { skin: profile.skin, hair: profile.hair } }
     );
     phase1SceneRef = phase1;
+    // GameAPI bridge — live wiring for the AI-agent skill layer
+    // (skills/tro-tro-system.md [ROUTING]): every AI-facing call below
+    // routes 1:1 into the owning system. Exposed on window so the agent
+    // host (and devtools) can drive the game without touching internals.
+    gameAPI = createGameAPI({
+      economy: economyManager,
+      player: phase1.player,
+      input: phase1.inputManager,
+      interactions: phase1.interactionSystem,
+      trotro: trotroService
+    });
+    (window as unknown as { GameAPI?: GameAPI }).GameAPI = gameAPI;
     rebuildPlayerCompoundForTier(homeSystem.getHousingTierId());
     homeVisuals = new HomeFurnitureVisuals(phase1.scene);
     // Fixed-slot rendering disabled — PlacementEngine is the sole furniture renderer;
