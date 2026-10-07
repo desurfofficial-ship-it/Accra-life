@@ -1,205 +1,100 @@
 ---
 name: tro-tro-system
-version: 1.0.0
-domain: trotro boarding, mate fare negotiation & zone pricing
+version: 2.0.0
+domain: trotro boarding & transit governance (mate dialogue, capacity gate, fare gate)
 description: >
-  Full lifecycle of boarding a commercial trotro minibus in Accra: queuing
-  at the Osu–Circle station, negotiating the fare with the van's Mate,
-  sprinting alongside a departing van to catch the sliding door, paying the
-  zone fare in cash, and riding out to a destination district.
-format: hybrid — [CONTRACT] real repo symbols + [LOGIC] behavior rules + [EXAMPLES]
+  Governs how AI agents handle Tro-tro interactions: proximity evaluation at
+  the stop, the Mate's authentic Accra dialogue, capacity and fare checks,
+  boarding with ticket issuance, and position transit to the next zone.
+format: hybrid — [CONTRACT] allowed tools & types + [LOGIC] behavior rules + [EXAMPLES]
+supersedes: v1.0.0 (deep spec for haggle rounds / door chase / zone-fare table —
+  mechanics preserved in skills/tro-tro-adapter.ts, history commit 3ca8aa7)
 source_systems:
   - src/game/World/NeighborhoodTrotro.ts
   - src/game/Player/PlayerController.ts
-  - src/game/Player/InputManager.ts
-  - src/game/Art/CharacterBuilder.ts
   - src/game/Player/InteractionSystem.ts
-  - src/game/Economy/EconomyManager.ts
   - src/game/Economy/Wallet.ts
-  - src/game/World/Locations.ts
-adapter: skills/agent-adapter.ts#MovementSkill (travel op) + this file
-independence: callable alone; depends on economy only for the fare payment
+  - src/game/Economy/EconomyManager.ts
+adapter: skills/agent-adapter.ts#TroTroSystem + skills/tro-tro-adapter.ts
+independence: callable alone; economy binding only for the fare debit
 ---
 
-# tro-tro-system
+# Skill: Tro-Tro Boarding & Transit System
 
-## [CONTRACT]
-
-Exact TypeScript interfaces and functions this skill binds to. Everything in
-**A** already exists in the repo; **B** is adapter-owned state this skill
-introduces (the user-reference names `PlayerState` / `updateBalance()` /
-`triggerAnimation()` map to real repo symbols as shown below).
-
-### A. Existing repo symbols (used as-is)
-
-| Repo symbol | File | Role in boarding |
-|---|---|---|
-| `buildTrotroStopAndVehicle(scene, colliders, interactables)` | `src/game/World/NeighborhoodTrotro.ts` | Spawns shelter `ACC_PROP_001` at world `(9.0, 0, 6.2)`, parked Sprinter van `ACC_TROTRO_001` at world `(9.0, 0.02, 2.55)` facing West (−X) with curb-side sliding door (+Z) toward the shelter, plus colliders `ACC_PROP_001_SHELTER` (X 6.4–11.6, Z 5.45–7.6) and `ACC_TROTRO_001` (X 6.3–11.6, Z 1.45–3.65) |
-| `InteractableTarget` (`trotro_stop`: position `(9.0, 0.14, 4.9)`, `lookAtPosition (9.0, 0.14, 3.2)`, `radius 3.5`, promptLabel `'Trotro'`, interactionResponse `'Osu–Circle station — mate collecting fares.'`) | `src/game/Player/InteractionSystem.ts` | The boarding trigger zone; `InteractionSystem.triggerCurrentInteraction()` opens negotiation |
-| `PlayerController` — `position`, `rotationY`, `isMoving`, `isSprinting`, `update(dt, cameraYaw, colliders)`; internal `walkSpeed = 4.5`, `sprintSpeed = 7.3`, `playerRadius = 0.42`, `worldBoundsX = 25.0`, `worldBoundsZ = 17.2` | `src/game/Player/PlayerController.ts` | **→ the `PlayerState` reference.** Supplies chase physics for the running-alongside phase |
-| `InputManager` — `setJoystickInput(x, y)`, `setVirtualSprint(enabled)`, `isVirtualSprintEnabled()`, `getMovementInput(): MovementInput {moveX, moveZ, magnitude, sprint}` | `src/game/Player/InputManager.ts` | Skill drives chase by setting virtual joystick + sprint |
-| `CharacterRig.updateAnimation(dt, isMoving, isSprinting, phaseOffset?, turnRate?, moveSpeedRatio?)` | `src/game/Art/CharacterBuilder.ts` | **→ the `triggerAnimation()` reference.** Sprint cycle plays whenever `isSprinting=true` while running alongside |
-| `ColliderBox` | `src/game/Player/PlayerController.ts` | Van/shelter collision boxes consumed by `PlayerController.update` during the chase |
-| `EconomyManager.canAfford(amountGHS, channel)` / `purchaseEverydayExpense('EXP_TROTRO_FARE')` | `src/game/Economy/EconomyManager.ts` | **→ the `updateBalance()` reference for the canonical ₵6 fare.** `EXP_TROTRO_FARE` (₵6, category `TRANSPORT`, interactableId `trotro_stop`) matches the signboard canon "TROTRO STOP · ADABRAKA · ₵6 FARE" |
-| `Wallet.canAfford(amount, channel)`, `Wallet.spendMoney({amount, category, description, channel})` | `src/game/Economy/Wallet.ts` | **→ the `updateBalance()` reference for non-canonical zone fares.** CASH channel only; ledger keeps the receipt |
-| `LocationId`, `LocationDef`, `getLocationAt(x, z)`, `circle_trotro_stop` bounds `X [5.5, 12.0], Z [4.0, 12.0]`; reserved travel destinations `makola_market`, `labadi_beach` | `src/game/World/Locations.ts` | Zone pricing origins/destinations; boarding requires standing inside `circle_trotro_stop` bounds |
-
-### B. Adapter-owned additions (declared here, implemented in adapter)
+## [CONTRACT] Allowed Tools & Types
+The agent may ONLY interact with the following TypeScript interfaces and functions from the game state:
 
 ```ts
-export type BoardingPhase =
-  | 'IDLE' | 'QUEUED' | 'NEGOTIATING' | 'RUNNING_ALONGSIDE'
-  | 'BOARDED' | 'MISSED' | 'REFUSED_FUNDS' | 'REFUSED_NEGOTIATION';
-
-export interface MateOffer {
-  routeId: TrotroRouteId;          // zone table below
-  quotedFareGHS: number;           // base × demand multiplier
-  baseFareGHS: number;
-  demandMultiplier: number;        // 1.0 off-peak, 1.5 rush hour
-  negotiationRoundsLeft: 0 | 1 | 2;
-  mateLine: string;                // Pidgin quote line for UI/chat
-}
-
-export type TrotroRouteId =
-  | 'OSU_CIRCLE_LOCAL'             // hop within Osu Oxford St / Adabraka
-  | 'CIRCLE_TO_37'                 // Circle → 37 Station (proposed dest id '37_station')
-  | 'CIRCLE_TO_MAKOLA'             // → makola_market (already reserved)
-  | 'CIRCLE_TO_LABADI';            // → labadi_beach (already reserved)
-
-export interface TroTroSystem {
-  queueAtStop(): Promise<{ phase: 'QUEUED'; nextVanMs: number }>;
-  negotiateFare(routeId: TrotroRouteId): Promise<MateOffer>;
-  contestFare(): Promise<MateOffer | { refused: true }>;   // max 2 rounds
-  payAndBoard(payment: { amountGHS: number; routeId: TrotroRouteId }):
-    Promise<{ phase: 'BOARDED' } | { phase: 'REFUSED_FUNDS'; shortfallGHS: number }>;
-  chaseAndBoard(): Promise<{ boarded: boolean; gapM: number }>; // running-alongside
-}
+interface PlayerState { id: string; balance: number; position: Vector3; inventory: string[]; }
+interface TroTroState { id: string; route: string; currentStop: string; nextStop: string; fare: number; capacity: number; currentPassengers: number; }
+function getDistance(playerPos: Vector3, objectPos: Vector3): number
+function deductBalance(amount: number): Promise<boolean>
+function addToInventory(item: string): void
+function triggerNPCDialogue(npcId: string, dialogueKey: string): void
 ```
 
-## [LOGIC]
+### Repo symbol binding (spec name → live systems)
 
-Behavioral rules for the full boarding loop, in phase order:
+Every spec symbol above maps onto code that already exists in the repo, plus
+adapter-owned extensions declared here and implemented in
+`skills/tro-tro-adapter.ts` / the host router. The agent never touches `src/`
+directly — this table is the translation layer.
 
-### 1. Station rules (pre-boarding)
+| Spec symbol | Real repo binding | File | Notes |
+|---|---|---|---|
+| `PlayerState` | `PlayerController` (id/position/inventory) + `Wallet` (balance) | `src/game/Player/PlayerController.ts`, `src/game/Economy/Wallet.ts` | `position` is a live `THREE.Vector3`; `balance` = CASH channel (`getCashBalance()`); `inventory` = `ownership.ownedItemIds` |
+| `TroTroState` | Van `ACC_TROTRO_001` + adapter-owned passenger/capacity state | `src/game/World/NeighborhoodTrotro.ts`, `skills/tro-tro-adapter.ts` | repo van is stationary scenery at world `(9.0, 2.55)` facing West; capacity canon = **14 seats** (Sprinter); `currentPassengers` is adapter-owned |
+| `getDistance` | Horizontal `Math.hypot(dx, dz)` — the same XZ metric `InteractionSystem` uses for its radius checks | `src/game/Player/InteractionSystem.ts` | Y is ignored (flat Accra) |
+| `deductBalance` | `Wallet.spendMoney({ category: 'TRANSPORT', channel: 'CASH' })`; canonical ₵6 signboard fare → `EconomyManager.purchaseEverydayExpense('EXP_TROTRO_FARE')` | `src/game/Economy/Wallet.ts`, `src/game/Economy/EconomyManager.ts` | `TransactionRecord \| null` result → boolean; **CASH-only** — the Mate takes no MoMo, no bank, no credit |
+| `addToInventory` | `ownership.ownedItemIds.push('tro-tro-ticket')` | `src/game/Economy/EconomyManager.ts` (ownership) | `tro-tro-ticket` is a new adapter-owned item id; the ticket is perishable and dropped on arrival |
+| `triggerNPCDialogue` | `InteractionSystem.triggerCurrentInteraction()` / dialogue skill `interact` | `src/game/Player/InteractionSystem.ts` | `mate_01` is a new adapter-owned NPC id; the Mate's canon today lives in the `trotro_stop` `interactionResponse` ("Osu–Circle station — mate collecting fares.") |
+| position → next zone | `arriveAt(destination)` location override — same mechanism as `movement.travel` | `skills/agent-adapter.ts#MovementSkill.travel` | reserved destinations `makola_market` / `labadi_beach`; `circle`, `kaneshie`, `37_station` are adapter-owned extensions following the same pattern |
 
-- The agent must be **inside `circle_trotro_stop` bounds** (X 5.5–12.0, Z 4.0–12.0)
-  and within the `trotro_stop` interact radius (**3.5 m** of `(9.0, 4.9)`) before
-  any boarding op; otherwise `E_NOT_AT_LOCATION`.
-- Boarding happens on the **curb side (+Z)** — the van's sliding door faces the
-  shelter. Never route the agent between the van and the road (−Z side); the
-  `ACC_TROTRO_001` collider will block and the chase will fail.
-- Vans run on a cycle: one parked at the bay, next van arrives **30 s** after a
-  departure. The Mate stands at the shelter collecting fares while the van waits.
+## [LOGIC] Behavioral Instructions
+1. **Proximity Check**: WHEN `getDistance` between player and Tro-tro stop is < 3 meters, the agent evaluates interaction.
+2. **The 'Mate' Interaction**: 
+   - The NPC 'Mate' must initiate dialogue with authentic Accra flavor (e.g., 'Circle! Circle! Enter well!', 'Oga, move inside make we go!').
+   - The agent must check `TroTroState.capacity`. If `currentPassengers >= capacity`, the Mate refuses entry and says 'No space! Next one!'.
+3. **Fare & Boarding Logic**:
+   - IF player requests to board, CHECK if `PlayerState.balance >= TroTroState.fare`.
+   - IF YES: Call `deductBalance(fare)`. On success, call `addToInventory('tro-tro-ticket')`, trigger a 'boarding' animation, and update the player's `position` to the next zone.
+   - IF NO: Trigger dialogue: 'Oga, you no get change? Abeg shift make others enter.' Do not allow boarding.
 
-### 2. Fare negotiation with the Mate
+### Binding notes (how each rule executes against the repo)
 
-- The Mate quotes `baseFareGHS × demandMultiplier` for the requested route.
-  **Rush-hour windows** (07:00–09:30, 16:30–19:00 in-game) apply the 1.5×
-  multiplier; otherwise 1.0×.
-- The agent may **contest** the quote at most **2 rounds**: each successful
-  contest drops the quote by **₵1** down to the base fare floor. The Mate
-  refuses further haggling (`{ refused: true }`) if the agent contests at the
-  floor already, or after 2 rounds — at which point the quoted fare stands or
-  the van waves on.
-- Conduct rules: haggle is polite Pidgin ("Mate, abeg, na small small I get"),
-  never abusive; the Mate answers with the vehicle's route placard line
-  ("CIRCLE – OSU" placard is canon on `ACC_TROTRO_001`).
-- **Payment is CASH only.** Canonical ₵6 routes go through
-  `purchaseEverydayExpense('EXP_TROTRO_FARE')`; other zone fares go through
-  `Wallet.spendMoney({ category: 'TRANSPORT', channel: 'CASH' })`. No MoMo,
-  no bank, no partial payment, no credit — the Mate does not move for less.
+- **Rule 1 — proximity.** The spec's 3 m gate is stricter than the repo's
+  `trotro_stop` interactable radius (3.5 m at `(9.0, 0.14, 4.9)`), so inside
+  3 m the agent is guaranteed to be inside the game's own radius. The agent
+  must also be standing inside `circle_trotro_stop` bounds (X 5.5–12.0,
+  Z 4.0–12.0) — `getLocationAt(x, z).id` must resolve to
+  `circle_trotro_stop` before any boarding op, otherwise `E_NOT_AT_LOCATION`.
+- **Rule 2 — capacity.** When `currentPassengers >= capacity` the Mate's
+  refusal ('No space! Next one!') ends the interaction with **no fare debit**;
+  the van departs and the next one arrives on the adapter's 30 s cycle. The
+  agent must re-run the proximity check for the new van rather than retrying
+  immediately.
+- **Rule 3 — fare gate.** `deductBalance` resolves `false` when the CASH
+  channel cannot cover the fare (`E_INSUFFICIENT_FUNDS`, details carry
+  `requiredGHS` / `cashGHS`); in that state boarding is aborted exactly as the
+  dialogue line demands — no partial payment, no IOU, no MoMo. On `true`, the
+  'boarding' animation is the host surfacing of
+  `CharacterRig.updateAnimation` while the agent calls the position override;
+  the ledger entry (`TRANSPORT` category) is the audit trail for the trip.
+- **Ordering is mandatory**: dialogue → capacity check → fare check → debit →
+  ticket → animation → position update. Skipping straight to `deductBalance`
+  without the Mate's greeting is an agent violation of this contract.
 
-### 3. Zone-based fare table (origin: `circle_trotro_stop`)
+## [EXAMPLES] Successful Execution
+- **Context**: Player is at 'Kaneshie' stop. Target route is 'Circle'. Fare is 5 Cedis. Player balance is 20 Cedis.
+- **Agent Action**: 
+  1. Call `triggerNPCDialogue('mate_01', 'greeting_circle')`.
+  2. Call `deductBalance(5)`.
+  3. Call `addToInventory('tro-tro-ticket')`.
+  4. Update `PlayerState.position` to 'Circle'.
+- **Result**: Player successfully travels, balance is 15, inventory updated.
 
-| Route | Destination | Base fare | Peak (×1.5) | Payment path |
-|---|---|---|---|---|
-| `OSU_CIRCLE_LOCAL` | Hop along Osu Oxford St / Adabraka | ₵4 | ₵6 | `Wallet.spendMoney` |
-| `CIRCLE_TO_37` | `37_station` — 37 Military Hospital/Station (proposed new `LocationId`, registered like `makola_market`) | ₵7 | ₵10.5 → Mate rounds to ₵10 | `Wallet.spendMoney` |
-| `CIRCLE_TO_MAKOLA` | `makola_market` (reserved id) | ₵8 | ₵12 | `Wallet.spendMoney` |
-| `CIRCLE_TO_LABADI` | `labadi_beach` (reserved id) | ₵10 | ₵15 | `Wallet.spendMoney` |
-| *(canonical)* Osu–Circle hop | `trotro_stop` itself | **₵6** (signboard canon, `EXP_TROTRO_FARE`) | ₵9 | `purchaseEverydayExpense` |
-
-Fare is per-seat and per-van: one payment boards one passenger; the Mate
-hands change rounded **down** to the nearest ₵0.5.
-
-### 4. The 'running alongside' mechanic (catch phase)
-
-- Trigger: the van **pulls away West (−X)** along Oxford Street when the
-  boarding window closes (player hasn't paid within 12 s of the Mate's quote,
-  or the agent issued `chaseAndBoard()` explicitly).
-- The van accelerates to **5.5 m/s**; the player sprints at **7.3 m/s**
-  (`setVirtualSprint(true)` + joystick held toward the sliding door).
-- Catch condition — all must hold for **1.2 s continuous**:
-  1. Player within **2.2 m** of the sliding door world point `(9.84, 3.6)` tracking
-     the moving van (door leaf local `(0.84, 1.32, 1.05)` on van origin world `(9.0, 2.55)`);
-  2. `PlayerController.isSprinting === true` (walk speed 4.5 < van 5.5 — walking
-     can never catch it; sprint is mandatory);
-  3. `CharacterRig.updateAnimation(..., isSprinting=true, moveSpeedRatio ≥ 0.9)`
-     is playing (visual sanity for the sprint cycle).
-- Fail conditions: horizontal gap > **3.5 m** at any moment → `MISSED`; player
-  releases sprint > 0.8 s → `MISSED`; player hits the `ACC_TROTRO_001` collider
-  from the road side → stumble, 1.5 s stun, then `MISSED`.
-- On `MISSED`: van despawns past `worldBoundsX` (−25.0), next van in 30 s, no
-  fare charged. Two consecutive misses and the Mate jokes in chat but never
-  punishes mechanically.
-- Energy is **not** additionally drained by the sprint (repo `NeedsSystem` has
-  no sprint cost) — the chase is pure positioning skill. Chasing while
-  `hunger < 15` is allowed but the sprint is mechanically slower to steer;
-  agents should prefer catching the *parked* van.
-
-### 5. Boarding resolution
-
-- `BOARDED`: fare debited, `economy.get_wallet` shows the `TRANSPORT` ledger
-  entry, destination `LocationId` overrides the player's location (same
-  mechanism as `movement.travel`), and the HUD toast shows the Mate's line
-  ("Circle, 37, woye!"). Ride duration is skipped — arrival is one heartbeat
-  after debit for canonical hops; travel destinations land at the reserved
-  zone.
-- `REFUSED_FUNDS`: `Wallet.canAfford` false → Mate waves the van on, agent
-  keeps position, **no partial boarding, no IOU**. Recommended in-world
-  recovery: work `JOB_TROTRO_MATE` (₵15, 30 s cooldown) *at this same stop* to
-  earn the fare honestly.
-- The skill never teleports the player to skip payment; the only legitimate
-  free movement is walking (bounds X ±25, Z ±17.2) or a paid trotro.
-
-## [EXAMPLES]
-
-### Example 1 — successful boarding (Circle → 37, contested once, peak hour)
-
-```json
-[
-  { "skill": "movement", "op": "approach_interactable",
-    "params": { "interactableId": "trotro_stop" } },
-  { "ok": true, "result": { "arrived": true, "locationId": "circle_trotro_stop",
-    "promptLabel": "Trotro" } },
-
-  { "skill": "tro-tro", "op": "negotiateFare",
-    "params": { "routeId": "CIRCLE_TO_37" } },
-  { "ok": true, "result": { "routeId": "CIRCLE_TO_37", "baseFareGHS": 7,
-    "quotedFareGHS": 10.5, "demandMultiplier": 1.5, "negotiationRoundsLeft": 2,
-    "mateLine": "37 wote? ₵10.5, rush hour dey inside, enter!" } },
-
-  { "skill": "tro-tro", "op": "contestFare", "params": {} },
-  { "ok": true, "result": { "routeId": "CIRCLE_TO_37", "baseFareGHS": 7,
-    "quotedFareGHS": 9.5, "demandMultiplier": 1.5, "negotiationRoundsLeft": 1,
-    "mateLine": "Ok, ₵9.5 last, I for drop am for the junction." } },
-
-  { "skill": "economy", "op": "can_afford",
-    "params": { "amountGHS": 9.5, "channel": "CASH" } },
-  { "ok": true, "result": { "affordable": true } },
-
-  { "skill": "tro-tro", "op": "payAndBoard",
-    "params": { "amountGHS": 9.5, "routeId": "CIRCLE_TO_37" } },
-  { "ok": true, "result": { "phase": "BOARDED" } },
-
-  { "skill": "economy", "op": "get_transactions", "params": { "limit": 1 } },
-  { "ok": true, "result": [
-    { "category": "TRANSPORT", "description": "Trotro fare Circle → 37 (Mate's van)",
-      "amount": -9.5, "channel": "CASH" } ] }
-]
-```
-
-### Example 2 — failed attempt: insufficient funds
+Illustrative envelope trace (`KANESHIE_TO_CIRCLE` is an adapter-owned route
+extension; ₵5 sits under the canonical ₵6 Osu–Circle signboard fare):
 
 ```json
 [
@@ -207,28 +102,58 @@ hands change rounded **down** to the nearest ₵0.5.
     "params": { "interactableId": "trotro_stop" } },
   { "ok": true, "result": { "arrived": true, "locationId": "circle_trotro_stop" } },
 
-  { "skill": "tro-tro", "op": "negotiateFare",
-    "params": { "routeId": "CIRCLE_TO_37" } },
-  { "ok": true, "result": { "routeId": "CIRCLE_TO_37", "quotedFareGHS": 7,
-    "baseFareGHS": 7, "demandMultiplier": 1.0, "negotiationRoundsLeft": 2,
-    "mateLine": "37? ₵7 sharp, no ohia pricing today." } },
+  { "skill": "dialogue", "op": "interact", "params": { "interactableId": "trotro_stop" } },
+  { "ok": true, "result": { "handled": true, "responseLine": "Circle! Circle! Enter well!" } },
 
-  { "skill": "economy", "op": "can_afford",
-    "params": { "amountGHS": 7, "channel": "CASH" } },
-  { "ok": false, "error": { "code": "E_INSUFFICIENT_FUNDS", "retryable": false,
-    "message": "Not enough cash for the fare.",
-    "details": { "requiredGHS": 7, "cashGHS": 3.5 } } },
+  { "skill": "tro-tro", "op": "pay_and_board",
+    "params": { "amountGHS": 5, "routeId": "KANESHIE_TO_CIRCLE" } },
+  { "ok": true, "result": { "phase": "BOARDED", "ticket": "tro-tro-ticket",
+    "balanceAfterGHS": 15, "position": "Circle" } },
 
-  { "skill": "tro-tro", "op": "payAndBoard",
-    "params": { "amountGHS": 7, "routeId": "CIRCLE_TO_37" } },
-  { "ok": false, "error": { "code": "E_INSUFFICIENT_FUNDS", "retryable": false,
-    "message": "Mate refuses: 'No money, no motion, chale.'",
-    "details": { "phase": "REFUSED_FUNDS", "shortfallGHS": 3.5,
-                 "vanDeparted": true, "nextVanMs": 30000 } } }
+  { "skill": "economy", "op": "get_transactions", "params": { "limit": 1 } },
+  { "ok": true, "result": [
+    { "category": "TRANSPORT", "description": "Trotro fare Kaneshie → Circle (Mate's van)",
+      "amount": -5, "channel": "CASH" } ] }
 ]
 ```
 
-**Agent recovery plan after the failure above:** run
-`economy.accept_work("JOB_TROTRO_MATE")` at this same stop (₵15 pay, 30 s
-cooldown, Energy ≥ 15 / Hunger ≥ 10), then retry `negotiateFare` when the
-next van arrives in 30 s.
+## [EXAMPLES] Failed Execution
+- **Context**: Player balance is 2 Cedis. Fare is 5 Cedis.
+- **Agent Action**: 
+  1. Evaluate balance < fare.
+  2. Call `triggerNPCDialogue('mate_01', 'insufficient_funds')`.
+  3. Abort boarding sequence.
+- **Result**: Player remains at stop, no balance deducted, authentic rejection dialogue played.
+
+Illustrative envelope trace:
+
+```json
+[
+  { "skill": "tro-tro", "op": "pay_and_board",
+    "params": { "amountGHS": 5, "routeId": "KANESHIE_TO_CIRCLE" } },
+  { "ok": false, "error": { "code": "E_INSUFFICIENT_FUNDS", "retryable": false,
+    "message": "Mate: 'Oga, you no get change? Abeg shift make others enter.'",
+    "details": { "requiredGHS": 5, "cashGHS": 2 } } },
+
+  { "skill": "economy", "op": "accept_work", "params": { "workId": "JOB_TROTRO_MATE" } },
+  { "ok": true, "result": { "success": true, "message": "Collecting fares with the Mate (₵15)." } }
+]
+```
+
+**Agent recovery plan after the failure**: earn honestly first —
+`JOB_TROTRO_MATE` (₵15, 30 s cooldown, Energy ≥ 15 / Hunger ≥ 10) pays more
+than double the fare at the same stop — then re-run the successful sequence
+once `balance >= fare`. The van cycle returns in 30 s; the agent re-runs the
+proximity check for the new van.
+
+## Extended mechanics (adapter reference)
+
+The v1.0.0 deep spec — Mate haggle rounds (max 2, −₵1 per round, base-fare
+floor), the zone fare table (Osu hop ₵4 / Circle→37 ₵7 / Makola ₵8 /
+Labadi ₵10, ×1.5 rush hour), and the "running alongside" door-chase mechanic
+(sprint 7.3 m/s vs van 5.5 m/s, 2.2 m window held 1.2 s, miss past 3.5 m) —
+remains in force as the **reference implementation**
+[`skills/tro-tro-adapter.ts`](./tro-tro-adapter.ts). This file's simpler
+capacity/fare gate is the agent-facing contract; the adapter adds the
+negotiation layer on top without contradicting it (a haggle only ever lowers
+`TroTroState.fare` before Rule 3 runs).
