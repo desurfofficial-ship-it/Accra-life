@@ -18,6 +18,7 @@ import {
   TrotroService,
   TrotroState
 } from './World/TrotroService';
+import { eventService, GameEventId } from './World/EventService';
 
 /**
  * GameAPI — the routing bridge between AI agent skills and the live game.
@@ -123,12 +124,15 @@ export class GameAPI {
   // --------------------------------------------- EconomyManager routing
   // Routed to: src/game/Economy/EconomyManager.ts
 
-  public purchaseEverydayExpense(expenseId: string): {
+  public purchaseEverydayExpense(expenseId: string, options?: {
+    /** v4.9 surge override — pass getFareDue() during RUSH_HOUR. */
+    amountGHS?: number;
+  }): {
     success: boolean;
     message: string;
     transaction: TransactionRecord | null;
   } {
-    return this.economy.purchaseEverydayExpense(expenseId);
+    return this.economy.purchaseEverydayExpense(expenseId, options);
   }
 
   /** Real owned-item check — includes the trotro ticket `trotro_ticket_osu_circle`. */
@@ -232,9 +236,37 @@ export class GameAPI {
     this.economy.saveSnapshot();
   }
 
-  /** Canonical Osu–Circle fare from the real SKU table. */
+  /** Canonical Osu–Circle fare from the real SKU table (BASE price, ₵5).
+   * For the door price — base × live event surge — use getFareDue(). */
   public getCanonicalFareGHS(): number {
     return this.trotro.getCanonicalFareGHS();
+  }
+
+  // --------------------------------------------- EventService routing (v4.9)
+  // Routed to: src/game/World/EventService.ts (shared eventService singleton)
+
+  /**
+   * The live world event — 'NORMAL' | 'RUSH_HOUR' (v4.9 rush-hour spec).
+   * RUSH_HOUR: fare surges ×1.5 (₵5 → ₵7.5), the van cycles ~40% faster
+   * and the Mate barks 'Circle! Circle! Rush hour o! No time to argue,
+   * enter or stay!'. Read this BEFORE the boarding sequence.
+   */
+  public getCurrentEvent(): GameEventId {
+    return eventService.getCurrentEvent();
+  }
+
+  /** Fare multiplier for the live event — 1.0 (NORMAL) | 1.5 (RUSH_HOUR). */
+  public getEventMultiplier(): number {
+    return eventService.getFareMultiplier();
+  }
+
+  /**
+   * The fare actually due at the door right now (v4.9): base × event
+   * multiplier — ₵5 normally, ₵7.5 during RUSH_HOUR. The boarding flow
+   * MUST debit this amount (single source of truth for the surge).
+   */
+  public getFareDue(): number {
+    return this.trotro.getFareDueGHS();
   }
 }
 

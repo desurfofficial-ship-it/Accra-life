@@ -21,6 +21,7 @@ import {
 } from './game/Economy/EconomyManager';
 import { createGameAPI, GameAPI } from './game/GameAPI';
 import { TrotroService } from './game/World/TrotroService';
+import { eventService } from './game/World/EventService';
 import { JobManager } from './game/Jobs/JobManager';
 import {
   ACCRA_LEGAL_JOBS,
@@ -1493,6 +1494,12 @@ function startGame(profile: OnboardingResult): void {
       trotro: trotroService
     });
     (window as unknown as { GameAPI?: GameAPI }).GameAPI = gameAPI;
+    // v4.9: arm the shared world-event cycle (NORMAL ↔ RUSH_HOUR) — both
+    // TrotroService layers and the GameAPI bridge read the same singleton.
+    eventService.start();
+    // Debug handle (mirrors __phase1Scene): lets devtools / QA force the
+    // event via __eventService.setEvent('RUSH_HOUR').
+    (window as unknown as { __eventService?: typeof eventService }).__eventService = eventService;
     // Custom map: the R3F canvas owns the visible view — keep this scene
     // SIMULATING (movement, interactions, NPC rigs) but skip its renderer
     // to save GPU. Falls back to rendering if the R3F root is missing.

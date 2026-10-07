@@ -132,7 +132,11 @@ export class EconomyManager {
     });
   }
 
-  public purchaseEverydayExpense(expenseId: string): {
+  public purchaseEverydayExpense(expenseId: string, options?: {
+    /** v4.9: surge override — the RUSH_HOUR door price (base × 1.5).
+     * Keeps the expense's category + ticket grant; only the debit moves. */
+    amountGHS?: number;
+  }): {
     success: boolean;
     message: string;
     transaction: TransactionRecord | null;
@@ -141,19 +145,22 @@ export class EconomyManager {
     if (!item) {
       return { success: false, message: 'Unknown expense item.', transaction: null };
     }
+    const amountDue = options?.amountGHS ?? item.costGHS;
 
-    if (!this.wallet.canAfford(item.costGHS, 'CASH')) {
+    if (!this.wallet.canAfford(amountDue, 'CASH')) {
       return {
         success: false,
-        message: `Not enough cash for ${item.title} (Requires ₵${item.costGHS.toFixed(2)}). Take a job or hustle first!`,
+        message: `Not enough cash for ${item.title} (Requires ₵${amountDue.toFixed(2)}). Take a job or hustle first!`,
         transaction: null
       };
     }
 
     const tx = this.wallet.spendMoney({
-      amount: item.costGHS,
+      amount: amountDue,
       category: item.category,
-      description: item.title,
+      description: options?.amountGHS !== undefined && options.amountGHS !== item.costGHS
+        ? `${item.title} (surged door fare)`
+        : item.title,
       channel: 'CASH'
     });
 

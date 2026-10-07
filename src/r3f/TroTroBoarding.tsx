@@ -27,10 +27,11 @@
 
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useReducer } from 'react';
 import * as THREE from 'three';
 import { TroTroStop } from './TroTroStop';
 import { getGameAPI, TROTRO_BOARD_EVENT } from './gameAPIBridge';
+import { eventService } from '../game/World/EventService';
 import {
   TROTRO_DESTINATIONS,
   destinationArrival,
@@ -62,7 +63,14 @@ const MATE_DIALOGUE = {
   full: 'No space! Next one!',
   insufficient: 'Oga, you no get change? Abeg shift make others enter.',
   boarded: 'Make you sit well. We dey go!',
+  // v4.9 rush-hour chaos — the Mate drops the relaxed patter (spec line).
+  rushGreeting: 'Circle! Circle! Rush hour o! No time to argue, enter or stay!',
+  roofTap: 'Make you tap the roof — I go branch!',
 };
+
+/** v4.9: boarding sequence pacing — rush hour is 40%+ more urgent. */
+const GREETING_SEQUENCE_MS = 1500;      // NORMAL: relaxed Mate patter
+const RUSH_GREETING_SEQUENCE_MS = 700;  // RUSH_HOUR: no time to argue
 
 // ── State ────────────────────────────────────────────────────────────────────
 
@@ -111,10 +119,11 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
   const stopRef = useRef<THREE.Group>(null);
   const signMatRef = useRef<THREE.MeshStandardMaterial | null>(null);
 
-  /** Canonical fare — real EXP_TROTRO_FARE when the bridge is live. */
-  const canonicalFare = useCallback(() => {
+  /** Door fare — real EXP_TROTRO_FARE (surged during RUSH_HOUR) when the
+   * bridge is live; the flat demo fare pre-boot. */
+  const doorFare = useCallback(() => {
     const api = getGameAPI();
-    return api ? api.getCanonicalFareGHS() : DEMO_FARE;
+    return api ? api.getFareDue() : DEMO_FARE;
   }, []);
 
   /** Pull live seat/balance state from the real systems into display state. */
@@ -131,11 +140,24 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
 
   // ── Step 1: Dialogue — Mate greets ────────────────────────────────────────
   const startGreeting = useCallback(() => {
-    const line = MATE_DIALOGUE.greeting[Math.floor(Math.random() * MATE_DIALOGUE.greeting.length)];
+    const api = getGameAPI();
+    // v4.9: RUSH_HOUR swaps the relaxed patter for the surge bark — the
+    // exact [LOGIC] line, and the whole sequence speeds up (no time to
+    // argue).
+    const rush = api?.getCurrentEvent() === 'RUSH_HOUR';
+    const line = rush
+      ? MATE_DIALOGUE.rushGreeting
+      : MATE_DIALOGUE.greeting[Math.floor(Math.random() * MATE_DIALOGUE.greeting.length)];
     setState(s => ({ ...s, phase: 'greeting', dialogue: line }));
     syncFromAPI();
     stepTimerRef.current = performance.now();
   }, [syncFromAPI]);
+
+  /** v4.9: greeting → capacity check pacing (1500 ms NORMAL / 700 ms rush). */
+  const sequenceDelayMs = useCallback(() => {
+    const api = getGameAPI();
+    return api?.getCurrentEvent() === 'RUSH_HOUR' ? RUSH_GREETING_SEQUENCE_MS : GREETING_SEQUENCE_MS;
+  }, []);
 
   // ── Step 2: Physical state gate (v4.6) + capacity check (real service) ───
   const checkCapacity = useCallback(() => {
@@ -164,7 +186,11 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
       setState(s => ({
         ...s,
         phase: 'capacity_check',
-        dialogue: `${api.getSeatsAvailable()} seats free. Pay ₵${api.getCanonicalFareGHS()}?`,
+        // v4.9: the door fare (₵5 NORMAL / ₵7.5 RUSH_HOUR) + the surge
+        // changes the Mate's voice — no time to argue, enter or stay.
+        dialogue: api.getCurrentEvent() === 'RUSH_HOUR'
+          ? `${MATE_DIALOGUE.rushGreeting} ₵${api.getFareDue()} — ${api.getSeatsAvailable()} seats!`
+          : `${api.getSeatsAvailable()} seats free. Pay ₵${api.getFareDue()}?`,
       }));
       return;
     }
@@ -213,8 +239,11 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
         setState(s => ({ ...s, phase: 'rejected', dialogue: MATE_DIALOGUE.full, vanDepartedAt: performance.now() }));
         return;
       }
-      // Step 3+4: fare gate + canonical debit (grants the real ticket item)
-      const buy = api.purchaseEverydayExpense('EXP_TROTRO_FARE');
+      // Step 3+4: fare gate + door-price debit (grants the real ticket
+      // item) — v4.9: the amount is getFareDue() (base × event surge), so
+      // a RUSH_HOUR ride debits ₵7.5 while NORMAL keeps the flat ₵5.
+      const fareDue = api.getFareDue();
+      const buy = api.purchaseEverydayExpense('EXP_TROTRO_FARE', { amountGHS: fareDue });
       if (!buy.success) {
         console.log(`[tro-tro] Mate: "${MATE_DIALOGUE.insufficient}" (${buy.message ?? 'declined'})`);
         setState(s => ({ ...s, phase: 'rejected', dialogue: MATE_DIALOGUE.insufficient, playerBalance: api.getCashBalance() }));
@@ -228,7 +257,7 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
         // Defensive: unreachable after the Step-0 gate (single-threaded JS —
         // no state timer can interleave between isTrotroFull/boardPassenger),
         // but a failed seat must NEVER strand the player's money.
-        const fare = api.getCanonicalFareGHS();
+        const fare = fareDue;
         const refund = api.addFunds({
           amount: fare,
           category: 'TRANSPORT',
@@ -252,7 +281,10 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
 
       // Step 7: transit → arrive → free the seat (turnover)
       window.setTimeout(() => {
-        setState(prev => ({ ...prev, phase: 'transit', dialogue: MATE_DIALOGUE.boarded }));
+        // v4.9 roof-tap alighting beat (the "Yes" roadmap item): the
+        // passenger signals the stop the real way — knock the van ceiling.
+        console.log('[tro-tro] You tap the roof twice — "Mate, branch here!"');
+        setState(prev => ({ ...prev, phase: 'transit', dialogue: MATE_DIALOGUE.roofTap }));
         window.setTimeout(() => {
           arriveAtDestination();
           api.alightPassenger();
@@ -309,11 +341,11 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
     const onBoardRequest = () => {
       if (phaseRef.current !== 'idle') return;
       startGreeting();
-      window.setTimeout(() => checkCapacity(), 1500);
+      window.setTimeout(() => checkCapacity(), sequenceDelayMs());
     };
     window.addEventListener(TROTRO_BOARD_EVENT, onBoardRequest);
     return () => window.removeEventListener(TROTRO_BOARD_EVENT, onBoardRequest);
-  }, [startGreeting, checkCapacity]);
+  }, [startGreeting, checkCapacity, sequenceDelayMs]);
 
   // ── [E]-key on the VISIBLE map ───────────────────────────────────────────
   // The systems-layer InteractionSystem only sees the hidden legacy world,
@@ -331,11 +363,11 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
       const dz = player.position.z - stopPosition[2];
       if (Math.sqrt(dx * dx + dz * dz) > E_KEY_RANGE) return;
       startGreeting();
-      window.setTimeout(() => checkCapacity(), 1500);
+      window.setTimeout(() => checkCapacity(), sequenceDelayMs());
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [playerRef, stopPosition, startGreeting, checkCapacity]);
+  }, [playerRef, stopPosition, startGreeting, checkCapacity, sequenceDelayMs]);
 
   // ── useFrame: proximity check (Rule 1) ────────────────────────────────────
   useFrame(() => {
@@ -371,7 +403,7 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
       wasInRangeRef.current = true;
       startGreeting();
       // Auto-advance to capacity check after 1.5s
-      window.setTimeout(() => checkCapacity(), 1500);
+      window.setTimeout(() => checkCapacity(), sequenceDelayMs());
     } else if (!inRange && wasInRangeRef.current) {
       // LEAVING range — reset
       wasInRangeRef.current = false;
@@ -408,7 +440,18 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
     }
   });
 
-  const fare = canonicalFare();
+  const fare = doorFare();
+
+  // v4.9: the world event can flip (NORMAL ↔ RUSH_HOUR) while the Mate
+  // panel is already open — without this subscription the button label
+  // (and GTA prompt fare) render stale ₵5 while the door debit takes the
+  // surged ₵7.5. Re-render on every event change so the panel always
+  // quotes the live door price.
+  const [, rerenderOnEvent] = useReducer((c: number) => c + 1, 0);
+  useEffect(() => {
+    const unsub = eventService.onEventChange(() => rerenderOnEvent());
+    return unsub;
+  }, []);
 
   return (
     <group position={stopPosition}>

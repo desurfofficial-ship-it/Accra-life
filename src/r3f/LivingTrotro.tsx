@@ -26,6 +26,7 @@ import {
   MATE_LINES,
   type TrotroStateChange,
 } from '../game/World/TrotroService';
+import { eventService } from '../game/World/EventService';
 
 // ── Van model selector ─────────────────────────────────────────────────────
 
@@ -231,7 +232,12 @@ export function LivingTrotro({ position, trotroService, vanModel = 'small_van' }
       setState(change.state);
       switch (change.state) {
         case 'ARRIVING': {
-          const line = MATE_LINES.ARRIVING[Math.floor(Math.random() * MATE_LINES.ARRIVING.length)];
+          // v4.9: RUSH_HOUR barks the surge lines; NORMAL keeps the relaxed
+          // route-call pool. The event is read from the shared singleton so
+          // both van layers agree even though each owns a TrotroService.
+          const rush = eventService.isRushHour();
+          const pool = rush ? MATE_LINES.RUSH_HOUR : MATE_LINES.ARRIVING;
+          const line = pool[Math.floor(Math.random() * pool.length)];
           setDialogue(line);
           playMateShout(line);
           break;
@@ -240,7 +246,11 @@ export function LivingTrotro({ position, trotroService, vanModel = 'small_van' }
           // v4.8 culture pass: the dwell is when a real Mate is LOUDEST —
           // bark a change-call / fill-up grumble instead of a dry seats readout
           // (fare + balance stay on the GTA prompt and the Mate panel).
-          const dwell = MATE_LINES.DWELL[Math.floor(Math.random() * MATE_LINES.DWELL.length)];
+          // v4.9: during RUSH_HOUR the bark carries the surge price.
+          const rush = eventService.isRushHour();
+          const dwell = rush
+            ? MATE_LINES.RUSH_HOUR[Math.floor(Math.random() * MATE_LINES.RUSH_HOUR.length)]
+            : MATE_LINES.DWELL[Math.floor(Math.random() * MATE_LINES.DWELL.length)];
           setDialogue(dwell);
           playMateShout(dwell);
           break;

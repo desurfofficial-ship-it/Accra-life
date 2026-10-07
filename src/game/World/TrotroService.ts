@@ -1,4 +1,5 @@
 import { ACCRA_EVERYDAY_EXPENSES } from '../Economy/EconomyManager';
+import { eventService } from './EventService';
 
 /**
  * TrotroService — real passenger/capacity state + living state machine.
@@ -65,6 +66,15 @@ export const MATE_LINES = {
     'We dey go soon — make you enter with your change!',
   ],
   FULL: 'No space! Next one!',
+  // v4.9 rush-hour chaos (skills/tro-tro-system.md [LOGIC]): while the
+  // world event is RUSH_HOUR the Mate drops the relaxed patter and barks
+  // the surge — no time to argue, enter or stay.
+  RUSH_HOUR: [
+    'Circle! Circle! Rush hour o! No time to argue, enter or stay!',
+    'Rush hour! Enter with your change sharp sharp!',
+    'Move fast make we go — traffic dey wait us!',
+    'Rush hour fare! ₵7.5 — no haggling today! Enter or stay!',
+  ],
   INSUFFICIENT: 'Oga, you no get change? Abeg shift make others enter.',
   BOARDED: 'Make you sit well. We dey go!',
   DEPARTING: 'Hold tight! We dey move!',
@@ -159,28 +169,50 @@ export class TrotroService {
     // Auto-transitions
     switch (newState) {
       case 'ARRIVING':
-        // After 2s, van arrives → doors open → mate greets → IDLE
-        this.stateTimer = setTimeout(() => this.transitionTo('IDLE_AT_STOP'), ARRIVING_TO_IDLE_MS);
+        // After 2s (× event speed), van arrives → doors open → mate greets → IDLE
+        this.stateTimer = setTimeout(() => this.transitionTo('IDLE_AT_STOP'), this.arrivingMs());
         break;
       case 'IDLE_AT_STOP':
         // Fare dwell: the van waits a few seconds for passengers; if nobody
         // boards it pulls away on its own (real trotro behavior — the
         // DEPARTING "missed it" window exists without any boarding).
-        this.stateTimer = setTimeout(() => this.transitionTo('DEPARTING'), IDLE_DWELL_TO_DEPARTING_MS);
+        // v4.9: the dwell shortens during RUSH_HOUR (8 s → ~5 s) — the
+        // Mate has no time to argue.
+        this.stateTimer = setTimeout(() => this.transitionTo('DEPARTING'), this.idleDwellMs());
         break;
       case 'BOARDING':
-        // After 5s, passengers seated → doors close → DEPARTING
-        this.stateTimer = setTimeout(() => this.transitionTo('DEPARTING'), BOARDING_TO_DEPARTING_MS);
+        // After 5s (× event speed), passengers seated → doors close → DEPARTING
+        this.stateTimer = setTimeout(() => this.transitionTo('DEPARTING'), this.boardingMs());
         break;
       case 'DEPARTING':
-        // After 8s, van arrives at next stop → cycle resets → EN_ROUTE → ARRIVING
+        // After 8s (× event speed), van arrives at next stop → cycle resets
         this.stateTimer = setTimeout(() => {
           this.transitionTo('EN_ROUTE');
           // Brief EN_ROUTE then arrive again
-          this.stateTimer = setTimeout(() => this.transitionTo('ARRIVING'), 1000);
-        }, DEPARTING_TO_EN_ROUTE_MS);
+          this.stateTimer = setTimeout(() => this.transitionTo('ARRIVING'), this.enRouteMs());
+        }, this.departingMs());
         break;
     }
+  }
+
+  // ── Event-aware cycle timings (v4.9) ──────────────────────────────────
+  // Spec numbers (ARRIVING 2s / dwell 8s / BOARDING 5s / DEPARTING 8s) run
+  // at NORMAL pace and scale by the shared event speed factor — RUSH_HOUR
+  // compresses every phase to ~60% so the whole van rhythm turns urgent.
+  private arrivingMs(): number {
+    return Math.round(ARRIVING_TO_IDLE_MS * eventService.getSpeedFactor());
+  }
+  private idleDwellMs(): number {
+    return Math.round(IDLE_DWELL_TO_DEPARTING_MS * eventService.getSpeedFactor());
+  }
+  private boardingMs(): number {
+    return Math.round(BOARDING_TO_DEPARTING_MS * eventService.getSpeedFactor());
+  }
+  private departingMs(): number {
+    return Math.round(DEPARTING_TO_EN_ROUTE_MS * eventService.getSpeedFactor());
+  }
+  private enRouteMs(): number {
+    return Math.round(1000 * eventService.getSpeedFactor());
   }
 
   // ── Boarding (triggers BOARDING state) ─────────────────────────────────────
@@ -243,7 +275,23 @@ export class TrotroService {
     };
   }
 
-  public getCanonicalFareGHS(): number {
+  /** Base route fare from the canonical economy table (₵5, event-blind). */
+  public getBaseFareGHS(): number {
     return ACCRA_EVERYDAY_EXPENSES[TROTRO_ROUTE_EXPENSE_ID].costGHS;
+  }
+
+  /**
+   * Fare actually due at the door (v4.9): base × the live event's surge
+   * multiplier — ₵5 normally, ₵7.5 during RUSH_HOUR. This is the number
+   * the Mate collects; GameAPI.getFareDue() routes here.
+   */
+  public getFareDueGHS(): number {
+    return Math.round(this.getBaseFareGHS() * eventService.getFareMultiplier() * 100) / 100;
+  }
+
+  /** Canonical fare — kept as the BASE price (callers wanting the surged
+   * door price must use getFareDueGHS()). */
+  public getCanonicalFareGHS(): number {
+    return this.getBaseFareGHS();
   }
 }
