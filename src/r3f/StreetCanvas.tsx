@@ -21,6 +21,7 @@ import { AccraCityGrid, TOTAL_SIZE, cellCenter } from './AccraCityGrid';
 import { MarketStalls } from './MarketStalls';
 import { CityTrees } from './CityTrees';
 import { LandscapeProps } from './LandscapeProps';
+import { SuburbHouses } from './SuburbHouses';
 import { TroTroBoarding } from './TroTroBoarding';
 
 // ── Player Avatar ────────────────────────────────────────────────────────────
@@ -138,6 +139,9 @@ export function StreetCanvas() {
 
       {/* Landscape v2a office buildings + farm FBX */}
       <LandscapeProps />
+
+      {/* Suburb houses in Adabraka residential district */}
+      <SuburbHouses />
 
       {/* Tro-tro boarding system at Circle Station */}
       <TroTroBoarding
