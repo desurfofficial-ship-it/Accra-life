@@ -1,6 +1,6 @@
 ---
 name: tro-tro-system
-version: 4.7.0
+version: 4.8.0
 domain: trotro boarding & transit (GameAPI six-method contract on the
   live custom grid map, incl. the van lifecycle state machine)
 description: >
@@ -13,11 +13,18 @@ description: >
   makes IDLE_AT_STOP a mandatory pre-condition before any funds or space
   check. v4.7 makes the stop a real fare dwell: an unboarded van departs
   on its own after ~8 s, so the DEPARTING "Ah! You missed it!" window
-  exists without any boarding. The [ROUTING] section maps each method to
-  the src/game/ file that actually executes it.
+  exists without any boarding. v4.8 is the cultural authenticity pass:
+  the Mate voice now matches real Accra station culture — route barks
+  with intermediate stops ("Osu! Circle! Osu! Circle!"), the iconic
+  change call ("Enter with your change o!"), and a dwell bark so the
+  Mate is LOUDEST while the van waits to fill, not silent. The [ROUTING]
+  section maps each method to the src/game/ file that actually executes it.
 format: hybrid — [CONTRACT] GameAPI methods + [ROUTING] + [LOGIC] + [EXAMPLES] (TypeScript)
 contract_policy: six-method surface, copy-exact from src/game/GameAPI.ts
-supersedes: v4.6.0 (van lifecycle state machine: the getTrotroStatus bridge
+supersedes: v4.7.0 (fare dwell: the unboarded van departs on its own —
+  unchanged; v4.8 adds the Mate-voice culture pass: MATE_LINES.ARRIVING
+  route barks + MATE_LINES.DWELL fill-up barks, LivingTrotro dwell shout);
+  v4.6.0 (van lifecycle state machine: the getTrotroStatus bridge
   method, the mandatory IDLE_AT_STOP pre-board gate and the DEPARTING
   missed-van culture — unchanged; v4.7 adds the 8 s fare dwell so the
   unboarded van departs on its own);
@@ -385,6 +392,46 @@ is the canonical module both the visuals and the game systems consume.
 `canAfford()` → `spendMoney()` → `boardPassenger()` → `hasOwnedItem()`.
 Calling `spendMoney` while the van is not 'IDLE_AT_STOP', or
 `boardPassenger` before the debit, is a contract violation.
+
+### The Mate voice — cultural authenticity beats (v4.8)
+
+The Mate is not a vending machine with dialogue; he is the van's
+hustling co-owner. The lines below are the exact strings in
+`MATE_LINES` (src/game/World/TrotroService.ts) — every agent-facing
+surface (LivingTrotro shouts, TroTroBoarding panel, refusal branches)
+reads from that one constant.
+
+1. **Route bark with intermediate stops** (on 'ARRIVING'): real Mates
+   call the destination AND the stops along the way — 'Osu! Circle!
+   Osu! Circle!' — mixed with 'Circle! Circle! Enter well!'. The
+   destination is shouted at least twice; that repetition IS the signal
+   the van is boarding.
+2. **The change call** (on 'ARRIVING' / 'IDLE_AT_STOP'): the single
+   most iconic Mate line in Accra — 'Enter with your change o!'.
+   Passengers who board with big notes slow the van down and get the
+   cold shoulder; the in-game INSUFFICIENT line ('Oga, you no get
+   change? Abeg shift make others enter.') is the refusal end of that
+   same culture.
+3. **Dwell grumble** (on 'IDLE_AT_STOP', v4.8): a real van does not
+   move until it fills — the Mate keeps barking while he waits, not a
+   dry seats readout. MATE_LINES.DWELL: 'One more person make we
+   move!', 'Enter with your change!', 'Two for the front seat,
+   workers!', 'We dey go soon — make you enter with your change!'.
+   The "two for the front seat" squeeze is standard: three-seat rows
+   routinely carry four, and the front bench is sold twice.
+4. **The departure beat** (on 'DEPARTING'): 'Hold tight! We dey move!'
+   plus the missed-van call 'Ah! You missed it! Wait for the next
+   one!' for latecomers — chasing a pulling-away van is real Accra
+   behavior, and the v4.6 chase beat above is that culture
+   formalized.
+5. **Capacity & fare realism**: 14 passengers is a true 207/Sprinter
+   trotro load (driver + Mate + 14); ₵5 matches current short-hop
+   shared fares on the Osu–Circle corridor.
+6. **Roadmap (documented, not yet implemented)**: the roof-tap
+   alighting signal (passengers knock the van ceiling and shout
+   'Mate, branch here!'), the Mate making change from a wad of small
+   notes mid-ride, and hand-painted van decals ('No Condition Be
+   Permanent'). These are flavor upgrades; none are contract-level.
 
 ## [EXAMPLES] Exact TypeScript the Agent Generates
 
