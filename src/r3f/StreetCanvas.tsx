@@ -29,6 +29,7 @@ import { TroTroBoarding, DEMO_FARE, DEMO_START_BALANCE } from './TroTroBoarding'
 import { LivingTrotro } from './LivingTrotro';
 import { LivingPlayerAvatar } from './LivingPlayerAvatar';
 import { LivingVendor } from './LivingVendor';
+import { MarketAssets } from './MarketAssets';
 import { TrotroService } from '../game/World/TrotroService';
 import { MAKOLA_VENDOR_STAND_WORLD } from '../game/World/GridMap';
 import { getGameAPI } from './gameAPIBridge';
@@ -238,6 +239,12 @@ export function StreetCanvas() {
       <BeachProps />
       <InteriorFurniture />
       <BuildingAssets />
+      {/* Phase 8 follow-up: 4 user-uploaded market GLBs (super, mini,
+          cat, chinese) at distinct grid cells. Each is a real commercial
+          building — Super Market at [2,4], Mini Market at [0,2],
+          Cat Market at [4,1] (Labadi decorative), Chinese Market at
+          [3,4] (Osu Chinatown). */}
+      <MarketAssets />
 
       {/* Tro-tro boarding system at Circle Station */}
       <TroTroBoarding
