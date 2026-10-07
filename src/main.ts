@@ -173,13 +173,23 @@ let lastLiveEventShownSeconds = -1;
 // instanceId → live mesh. Lets us add/remove meshes the moment furniture is
 // placed or sold, instead of waiting for the next game reload.
 // Shared room origin (compound interior floor center, per PlayerCompound).
-// Derived from GridMap.HOME_COMPOUND_ANCHOR (adabraka cell [row 0, col 1],
-// world [-16, -32]); the interior floor sits 1.1 m south of the anchor.
+// Derived from GridMap.HOME_COMPOUND_ANCHOR (mixed cell [row 2, col 0],
+// world [-32, 0]); the interior floor sits 1.1 m south of the anchor.
 const ROOM_ORIGIN = new THREE.Vector3(
   HOME_COMPOUND_ANCHOR.world[0],
   0.24,
   HOME_COMPOUND_ANCHOR.world[1] - 1.1
 );
+// Compound gate spawn — just outside the front-wall gate gap (systems
+// colliders span COMPOUND_Z - 4.28..-3.62; spawn 0.9 m clear of the wall).
+// Derived from the same GridMap anchor so arrest respawn + home-visit
+// enter/leave all stay on the compound's real cell. Spawn faces the
+// courtyard (rotationY 0 = +z; the pre-map code's Math.PI faced away).
+const COMPOUND_GATE_SPAWN = {
+  x: HOME_COMPOUND_ANCHOR.world[0],
+  y: 0.08,
+  z: HOME_COMPOUND_ANCHOR.world[1] - 5.2
+};
 // Debounce handle for the housing → Firestore cloud sync.
 let housingCloudSyncTimer: ReturnType<typeof setTimeout> | null = null;
 let playerDisplayName = 'Chale';
@@ -1164,12 +1174,12 @@ const placedFurnitureMeshes = new Map<string, THREE.Group>();
  *
  * Called from startGame() after Phase1Scene is created. The room origin
  * is set to the player's compound interior floor center — derived from
- * GridMap.HOME_COMPOUND_ANCHOR (adabraka cell [row 0, col 1], world
- * [-16, -32]) with the floor 1.1 m south of the anchor.
+ * GridMap.HOME_COMPOUND_ANCHOR (mixed cell [row 2, col 0], world
+ * [-32, 0]) with the floor 1.1 m south of the anchor.
  */
 function initHousingEngine(phase1: Phase1Scene): void {
-  // The compound is at the GridMap.HOME_COMPOUND_ANCHOR (adabraka cell
-  // [row 0, col 1], world [-16, 0, -32]); the interior floor is at
+  // The compound is at the GridMap.HOME_COMPOUND_ANCHOR (mixed cell
+  // [row 2, col 0], world [-32, 0, 0]); the interior floor is at
   // y=0.24 (per PlayerCompound's interiorFloorMesh position). The room
   // center (where the placement engine's origin sits) is at the interior
   // floor center — slightly south of the compound group's position
@@ -1203,7 +1213,7 @@ function initHousingEngine(phase1: Phase1Scene): void {
       }
     }
   );
-  placementEngine.setRoomOrigin(-10.5, 0.24, 11.1);
+  placementEngine.setRoomOrigin(ROOM_ORIGIN.x, ROOM_ORIGIN.y, ROOM_ORIGIN.z);
 
   // Render previously-placed furniture on game start (persistence) via the
   // single diff-based sync (boot / place / sell / cloud restore all use it).
@@ -1338,11 +1348,11 @@ function enterPlacementMode(catalogId: FurnitureId): void {
   if (blockIfVisiting('placement')) return;
   if (!placementEngine) return;
   // Set room origin again in case the housing tier changed (room moves).
+  // ROOM_ORIGIN derives from GridMap.HOME_COMPOUND_ANCHOR — the compound's
+  // real cell (was hardcoded to the pre-map compound coords, which sent
+  // every placement ghost ~22 m away from the visible compound).
   const tier = homeSystem.getHousingTier();
-  const ROOM_ORIGIN_X = -10.5;
-  const ROOM_ORIGIN_Y = 0.24;
-  const ROOM_ORIGIN_Z = 11.1;
-  placementEngine.setRoomOrigin(ROOM_ORIGIN_X, ROOM_ORIGIN_Y, ROOM_ORIGIN_Z);
+  placementEngine.setRoomOrigin(ROOM_ORIGIN.x, ROOM_ORIGIN.y, ROOM_ORIGIN.z);
   void tier; // room origin is fixed for now; future: vary by tier.roomWidthM/roomDepthM
   const ok = placementEngine.enterPlacementMode(catalogId);
   if (!ok) {
@@ -1628,8 +1638,11 @@ function startGame(profile: OnboardingResult): void {
     }
 
     crimeSystem.onArrest(() => {
-      phase1.player.position.set(-10.5, 0.08, 6.2);
-      phase1.player.rotationY = Math.PI;
+      // Respawn at the compound gate (GridMap anchor-derived — was the
+      // pre-map compound coords, dumping arrestees on an empty road).
+      // rotationY = 0 faces +z (toward the courtyard / home_door).
+      phase1.player.position.set(COMPOUND_GATE_SPAWN.x, COMPOUND_GATE_SPAWN.y, COMPOUND_GATE_SPAWN.z);
+      phase1.player.rotationY = 0;
     });
 
     const tick = () => {
@@ -2110,9 +2123,11 @@ async function enterVisitMode(hostUid: string, hostName: string): Promise<void> 
     visitFurnitureMeshes.push(mesh);
   }
 
-  // 3) Teleport to the compound gate (same respawn spot as arrests).
-  phase1SceneRef.player.position.set(-10.5, 0.08, 6.2);
-  phase1SceneRef.player.rotationY = Math.PI;
+  // 3) Teleport to the compound gate (same respawn spot as arrests; the
+  //    pre-map gate coords used to strand visitors ~22 m from the venue).
+  //    rotationY = 0 faces +z (toward the courtyard / home_door).
+  phase1SceneRef.player.position.set(COMPOUND_GATE_SPAWN.x, COMPOUND_GATE_SPAWN.y, COMPOUND_GATE_SPAWN.z);
+  phase1SceneRef.player.rotationY = 0;
 
   // 4) Banner + courtesy ping to the host (once per host per session).
   updateVisitBanner();
@@ -2139,8 +2154,8 @@ function leaveVisitMode(): void {
   homeVisuals?.sync(homeSystem.getOwned(), homeSystem.getPlaced());
   syncPlacedFurnitureMeshes(scene);
 
-  phase1SceneRef.player.position.set(-10.5, 0.08, 6.2);
-  phase1SceneRef.player.rotationY = Math.PI;
+  phase1SceneRef.player.position.set(COMPOUND_GATE_SPAWN.x, COMPOUND_GATE_SPAWN.y, COMPOUND_GATE_SPAWN.z);
+  phase1SceneRef.player.rotationY = 0;
 
   const hostName = visitSession.hostName;
   visitSession = null;

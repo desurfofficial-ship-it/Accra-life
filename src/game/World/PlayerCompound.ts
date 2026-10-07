@@ -6,8 +6,10 @@ import { HOUSING_TIERS, type HousingTierId } from '../Home/HomeSystem';
 import { HOME_COMPOUND_ANCHOR } from './GridMap';
 
 /**
- * Compound world anchor — adabraka grid cell [row 0, col 1] (world
- * [-16, -32], per GridMap.HOME_COMPOUND_ANCHOR). Every absolute position
+ * Compound world anchor — mixed grid cell [row 2, col 0] (world
+ * [-32, 0], per GridMap.HOME_COMPOUND_ANCHOR; relocated there in the
+ * venue-polish pass because all four adabraka cells were occupied).
+ * Every absolute position
  * in this module (group origin, wall colliders, doorway interactable,
  * cutaway zones) derives from these two numbers so the compound always
  * coincides with the visible custom map cell.
@@ -189,7 +191,7 @@ function createDynamicHouseShell(
   const roomW = tier.roomWidthM;
   const roomD = tier.roomDepthM;
   const roomY = 0.24 + wallH / 2;
-  // Anchor front wall around local Z = -1.6 (world Z = 10.6) so doorway aligns with veranda
+  // Anchor house front wall around local Z = -1.6 so doorway aligns with veranda
   const southWallZ = -1.6 + wallT / 2;
   const roomZ = -1.6 + roomD / 2;
   const northWallZ = -1.6 + roomD - wallT / 2;
