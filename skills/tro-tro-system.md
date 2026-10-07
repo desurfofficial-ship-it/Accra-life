@@ -1,6 +1,6 @@
 ---
 name: tro-tro-system
-version: 4.6.0
+version: 4.7.0
 domain: trotro boarding & transit (GameAPI six-method contract on the
   live custom grid map, incl. the van lifecycle state machine)
 description: >
@@ -11,15 +11,16 @@ description: >
   state: getTrotroStatus() exposes the phase-5 lifecycle state machine
   (EN_ROUTE → ARRIVING → IDLE_AT_STOP → BOARDING → DEPARTING) and [LOGIC]
   makes IDLE_AT_STOP a mandatory pre-condition before any funds or space
-  check. The [ROUTING] section maps each method to the src/game/ file that
-  actually executes it.
+  check. v4.7 makes the stop a real fare dwell: an unboarded van departs
+  on its own after ~8 s, so the DEPARTING "Ah! You missed it!" window
+  exists without any boarding. The [ROUTING] section maps each method to
+  the src/game/ file that actually executes it.
 format: hybrid — [CONTRACT] GameAPI methods + [ROUTING] + [LOGIC] + [EXAMPLES] (TypeScript)
 contract_policy: six-method surface, copy-exact from src/game/GameAPI.ts
-supersedes: v4.5.0 (venue-proximity location pass, anchor-derived WorldSurface
-  elevations, last five pre-map coordinate leftovers fixed — unchanged;
-  v4.6 adds the van lifecycle state machine: the getTrotroStatus bridge
+supersedes: v4.6.0 (van lifecycle state machine: the getTrotroStatus bridge
   method, the mandatory IDLE_AT_STOP pre-board gate and the DEPARTING
-  missed-van culture);
+  missed-van culture — unchanged; v4.7 adds the 8 s fare dwell so the
+  unboarded van departs on its own);
   v4.3 momo_agent / susu_collector / chale_wote_panel anchors + GLB pack
   mounts — unchanged;
   v4.2 [E]-key Mate panel routing + provision/waakye/NPC cell anchors +
@@ -34,7 +35,8 @@ source_files:
   - src/game/Economy/EconomyManager.ts (hasOwnedItem → ownership)
   - src/game/World/TrotroService.ts (getTrotroStatus / isTrotroFull /
     boardPassenger + the phase-5 lifecycle machine: type TrotroState,
-    auto-timers 2 s/5 s/8 s, MATE_LINES incl. MISSED and NOT_AT_STOP)
+    auto-timers 2 s / dwell 8 s / 5 s / 8 s, MATE_LINES incl. MISSED and
+    NOT_AT_STOP)
   - src/r3f/LivingTrotro.tsx (drives startCycle(), renders every state,
     plays MATE_LINES shout/bubble per transition)
   - src/r3f/StreetCanvas.tsx (adopts window.GameAPI.trotro at boot — the
@@ -82,7 +84,8 @@ gameAPI.getTrotroStatus():
 //   • EN_ROUTE     — van on the road, nowhere near the stop
 //   • ARRIVING     — van pulling in (auto → IDLE_AT_STOP after 2 s)
 //   • IDLE_AT_STOP — docked, door open, Mate taking fares ← BOARD HERE
-//                    (waits indefinitely until the first board)
+//                    (fare dwell: auto → DEPARTING after ~8 s if nobody
+//                    boards — the window is real, don't dawdle)
 //   • BOARDING     — boarding window open (auto → DEPARTING after 5 s;
 //                    the engine still seats latecomers, the [LOGIC]
 //                    gate below does not — don't start a purchase here)
@@ -154,9 +157,13 @@ Passenger turnover is automatic: the adapter seats the player on
 
 **One van, one machine (v4.6).** The van is a living vehicle:
 `TrotroService` runs the phase-5 lifecycle (`EN_ROUTE → ARRIVING →
-IDLE_AT_STOP → BOARDING → DEPARTING → EN_ROUTE`, auto-timers 2 s / 5 s /
-8 s + 1 s en-route gap, `MATE_LINES` shout/bubble per transition via
-`LivingTrotro`, which calls `startCycle()` on mount). Since v4.6 the
+IDLE_AT_STOP → BOARDING → DEPARTING → EN_ROUTE`, auto-timers 2 s arrival /
+8 s fare dwell / 5 s boarding / 8 s pull-away + 1 s en-route gap,
+`MATE_LINES` shout/bubble per transition via
+`LivingTrotro`, which calls `startCycle()` on mount). Since v4.7 the
+IDLE_AT_STOP dwell is finite — an unboarded van pulls away by itself after
+~8 s, then the next van docks ~11 s later (8 s DEPARTING + 1 s EN_ROUTE +
+2 s ARRIVING). Since v4.6 the
 visible van and the bridge share ONE instance — `src/r3f/StreetCanvas.tsx`
 adopts `window.GameAPI.trotro` as soon as the systems layer boots (a
 pre-boot fallback van runs before that) — so what the AI reads through
@@ -337,7 +344,12 @@ is the canonical module both the visuals and the game systems consume.
      the wait state. No money moves.
    - **'EN_ROUTE' / 'ARRIVING'**: wait at the stop ('No van at the stop
      yet — wait for the next one.'). The machine docks the van by itself
-     (auto → 'IDLE_AT_STOP' after ~3 s).
+     (auto → 'IDLE_AT_STOP' after 2 s).
+   - **'IDLE_AT_STOP' — the window is finite (v4.7)**: the van dwells at
+     the stop for ~8 s taking fares; if nobody boards it departs on its
+     own. Read the status IMMEDIATELY before every attempt — a status
+     read from a previous tick may already be stale, and a stale
+     'IDLE_AT_STOP' is how fares get burned into a closing window.
    - **'BOARDING'**: the Mate is still seating someone in the 5 s window
      that auto-closes into 'DEPARTING'. The engine would physically seat
      a latecomer, but this skill's gate is stricter on purpose — an agent
