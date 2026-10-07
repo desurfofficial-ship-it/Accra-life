@@ -10,7 +10,8 @@ import {
 import {
   EconomyPersistence,
   PersistedCrimeState,
-  PersistedJobState
+  PersistedJobState,
+  PersistedTrotroState
 } from './EconomyPersistence';
 import { TransactionRecord } from './Transaction';
 import { Wallet } from './Wallet';
@@ -69,6 +70,10 @@ export class EconomyManager {
   private externalJobStateGetter: (() => PersistedJobState) | null = null;
   private externalCrimeStateGetter: (() => PersistedCrimeState) | null = null;
 
+  /** Optional trotro seat-state provider/hydrator (bound by the host). */
+  private trotroStateGetter: (() => PersistedTrotroState) | null = null;
+  private trotroHydrator: ((currentPassengers: number) => void) | null = null;
+
   constructor() {
     this.wallet = new Wallet();
     this.wallet.onBalanceChange(() => {
@@ -84,6 +89,19 @@ export class EconomyManager {
   ): void {
     this.externalJobStateGetter = getJobState;
     this.externalCrimeStateGetter = getCrimeState;
+  }
+
+  /**
+   * Persist ACC_TROTRO_001 seat counts inside the economy snapshot.
+   * `get` samples the live TrotroService on every saveSnapshot; `apply`
+   * restores the passenger count on loadFromPersistence.
+   */
+  public bindTrotroPassengerState(
+    get: () => PersistedTrotroState,
+    apply?: (currentPassengers: number) => void
+  ): void {
+    this.trotroStateGetter = get;
+    this.trotroHydrator = apply ?? null;
   }
 
   public getProgressionInfo(): EconomicProgressionInfo {
@@ -195,7 +213,8 @@ export class EconomyManager {
         investmentIds: [...this.ownership.investmentIds]
       },
       jobs: this.externalJobStateGetter ? this.externalJobStateGetter() : base.jobs,
-      crime: this.externalCrimeStateGetter ? this.externalCrimeStateGetter() : base.crime
+      crime: this.externalCrimeStateGetter ? this.externalCrimeStateGetter() : base.crime,
+      ...(this.trotroStateGetter ? { trotro: this.trotroStateGetter() } : {})
     };
     EconomyPersistence.saveLocal(snapshot);
   }
@@ -216,6 +235,9 @@ export class EconomyManager {
       };
     }
     this.wallet.hydrate(saved.wallet);
+    if (saved.trotro && this.trotroHydrator) {
+      this.trotroHydrator(saved.trotro.currentPassengers);
+    }
     this.recomputeProgressionTier();
     this.notifyListeners();
 

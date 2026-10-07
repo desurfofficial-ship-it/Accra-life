@@ -28,6 +28,12 @@ export interface PersistedCrimeState {
   arrestCount: number;
 }
 
+/** ACC_TROTRO_001 seat state (TrotroService), persisted with the snapshot. */
+export interface PersistedTrotroState {
+  currentPassengers: number;
+  capacity: number;
+}
+
 export interface PersistedPhase3EconomySnapshot {
   version: 1;
   savedAt: number;
@@ -36,6 +42,8 @@ export interface PersistedPhase3EconomySnapshot {
   ownership: PlayerOwnershipFoundations;
   jobs: PersistedJobState;
   crime: PersistedCrimeState;
+  /** Optional since the trotro-service addition; absent in older saves. */
+  trotro?: PersistedTrotroState;
 }
 
 const STORAGE_KEY = 'chale_life_phase3_economy_v1';
