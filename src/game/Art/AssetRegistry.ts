@@ -135,7 +135,7 @@ export const PHASE2_ASSET_REGISTRY: Record<string, RegisteredAssetMetadata> = {
     category: 'prop',
     name: 'Accra Trotro Commuter Shelter & Route Board',
     purpose: 'Covered roadside transit shelter with passenger bench and Osu/Circle route signboard',
-    locationDescription: 'South-East roadside curb (9.0, 0, 6.2)',
+    locationDescription: 'Circle station cell [row 3, col 2] (0, 0, 16)',
     dimensionsMeters: [4.8, 2.8, 2.5],
     originConvention: 'bottom-center',
     hasCollision: true
