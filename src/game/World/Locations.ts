@@ -16,7 +16,7 @@
  *      roads / mixed-use grid cells where the grid has no named zone.
  */
 
-import { resolveLocationIdOnGrid } from './GridMap';
+import { resolveLocationIdOnGrid, HOME_COMPOUND_ANCHOR } from './GridMap';
 
 /** Stable string id for a location. Rules validate this matches ^[a-z0-9_]+$. */
 export type LocationId =
@@ -73,7 +73,12 @@ export const LOCATIONS: readonly LocationDef[] = [
     id: 'home_compound',
     displayName: 'Home Compound',
     flavor: 'Your room — rest, store, breathe.',
-    bounds: { minX: -15.4, maxX: -5.5, minZ: 8.0, maxZ: 16.4 },
+    bounds: {
+      minX: HOME_COMPOUND_ANCHOR.world[0] - 4.9,
+      maxX: HOME_COMPOUND_ANCHOR.world[0] + 5.0,
+      minZ: HOME_COMPOUND_ANCHOR.world[1] - 4.2,
+      maxZ: HOME_COMPOUND_ANCHOR.world[1] + 4.2
+    },
     icon: '🏠',
     recoveryAction: {
       id: 'rec_home_veranda_nap',

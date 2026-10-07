@@ -172,9 +172,19 @@ interface CellProps {
   col: number;
 }
 
+/**
+ * Cells reserved for mounted venue models — the generic district building
+ * boxes are SKIPPED on these cells (ground pad stays) so they never
+ * intersect the real landmarks:
+ *   - '2,0': player home compound (HomeCompound.tsx / PlayerCompound.ts)
+ *   - '3,1': residential showroom (ResidentialShowroom.tsx, scene.gltf)
+ */
+const RESERVED_CELLS = new Set(['2,0', '3,1']);
+
 function Cell({ row, col }: CellProps) {
   const [cx, cz] = cellCenter(row, col);
   const district = getDistrict(row, col);
+  const reserved = RESERVED_CELLS.has(`${row},${col}`);
 
   // Deterministic pseudo-random for building placement
   // (uses row/col as seed — same buildings every render)
@@ -240,8 +250,8 @@ function Cell({ row, col }: CellProps) {
         />
       </mesh>
 
-      {/* Buildings */}
-      {buildings.map((b, i) => (
+      {/* Buildings (skipped on reserved venue cells) */}
+      {!reserved && buildings.map((b, i) => (
         <Building key={`b-${row}-${col}-${i}`} {...b} />
       ))}
 

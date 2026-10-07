@@ -105,7 +105,7 @@ export const PHASE2_ASSET_REGISTRY: Record<string, RegisteredAssetMetadata> = {
     category: 'building',
     name: 'Contemporary Accra Gated Compound House',
     purpose: 'Player residence featuring breeze-block walls, double iron gates, pillared veranda, hipped roof, louver windows, and steel-truss Polytank tower',
-    locationDescription: 'South-West residential plot (-10.5, 0, 12.2)',
+    locationDescription: 'Adabraka home compound — grid cell [row 2, col 0], world (-32, 0, 0)',
     dimensionsMeters: [9.6, 4.6, 8.4],
     originConvention: 'bottom-center',
     hasCollision: true

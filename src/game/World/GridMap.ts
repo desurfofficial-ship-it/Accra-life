@@ -253,6 +253,24 @@ export const CHALE_WOTE_ANCHOR: VenueAnchor = makeVenueAnchor({
   zone: 'osu'
 }); // world [16, 32]
 
+/**
+ * Player home compound (ACC_HOUSE_001 / home_door) — mixed cell
+ * [row 2, col 0], the residential block just north of the Adabraka
+ * suburb-house cells ([0,0], [1,0] host houses; [0,1] hosts the
+ * provision store; [1,1] hosts stalls). Same pattern as the susu
+ * anchor: the zone records the served community (adabraka); the cell
+ * itself is mixed so the pill falls through to the fine-grained
+ * home_compound bounds (Locations.ts) — keeping the veranda-nap
+ * recovery action reachable. The systems-layer compound group, its
+ * colliders, the home_door interactable, the housing ROOM_ORIGIN and
+ * the location bounds all derive from this anchor.
+ */
+export const HOME_COMPOUND_ANCHOR: VenueAnchor = makeVenueAnchor({
+  x: 0,
+  z: 2,
+  zone: 'adabraka'
+}); // world [-32, 0]
+
 /** Tro-tro travel destinations — arrival anchor cell per destination. */
 export const TROTRO_DESTINATIONS: readonly TrotroDestination[] = [
   { id: 'circle', name: 'Circle', row: 3, col: 2, locationId: 'circle_trotro_stop' },
