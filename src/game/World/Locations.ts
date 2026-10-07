@@ -1,11 +1,22 @@
 /**
  * Accra Life — Locations & Place-Tied Recovery Actions
  *
- * Subdivides the existing 3D neighborhood into named Accra places so that
+ * Subdivides the game world into named Accra places so that
  * multiplayer presence and place-tied recovery actions become spatially meaningful.
- * Each location is a rectangle in world (X, Z) coordinates; the player's current
- * location is derived from their live Three.js position via `getLocationAt(x, z)`.
+ * The player's current location is derived from their live position via
+ * `getLocationAt(x, z)`.
+ *
+ * Resolution order (custom map integration, phase-1-custom-map):
+ *   1. Custom 5x5 Accra grid map (World/GridMap.ts) — named districts
+ *      (Makola, Circle station, Osu, Labadi, Adabraka) resolve FIRST so the
+ *      location pill, chat rooms, presence and recovery actions follow the
+ *      custom map's geography.
+ *   2. Legacy world-space bounds below — still authoritative for
+ *      fine-grained zones (home compound, provisions, waakye joint) and for
+ *      roads / mixed-use grid cells where the grid has no named zone.
  */
+
+import { resolveLocationIdOnGrid } from './GridMap';
 
 /** Stable string id for a location. Rules validate this matches ^[a-z0-9_]+$. */
 export type LocationId =
@@ -135,6 +146,49 @@ export const LOCATIONS: readonly LocationDef[] = [
     }
   },
   {
+    // Makola Market — previously a type-only travel destination. The custom
+    // grid map anchors it to the Makola 2x2 district (rows 1-2, cols 1-2),
+    // so it now has a real LocationDef (bounds = district union rect).
+    id: 'makola_market',
+    displayName: 'Makola Market',
+    flavor: 'Kelewele smoke, fabric stalls, trading chaos.',
+    bounds: { minX: -22.0, maxX: 6.0, minZ: -22.0, maxZ: 6.0 },
+    icon: '🧺',
+    recoveryAction: {
+      id: 'rec_makola_kelewele_stick',
+      icon: '🍌',
+      label: 'Kelewele & Pineapple Stick (₵8 · +30 Hun, +10 Eng)',
+      shortPillLabel: '🍌 Kelewele Stick · ₵8',
+      costGHS: 8,
+      energyRestore: 10,
+      hungerRestore: 30,
+      heatReduction: 0,
+      cooldownSeconds: 15,
+      feedbackText: 'Hot spicy kelewele and a fresh pineapple stick from Makola!'
+    }
+  },
+  {
+    // Labadi Beach — previously a type-only travel destination. The custom
+    // grid map anchors it to the Labadi district (row 4, cols 0-1).
+    id: 'labadi_beach',
+    displayName: 'Labadi Beach',
+    flavor: 'Surf, reggae, grilled tilapia smoke.',
+    bounds: { minX: -38.0, maxX: -10.0, minZ: 26.0, maxZ: 38.0 },
+    icon: '🏖️',
+    recoveryAction: {
+      id: 'rec_labadi_sea_breeze',
+      icon: '🌊',
+      label: 'Sea Breeze & Fried Yam (₵8 · +25 Hun, +20 Eng)',
+      shortPillLabel: '🌊 Beach Break · ₵8',
+      costGHS: 8,
+      energyRestore: 20,
+      hungerRestore: 25,
+      heatReduction: 12,
+      cooldownSeconds: 20,
+      feedbackText: 'Feet in the sand, fried yam in hand — Labadi delivered.'
+    }
+  },
+  {
     // The main drag — road + immediate sidewalks. Spawn point (0, 5.8) lands here.
     id: 'osu_oxford_street',
     displayName: 'Osu Oxford Street',
@@ -182,6 +236,12 @@ const LOCATION_BY_ID: Record<LocationId, LocationDef> = Object.fromEntries(
 
 /** Returns the location the player is currently "at" for the given world position. */
 export function getLocationAt(x: number, z: number): LocationDef {
+  // 1. Custom 5x5 grid map first — named districts are authoritative on the
+  //    live custom map (Adabraka, Makola, Circle station, Osu, Labadi).
+  const gridId = resolveLocationIdOnGrid(x, z);
+  if (gridId) return LOCATION_BY_ID[gridId];
+  // 2. Legacy bounds — fine-grained zones (home compound, provisions, waakye
+  //    joint, Oxford street strip) + fallback for roads/mixed cells.
   for (const loc of LOCATIONS) {
     const b = loc.bounds;
     if (x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ) {

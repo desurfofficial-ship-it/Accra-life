@@ -52,7 +52,13 @@ export class Phase1Scene {
 
     this.renderer = this.createSafeRenderer(initW, initH);
 
+    // Custom map integration: #r3f-root hosts the live 5x5 Accra grid
+    // (src/r3f — the player-facing world). It renders ABOVE this canvas,
+    // so it must survive the container wipe below.
+    const r3fRoot = document.getElementById('r3f-root');
+    r3fRoot?.remove();
     container.innerHTML = '';
+    if (r3fRoot) container.appendChild(r3fRoot);
     container.appendChild(this.renderer.domElement);
 
     this.setupLighting();

@@ -19,6 +19,8 @@ import {
   ACCRA_EVERYDAY_EXPENSES,
   EconomyManager
 } from './game/Economy/EconomyManager';
+import { createGameAPI, GameAPI } from './game/GameAPI';
+import { TrotroService } from './game/World/TrotroService';
 import { JobManager } from './game/Jobs/JobManager';
 import {
   ACCRA_LEGAL_JOBS,
@@ -81,6 +83,8 @@ let sprintToggled = false;
 let currentModalTab: ModalTabId = 'jobs';
 let currentFocusedInteractableId: string | null = null;
 let phase1SceneRef: Phase1Scene | null = null;
+/** Live GameAPI bridge (AI-agent skill layer routing, skills/tro-tro-system.md). */
+let gameAPI: GameAPI | null = null;
 
 // ---- Multiplayer (presence + chat) module refs ----
 let presenceManager: PresenceManager | null = null;
@@ -145,6 +149,14 @@ const visitFurnitureMeshes: THREE.Object3D[] = [];
 const visitPingSentFor = new Set<string>();
 
 const economyManager = new EconomyManager();
+/** Real passenger/capacity state for the ACC_TROTRO_001 van (skills v3.1). */
+const trotroService = new TrotroService();
+// Persist ACC_TROTRO_001 seat counts inside the economy snapshot (and
+// restore them on loadFromPersistence).
+economyManager.bindTrotroPassengerState(
+  () => trotroService.getSnapshot(),
+  (n) => trotroService.loadPassengers(n)
+);
 const jobSystem = new JobManager(economyManager);
 const crimeSystem = new HeatSystem(economyManager);
 const needsSystem = new NeedsSystem();
@@ -369,6 +381,13 @@ needsSystem.onUpdate(() => syncNeedsHUD());
 
 function updateInteractionPromptUI(target: InteractableTarget | null): void {
   if (!promptEl || !promptTitleEl) return;
+  // Custom map integration: the R3F layer renders its own GTA-style
+  // boarding prompt + Mate panel for the tro-tro stop (bottom-center,
+  // same position as this DOM prompt) — keep this one hidden for it.
+  if (target && target.id === 'trotro_stop') {
+    promptEl.classList.remove('visible', 'objective-match');
+    return;
+  }
   if (target) {
     const obj = getActiveObjectiveInfo();
     const match = obj && obj.targetInteractableId === target.id;
@@ -1417,7 +1436,13 @@ function startGame(profile: OnboardingResult): void {
   }
 
   if (container) {
+    // Custom map integration: #r3f-root hosts the live 5x5 Accra grid
+    // (src/r3f — the player-facing world). Preserve it across the wipe so
+    // the custom map keeps rendering above the systems-hosting scene.
+    const r3fRoot = document.getElementById('r3f-root');
+    if (r3fRoot) r3fRoot.remove();
     container.innerHTML = '';
+    if (r3fRoot) container.appendChild(r3fRoot);
     const phase1 = new Phase1Scene(
       container,
       {
@@ -1427,6 +1452,18 @@ function startGame(profile: OnboardingResult): void {
       { look: { skin: profile.skin, hair: profile.hair } }
     );
     phase1SceneRef = phase1;
+    // GameAPI bridge — live wiring for the AI-agent skill layer
+    // (skills/tro-tro-system.md [ROUTING]): every AI-facing call below
+    // routes 1:1 into the owning system. Exposed on window so the agent
+    // host (and devtools) can drive the game without touching internals.
+    gameAPI = createGameAPI({
+      economy: economyManager,
+      player: phase1.player,
+      input: phase1.inputManager,
+      interactions: phase1.interactionSystem,
+      trotro: trotroService
+    });
+    (window as unknown as { GameAPI?: GameAPI }).GameAPI = gameAPI;
     rebuildPlayerCompoundForTier(homeSystem.getHousingTierId());
     homeVisuals = new HomeFurnitureVisuals(phase1.scene);
     // Fixed-slot rendering disabled — PlacementEngine is the sole furniture renderer;
