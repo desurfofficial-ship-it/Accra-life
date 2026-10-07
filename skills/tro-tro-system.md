@@ -1,6 +1,6 @@
 ---
 name: tro-tro-system
-version: 4.1.0
+version: 4.2.0
 domain: trotro boarding & transit (GameAPI five-method contract on the
   live custom grid map)
 description: >
@@ -11,9 +11,12 @@ description: >
   each method to the src/game/ file that actually executes it.
 format: hybrid — [CONTRACT] GameAPI methods + [ROUTING] + [LOGIC] + [EXAMPLES] (TypeScript)
 contract_policy: five-method surface, copy-exact from src/game/GameAPI.ts
-supersedes: v4.0.0 (five-method contract — unchanged; v4.1 adds the live
-  custom 5x5 Accra grid map: the station cell, zone->LocationId map and
-  the R3F boarding panel that routes the same five methods);
+supersedes: v4.1.0 (live custom map — unchanged; v4.2 completes the map
+  layer: the [E] key at the station now routes into the R3F Mate panel
+  via TROTRO_BOARD_EVENT, the provision store / waakye joint / street
+  NPCs sit on their matching grid cells, and the systems-layer scene
+  stops rendering behind the map);
+  v4.0.0 five-method contract — unchanged;
   v3.x real-symbol rewrites; v2.x GridLocation/GPS specs — dropped;
   v1.0.0 deep mechanics live in skills/tro-tro-adapter.ts
 source_files:
@@ -22,9 +25,11 @@ source_files:
   - src/game/Economy/EconomyManager.ts (hasOwnedItem → ownership)
   - src/game/World/TrotroService.ts (isTrotroFull / boardPassenger)
   - src/game/World/GridMap.ts (canonical 5x5 grid: cells, districts,
-    zone->LocationId, TROTRO_STATION_GRID, TROTRO_DESTINATIONS)
+    zone->LocationId, TROTRO_STATION_GRID, TROTRO_DESTINATIONS,
+    PROVISION_STORE_ANCHOR, FOOD_VENDOR_ANCHOR)
   - src/r3f/StreetCanvas.tsx + src/r3f/TroTroBoarding.tsx (the visible
-    custom map world — avatar, station, boarding panel)
+    custom map world — avatar, station, boarding panel, [E] listener)
+  - src/main.ts#handleWorldTargetInteracted ([E] key → TROTRO_BOARD_EVENT)
 adapter: skills/agent-adapter.ts#GameBindings + skills/tro-tro-adapter.ts
 independence: callable alone; needs only the five methods below
 ---
@@ -99,7 +104,7 @@ Passenger turnover is automatic: the adapter seats the player on
 (`skills/tro-tro-adapter.ts`), and every seat change is persisted into the
 `EconomyPersistence` snapshot via `EconomyManager.bindTrotroPassengerState`.
 
-## [ROUTING] The Live Custom Map (v4.1)
+## [ROUTING] The Live Custom Map (v4.2)
 
 The game world is the custom 5x5 Accra grid (`src/r3f`, mounted in
 `StreetCanvas.tsx` — 84 m, 12 m cells, 4 m roads). `src/game/World/GridMap.ts`
@@ -132,6 +137,26 @@ is the canonical module both the visuals and the game systems consume.
 - **Agent-facing movement**: `gameAPI.setJoystickInput(x, y)` drives the
   visible avatar (positive y = south/+z, positive x = east/+x); world
   bounds are the map edge (±42 m, `GridMap.HALF`).
+- **The [E] key at the station opens the Mate panel** (v4.2): pressing E
+  inside the `trotro_stop` radius (3.5 m) fires
+  `InteractionSystem.triggerCurrentInteraction` →
+  `src/main.ts` `handleWorldTargetInteracted('trotro_stop')` → dispatches
+  `CustomEvent('lagos-life:trotro-board')` (`TROTRO_BOARD_EVENT` in
+  `src/r3f/gameAPIBridge.ts`) → `TroTroBoarding.tsx` starts the Mate
+  sequence (idempotent — ignored if the proximity auto-trigger already
+  opened the panel; the old jobs-modal fallthrough is gone).
+- **Every venue stands on its matching grid cell** (v4.2, anchored by
+  `GridMap` so hidden-layer interactables coincide with visible map
+  cells): `provision_shop` on the Adabraka cell `[row 0, col 1]`
+  (`PROVISION_STORE_ANCHOR`, world [-16, -32]), `food_vendor` on the
+  Makola cell `[row 1, col 2]` (`FOOD_VENDOR_ANCHOR`, world [0, -16]),
+  Kojo on Makola `[2,1]`, Ama on Makola `[2,2]`, Uncle Mensah on the
+  Adabraka corner `[1,1]` — colliders moved with them.
+- **The systems-layer scene no longer renders behind the map** (v4.2):
+  `main.ts` sets `phase1.renderEnabled = false` when the R3F root is
+  live — simulation (movement, interactions, NPC rigs) continues, only
+  the hidden canvas draw is skipped (GPU headroom); `window.__phase1Scene`
+  exposes the scene for debug.
 
 ## [LOGIC] Behavioral Instructions
 
