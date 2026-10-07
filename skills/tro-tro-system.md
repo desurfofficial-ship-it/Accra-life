@@ -1,6 +1,6 @@
 ---
 name: tro-tro-system
-version: 4.2.0
+version: 4.3.0
 domain: trotro boarding & transit (GameAPI five-method contract on the
   live custom grid map)
 description: >
@@ -11,11 +11,12 @@ description: >
   each method to the src/game/ file that actually executes it.
 format: hybrid — [CONTRACT] GameAPI methods + [ROUTING] + [LOGIC] + [EXAMPLES] (TypeScript)
 contract_policy: five-method surface, copy-exact from src/game/GameAPI.ts
-supersedes: v4.1.0 (live custom map — unchanged; v4.2 completes the map
-  layer: the [E] key at the station now routes into the R3F Mate panel
-  via TROTRO_BOARD_EVENT, the provision store / waakye joint / street
-  NPCs sit on their matching grid cells, and the systems-layer scene
-  stops rendering behind the map);
+supersedes: v4.2.0 (map layer — unchanged; v4.3 completes the venue
+  migration: momo_agent / susu_collector / chale_wote_panel moved onto
+  canonical GridMap anchors, and the user's InteriorFurniture + BeachProps
+  GLB packs are mounted into StreetCanvas);
+  v4.2 [E]-key Mate panel routing + provision/waakye/NPC cell anchors +
+  systems-layer render pause — unchanged;
   v4.0.0 five-method contract — unchanged;
   v3.x real-symbol rewrites; v2.x GridLocation/GPS specs — dropped;
   v1.0.0 deep mechanics live in skills/tro-tro-adapter.ts
@@ -26,7 +27,8 @@ source_files:
   - src/game/World/TrotroService.ts (isTrotroFull / boardPassenger)
   - src/game/World/GridMap.ts (canonical 5x5 grid: cells, districts,
     zone->LocationId, TROTRO_STATION_GRID, TROTRO_DESTINATIONS,
-    PROVISION_STORE_ANCHOR, FOOD_VENDOR_ANCHOR)
+    PROVISION_STORE_ANCHOR, FOOD_VENDOR_ANCHOR, MOMO_AGENT_ANCHOR,
+    SUSU_COLLECTOR_ANCHOR, CHALE_WOTE_ANCHOR)
   - src/r3f/StreetCanvas.tsx + src/r3f/TroTroBoarding.tsx (the visible
     custom map world — avatar, station, boarding panel, [E] listener)
   - src/main.ts#handleWorldTargetInteracted ([E] key → TROTRO_BOARD_EVENT)
@@ -145,13 +147,24 @@ is the canonical module both the visuals and the game systems consume.
   `src/r3f/gameAPIBridge.ts`) → `TroTroBoarding.tsx` starts the Mate
   sequence (idempotent — ignored if the proximity auto-trigger already
   opened the panel; the old jobs-modal fallthrough is gone).
-- **Every venue stands on its matching grid cell** (v4.2, anchored by
-  `GridMap` so hidden-layer interactables coincide with visible map
-  cells): `provision_shop` on the Adabraka cell `[row 0, col 1]`
-  (`PROVISION_STORE_ANCHOR`, world [-16, -32]), `food_vendor` on the
-  Makola cell `[row 1, col 2]` (`FOOD_VENDOR_ANCHOR`, world [0, -16]),
-  Kojo on Makola `[2,1]`, Ama on Makola `[2,2]`, Uncle Mensah on the
-  Adabraka corner `[1,1]` — colliders moved with them.
+- **Every venue stands on its matching grid cell** (v4.2, completed in
+  v4.3, anchored by `GridMap` so hidden-layer interactables coincide with
+  visible map cells): `provision_shop` on the Adabraka cell
+  `[row 0, col 1]` (`PROVISION_STORE_ANCHOR`, world [-16, -32]),
+  `food_vendor` on the Makola cell `[row 1, col 2]` (`FOOD_VENDOR_ANCHOR`,
+  world [0, -16]), `momo_agent` on the Osu cell `[row 3, col 4]`
+  (`MOMO_AGENT_ANCHOR`, world [32, 16]), `susu_collector` on the
+  northwest community block `[row 3, col 0]` (`SUSU_COLLECTOR_ANCHOR`,
+  world [-32, 16]), `chale_wote_panel` on the Osu street-art corner
+  `[row 4, col 3]` (`CHALE_WOTE_ANCHOR`, world [16, 32]), Kojo on Makola
+  `[2,1]`, Ama on Makola `[2,2]`, Uncle Mensah on the Adabraka corner
+  `[1,1]` — colliders moved with them.
+- **The user's GLB asset packs are mounted on the map** (v4.3):
+  `StreetCanvas` renders `<InteriorFurniture />` (three furniture GLB
+  sets on the Adabraka house cells `[0,0]`/`[1,0]`) and
+  `<BeachProps />` (beach ball/table/kit/reef on the Labadi cells
+  `[4,0]`/`[4,1]`) — lazy-loaded via `useGLTF` + Suspense, so they add
+  no boot cost and appear once their chunks stream in.
 - **The systems-layer scene no longer renders behind the map** (v4.2):
   `main.ts` sets `phase1.renderEnabled = false` when the R3F root is
   live — simulation (movement, interactions, NPC rigs) continues, only
