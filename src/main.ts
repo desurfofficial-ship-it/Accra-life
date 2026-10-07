@@ -151,6 +151,12 @@ const visitPingSentFor = new Set<string>();
 const economyManager = new EconomyManager();
 /** Real passenger/capacity state for the ACC_TROTRO_001 van (skills v3.1). */
 const trotroService = new TrotroService();
+// Persist ACC_TROTRO_001 seat counts inside the economy snapshot (and
+// restore them on loadFromPersistence).
+economyManager.bindTrotroPassengerState(
+  () => trotroService.getSnapshot(),
+  (n) => trotroService.loadPassengers(n)
+);
 const jobSystem = new JobManager(economyManager);
 const crimeSystem = new HeatSystem(economyManager);
 const needsSystem = new NeedsSystem();

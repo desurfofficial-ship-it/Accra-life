@@ -6,8 +6,9 @@ import {
   Wallet,
   WalletValidationResult
 } from './Economy/Wallet';
+// RemoveFundsParams re-exported for hosts that want the strict Wallet shape.
 import { TransactionRecord } from './Economy/Transaction';
-import { PaymentChannel } from './Economy/EconomicTypes';
+import { PaymentChannel, TransactionCategory } from './Economy/EconomicTypes';
 import { PlayerController } from './Player/PlayerController';
 import { InputManager } from './Player/InputManager';
 import { InteractableTarget, InteractionSystem } from './Player/InteractionSystem';
@@ -92,8 +93,21 @@ export class GameAPI {
     return this.wallet.canAfford(amount, channel);
   }
 
-  public spendMoney(params: RemoveFundsParams): TransactionRecord | null {
-    return this.wallet.spendMoney(params);
+  public spendMoney(params: {
+    amount: number;
+    description: string;
+    channel?: PaymentChannel;
+    /** Defaults to 'TRANSPORT' — the bridge's dominant use-case (fares). */
+    category?: TransactionCategory;
+    targetEntityId?: string;
+  }): TransactionRecord | null {
+    return this.wallet.spendMoney({
+      amount: params.amount,
+      description: params.description,
+      channel: params.channel ?? 'CASH',
+      category: params.category ?? 'TRANSPORT',
+      targetEntityId: params.targetEntityId
+    });
   }
 
   public addFunds(params: AddFundsParams): WalletValidationResult {
@@ -165,11 +179,15 @@ export class GameAPI {
 
   /** `false` → van full, mate refuses ("No space! Next one!"). */
   public boardPassenger(): boolean {
-    return this.trotro.boardPassenger();
+    const seated = this.trotro.boardPassenger();
+    if (seated) this.economy.saveSnapshot();
+    return seated;
   }
 
   public alightPassenger(): boolean {
-    return this.trotro.alightPassenger();
+    const dropped = this.trotro.alightPassenger();
+    if (dropped) this.economy.saveSnapshot();
+    return dropped;
   }
 
   public getCurrentPassengers(): number {
@@ -184,18 +202,21 @@ export class GameAPI {
     return this.trotro.getSeatsAvailable();
   }
 
-  public isFull(): boolean {
+  public isTrotroFull(): boolean {
     return this.trotro.isFull();
   }
 
   /** Bulk load (world-state rebuild); returns passengers actually seated. */
   public loadPassengers(count: number): number {
-    return this.trotro.loadPassengers(count);
+    const seated = this.trotro.loadPassengers(count);
+    if (seated > 0) this.economy.saveSnapshot();
+    return seated;
   }
 
   /** Van pulls away / depot reset — empties the vehicle. */
   public resetVehicle(): void {
     this.trotro.resetVehicle();
+    this.economy.saveSnapshot();
   }
 
   /** Canonical Osu–Circle fare from the real SKU table. */

@@ -141,8 +141,8 @@ On failure `ok:false` and `error` is populated:
 | "Catch a trotro to 37 Station" | `movement.approach_interactable("trotro_stop")` → `tro-tro.negotiate_fare("CIRCLE_TO_37")` → `tro-tro.pay_and_board` |
 | "The fare is too high" | `tro-tro.contest_fare` (max 2 rounds, −₵1 each, base-fare floor) |
 | "The van is pulling away!" | `tro-tro.chase_and_board` (sprint 7.3 > van 5.5 m/s, hold 2.2 m for 1.2 s) |
-| "The van is full" | capacity gate: `trotro.getSnapshot().isFull` → `E_VAN_FULL`; wait for `alightPassenger()` turnover, then retry |
-| "Do I have a ticket?" | `hasOwnedItem("trotro_ticket_osu_circle")` (granted by `purchaseEverydayExpense("EXP_TROTRO_FARE")`) |
+| "The van is full" | capacity gate: `gameAPI.isTrotroFull()` → `E_VAN_FULL`; wait for van-cycle turnover, then retry |
+| "Do I have a ticket?" | `gameAPI.hasOwnedItem("trotro_ticket_osu_circle")` (granted by the fare purchase) |
 | "No cash for the fare" | `economy.accept_work("JOB_TROTRO_MATE")` at the stop → retry after 30 s van cycle |
 | "Earn money" | `economy.list_jobs` → `economy.accept_job` → loop `economy.advance_work` at each step target |
 | "Buy waakye" | stand at `food_vendor` → `economy.purchase_expense("EXP_WAAKYE_MEAL")` |
