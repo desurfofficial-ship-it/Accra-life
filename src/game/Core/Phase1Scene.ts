@@ -33,6 +33,14 @@ export class Phase1Scene {
   public readonly interactionSystem: InteractionSystem;
   public readonly npcRigs: CharacterRig[];
 
+  /**
+   * Custom map integration: when the R3F canvas (src/r3f) owns the visible
+   * view, main.ts disables ONLY this scene's render call — the simulation
+   * above it (player, interactions, NPC rigs, camera) keeps running so the
+   * systems layer stays live while the GPU draws just the custom map.
+   */
+  public renderEnabled = true;
+
   private readonly container: HTMLElement;
   private colliders: ColliderBox[] = [];
   private clock = new THREE.Clock();
@@ -205,11 +213,13 @@ export class Phase1Scene {
     this.thirdPersonCamera.update(dt, this.player.position, this.colliders);
     this.interactionSystem.update(dt, this.player.position, this.player.getForwardVector());
 
-    try {
-      this.renderer.render(this.scene, this.thirdPersonCamera.camera);
-    } catch {
-      this.switchToFallbackRenderer();
-      this.renderer.render(this.scene, this.thirdPersonCamera.camera);
+    if (this.renderEnabled) {
+      try {
+        this.renderer.render(this.scene, this.thirdPersonCamera.camera);
+      } catch {
+        this.switchToFallbackRenderer();
+        this.renderer.render(this.scene, this.thirdPersonCamera.camera);
+      }
     }
   };
 }
