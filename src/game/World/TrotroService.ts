@@ -48,6 +48,11 @@ export const MATE_LINES = {
   INSUFFICIENT: 'Oga, you no get change? Abeg shift make others enter.',
   BOARDED: 'Make you sit well. We dey go!',
   DEPARTING: 'Hold tight! We dey move!',
+  // v4.6 physical state gate — scene/player lines for refused boarding
+  // (skills/tro-tro-system.md [LOGIC]: getTrotroStatus() !== 'IDLE_AT_STOP'
+  // ⇒ ABORT; DEPARTING gets the missed-van line + a chase/wait beat).
+  MISSED: 'Ah! You missed it! Wait for the next one!',
+  NOT_AT_STOP: 'No van at the stop yet — wait for the next one!',
 } as const;
 
 // ── Asset loading ────────────────────────────────────────────────────────────

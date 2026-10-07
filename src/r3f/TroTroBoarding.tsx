@@ -1,8 +1,12 @@
 /**
  * TroTroBoarding.tsx — tro-tro boarding on the custom map, wired to the
- * REAL game systems (skills/tro-tro-system.md v4 five-method contract).
+ * REAL game systems (skills/tro-tro-system.md v4.6 six-method contract).
  *
  * Mandatory boarding sequence (per contract):
+ *   0. State gate — gameAPI.getTrotroStatus() must be 'IDLE_AT_STOP'
+ *      (skill-legal window; engine also seats during 'BOARDING') or the
+ *      Mate refuses: DEPARTING → 'Ah! You missed it! Wait for the next
+ *      one!' · EN_ROUTE/ARRIVING → 'No van at the stop yet…'
  *   1. Dialogue  — Mate greets with authentic Accra flavor
  *   2. Capacity  — gameAPI.isTrotroFull() (real TrotroService, 14 seats,
  *                  persisted across sessions via the economy snapshot)
@@ -32,6 +36,7 @@ import {
   destinationArrival,
   type TrotroDestination
 } from '../game/World/GridMap';
+import { MATE_LINES } from '../game/World/TrotroService';
 
 // ── Spec constants ──────────────────────────────────────────────────────────
 
@@ -120,10 +125,25 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
     stepTimerRef.current = performance.now();
   }, [syncFromAPI]);
 
-  // ── Step 2: Capacity check (real TrotroService) ──────────────────────────
+  // ── Step 2: Physical state gate (v4.6) + capacity check (real service) ───
   const checkCapacity = useCallback(() => {
     const api = getGameAPI();
     if (api) {
+      // Step 0 — mandatory state gate: BEFORE any funds/space check, the
+      // van must be physically docked. DEPARTING gets the missed-van line;
+      // EN_ROUTE/ARRIVING get the wait line. No debit can happen here.
+      const status = api.getTrotroStatus();
+      if (status !== 'IDLE_AT_STOP' && status !== 'BOARDING') {
+        const line = status === 'DEPARTING' ? MATE_LINES.MISSED : MATE_LINES.NOT_AT_STOP;
+        console.log(`[tro-tro] van ${status} — boarding refused: "${line}"`);
+        setState(s => ({
+          ...s,
+          phase: 'rejected',
+          dialogue: line,
+          vanDepartedAt: status === 'DEPARTING' ? performance.now() : s.vanDepartedAt,
+        }));
+        return;
+      }
       if (api.isTrotroFull()) {
         console.log(`[tro-tro] Mate: "${MATE_DIALOGUE.full}" (van ${api.getCurrentPassengers()}/${api.getCapacity()})`);
         setState(s => ({ ...s, phase: 'rejected', dialogue: MATE_DIALOGUE.full, vanDepartedAt: performance.now() }));
@@ -164,6 +184,19 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
 
     if (api) {
       // Real flow — ordering is mandatory per the contract.
+      // Step 0 (v4.6): physical state gate re-checked at board time — the
+      // van may have started departing between the capacity check and the
+      // button click; never debit while the door can shut mid-transaction.
+      const status = api.getTrotroStatus();
+      if (status !== 'IDLE_AT_STOP' && status !== 'BOARDING') {
+        setState(s => ({
+          ...s,
+          phase: 'rejected',
+          dialogue: status === 'DEPARTING' ? MATE_LINES.MISSED : MATE_LINES.NOT_AT_STOP,
+          vanDepartedAt: status === 'DEPARTING' ? performance.now() : s.vanDepartedAt,
+        }));
+        return;
+      }
       if (api.isTrotroFull()) {
         setState(s => ({ ...s, phase: 'rejected', dialogue: MATE_DIALOGUE.full, vanDepartedAt: performance.now() }));
         return;
@@ -283,13 +316,16 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
         : s));
     }
 
-    // Van cycle: if rejected (full van), after 30s a fresh van arrives
+    // Rejection cooldown: the player steps back while the LIVE van cycles
+    // itself (TrotroService state machine: DEPARTING → EN_ROUTE → ARRIVING
+    // → IDLE_AT_STOP). We deliberately do NOT call api.resetVehicle() here
+    // — on the shared machine it would stall the van at EN_ROUTE with no
+    // timer and desync the visible van from the AI bridge (v4.6).
     if (state.phase === 'rejected' && state.vanDepartedAt) {
       if (performance.now() - state.vanDepartedAt > VAN_CYCLE_MS) {
         const api = getGameAPI();
-        if (api) api.resetVehicle(); // fresh van, empty seats
         setState(s => ({ ...s, phase: 'idle', dialogue: '', currentPassengers: api ? api.getCurrentPassengers() : 8 + Math.floor(Math.random() * 5), vanDepartedAt: null }));
-        console.log('[tro-tro] New van arrived. Re-approach to board.');
+        console.log('[tro-tro] Next van cycle — re-approach the stop to board.');
       }
     }
   });

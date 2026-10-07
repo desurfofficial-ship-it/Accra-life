@@ -15,7 +15,8 @@ import { InteractableTarget, InteractionSystem } from './Player/InteractionSyste
 import {
   TROTRO_VEHICLE_ID,
   TrotroPassengerSnapshot,
-  TrotroService
+  TrotroService,
+  TrotroState
 } from './World/TrotroService';
 
 /**
@@ -35,8 +36,9 @@ import {
  *     → src/game/Player/PlayerController.ts
  *   getActiveTarget / triggerCurrentInteraction
  *     → src/game/Player/InteractionSystem.ts
- *   boardPassenger / alightPassenger / getSnapshot / isFull …
- *     → src/game/World/TrotroService.ts
+ *   getTrotroStatus / boardPassenger / alightPassenger / getSnapshot / isFull …
+ *     → src/game/World/TrotroService.ts (phase-5 lifecycle state machine:
+ *       EN_ROUTE → ARRIVING → IDLE_AT_STOP → BOARDING → DEPARTING → …)
  *
  * Boot wiring (host, e.g. `src/main.ts`): construct the live systems,
  * then hand them to the factory —
@@ -173,11 +175,22 @@ export class GameAPI {
   // ------------------------------------------- TrotroService routing
   // Routed to: src/game/World/TrotroService.ts
 
+  /**
+   * Physical state of ACC_TROTRO_001 (skills/tro-tro-system.md v4.6 state
+   * gate): 'EN_ROUTE' | 'ARRIVING' | 'IDLE_AT_STOP' | 'BOARDING' |
+   * 'DEPARTING'. Read-only for the AI — only the host/renderer drives the
+   * lifecycle (LivingTrotro calls startCycle(); auto-timers do the rest).
+   */
+  public getTrotroStatus(): TrotroState {
+    return this.trotro.getState();
+  }
+
   public getSnapshot(): TrotroPassengerSnapshot {
     return this.trotro.getSnapshot();
   }
 
-  /** `false` → van full, mate refuses ("No space! Next one!"). */
+  /** `false` → van not docked (state gate: EN_ROUTE/ARRIVING/DEPARTING) or
+   *  van full — mate refuses ("No space! Next one!"). */
   public boardPassenger(): boolean {
     const seated = this.trotro.boardPassenger();
     if (seated) this.economy.saveSnapshot();

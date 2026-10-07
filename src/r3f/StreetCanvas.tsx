@@ -15,7 +15,7 @@
 
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrthographicCamera, OrbitControls } from '@react-three/drei';
-import { useRef, useEffect, type RefObject } from 'react';
+import { useRef, useEffect, useState, type RefObject } from 'react';
 import * as THREE from 'three';
 import { AccraCityGrid, TOTAL_SIZE, cellCenter } from './AccraCityGrid';
 import { MarketStalls } from './MarketStalls';
@@ -28,6 +28,7 @@ import { BuildingAssets } from './BuildingAssets';
 import { TroTroBoarding } from './TroTroBoarding';
 import { LivingTrotro } from './LivingTrotro';
 import { TrotroService } from '../game/World/TrotroService';
+import { getGameAPI } from './gameAPIBridge';
 import { TroTroPrompt } from '../ui/TroTroPrompt';
 
 // ── Player Avatar ────────────────────────────────────────────────────────────
@@ -112,11 +113,35 @@ export function StreetCanvas() {
   const [troTroX, troTroZ] = cellCenter(3, 2);
   const trotroStopPosition: [number, number, number] = [troTroX, 0, troTroZ];
 
-  // Living trotro service — state machine drives the van lifecycle
+  // Living trotro service — state machine drives the van lifecycle.
+  // v4.6: pre-boot we run a local fallback instance so the map has a van
+  // before onboarding finishes; once the systems layer exposes
+  // window.GameAPI we adopt ITS TrotroService so the AI-facing bridge
+  // (gameAPI.getTrotroStatus / boardPassenger) and the visible van share
+  // ONE machine — two disconnected instances would let the AI board a
+  // van that is not physically at the stop (or break boarding entirely,
+  // since the bridge instance never ran startCycle on its own).
   const trotroServiceRef = useRef<TrotroService | null>(null);
   if (!trotroServiceRef.current) {
     trotroServiceRef.current = new TrotroService(14); // 14-seat Sprinter
   }
+  const [activeTrotro, setActiveTrotro] = useState<TrotroService>(trotroServiceRef.current);
+  useEffect(() => {
+    let cancelled = false;
+    const adopt = (): boolean => {
+      const shared = getGameAPI()?.trotro;
+      if (shared && !cancelled) {
+        setActiveTrotro(shared);
+        return true;
+      }
+      return false;
+    };
+    if (adopt()) return;
+    const poll = window.setInterval(() => {
+      if (adopt()) window.clearInterval(poll);
+    }, 500);
+    return () => { cancelled = true; window.clearInterval(poll); };
+  }, []);
 
   return (
     <Canvas
@@ -159,10 +184,12 @@ export function StreetCanvas() {
         onArriveAt={(destId) => console.log(`[tro-tro] Arrived at ${destId}`)}
       />
 
-      {/* Living trotro van — state machine drives arrive/idle/board/depart */}
+      {/* Living trotro van — state machine drives arrive/idle/board/depart.
+          activeTrotro is the SHARED service (window.GameAPI.trotro) once the
+          systems layer boots — one van for the renderer and the AI bridge. */}
       <LivingTrotro
         position={trotroStopPosition}
-        trotroService={trotroServiceRef.current}
+        trotroService={activeTrotro}
       />
 
       {/* Player avatar — spawns at Adabraka (home), walks with WASD */}
