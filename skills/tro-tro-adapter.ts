@@ -637,6 +637,7 @@ export class TroTroSystemImpl implements TroTroSystemRuntime {
     this.quoteDeadlineMs = null;
     this.nextVanAtMs = this.ports.nowMs() + TROTRO_CONFIG.NEXT_VAN_MS;
     this.releaseChaseControls();
+    this.b.trotroService?.boardPassenger();   // seat the player on the real van
     if (destination) this.ports.arriveAt(destination);
     this.b.toast(toastLine);
   }
@@ -657,6 +658,13 @@ export class TroTroSystemImpl implements TroTroSystemRuntime {
       this.nextVanAtMs = null;
       if (this.phase === 'MISSED' || this.phase === 'REFUSED_FUNDS' ||
           this.phase === 'QUEUED') {
+        this.phase = 'IDLE';
+      } else if (this.phase === 'BOARDED') {
+        // Transit ended: the van pulled back into the bay having dropped its
+        // riders — automatic passenger turnover frees the player's seat plus
+        // one fellow rider, then the cycle resets to IDLE.
+        this.b.trotroService?.alightPassenger();
+        this.b.trotroService?.alightPassenger();
         this.phase = 'IDLE';
       }
     }
