@@ -18,6 +18,8 @@ import { OrthographicCamera, OrbitControls } from '@react-three/drei';
 import { useRef, useEffect, type RefObject } from 'react';
 import * as THREE from 'three';
 import { AccraCityGrid, TOTAL_SIZE, cellCenter } from './AccraCityGrid';
+import { MarketStalls } from './MarketStalls';
+import { CityTrees } from './CityTrees';
 import { TroTroBoarding } from './TroTroBoarding';
 
 // ── Player Avatar ────────────────────────────────────────────────────────────
@@ -126,6 +128,12 @@ export function StreetCanvas() {
 
       {/* Custom Accra city grid — 5x5 blocks with roads + buildings + landmarks */}
       <AccraCityGrid />
+
+      {/* Kenney Food Kit GLBs — market stalls in Makola Market district */}
+      <MarketStalls />
+
+      {/* Craftpix trees + bushes — greenery along roads */}
+      <CityTrees />
 
       {/* Tro-tro boarding system at Circle Station */}
       <TroTroBoarding
