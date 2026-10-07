@@ -1,65 +1,34 @@
 /**
- * StreetCanvas.tsx — Phase-1 Real Map Base
+ * StreetCanvas.tsx — Phase-1 Custom Map
  *
  * Architecture:
- *   <AccraMap> (Mapbox GL, z-index:0) — real Accra map with 3D buildings
- *     └── <StreetCanvas3D> (R3F Canvas, z-index:1, pointer-events:none)
- *           ├── Accra street plane (transparent — shows map below)
- *           ├── TroTroBoarding (7-step boarding system)
- *           ├── PlayerAvatar (WASD movement)
- *           └── OrbitControls
+ *   <Canvas> (R3F, full-screen, opaque)
+ *     ├── <AccraCityGrid /> (5x5 grid with roads + buildings + landmarks)
+ *     ├── <TroTroBoarding /> (7-step boarding system at Circle Station)
+ *     ├── <PlayerAvatar /> (WASD movement on the roads)
+ *     └── <OrbitControls />
  *
- * The Mapbox canvas is the base layer showing real Accra geography.
- * The R3F Canvas overlays on top — for now it renders the game's 3D
- * objects (street plane, tro-tro stop, player avatar). In future
- * phases, the R3F Canvas will be fully synced to the Mapbox camera
- * so 3D objects appear at real-world GPS coordinates.
+ * No external map APIs — the entire city is built procedurally.
+ * The player can walk on the roads between blocks and navigate
+ * between districts (Adabraka, Makola, Circle, Osu, Labadi).
  */
 
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrthographicCamera, OrbitControls } from '@react-three/drei';
 import { useRef, useEffect, type RefObject } from 'react';
 import * as THREE from 'three';
-import { AccraMap } from './AccraMap';
+import { AccraCityGrid, TOTAL_SIZE, cellCenter } from './AccraCityGrid';
 import { TroTroBoarding } from './TroTroBoarding';
 
-// ── Constants ────────────────────────────────────────────────────────────────
-
-const TROTRO_STOP_POSITION: [number, number, number] = [0, 0, 0];
-const MOVE_SPEED = 4.0;
-const WORLD_BOUNDS = { minX: -24, maxX: 24, minZ: -16, maxZ: 16 };
-
-// ── Accra Street Plane (transparent — shows the Mapbox map below) ──────────
-
-function AccraStreetPlane() {
-  return (
-    <group>
-      {/* Transparent ground — lets the Mapbox map show through */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
-        <boxGeometry args={[68, 0.001, 7.0]} />
-        <meshStandardMaterial color="#2e3846" transparent opacity={0.3} roughness={0.86} />
-      </mesh>
-
-      {/* Center dashed line (still visible on top of the map) */}
-      {Array.from({ length: 13 }).map((_, i) => (
-        <mesh key={`dash-${i}`} position={[-28 + i * 5.4, 0.021, 0]}>
-          <boxGeometry args={[2.4, 0.01, 0.16]} />
-          <meshStandardMaterial color="#f8fafc" />
-        </mesh>
-      ))}
-
-      {/* Edge lines */}
-      {[-3.35, 3.35].map((z, i) => (
-        <mesh key={`edge-${i}`} position={[0, 0.021, z]}>
-          <boxGeometry args={[68, 0.01, 0.1]} />
-          <meshStandardMaterial color="#facc15" />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
 // ── Player Avatar ────────────────────────────────────────────────────────────
+
+const MOVE_SPEED = 6.0; // slightly faster for the larger map
+const WORLD_BOUNDS = {
+  minX: -TOTAL_SIZE / 2,
+  maxX: TOTAL_SIZE / 2,
+  minZ: -TOTAL_SIZE / 2,
+  maxZ: TOTAL_SIZE / 2,
+};
 
 interface PlayerAvatarProps {
   groupRef: RefObject<THREE.Group | null>;
@@ -103,8 +72,11 @@ function PlayerAvatar({ groupRef }: PlayerAvatarProps) {
     }
   });
 
+  // Spawn at Adabraka (cell [0,0] = home district)
+  const [spawnX, spawnZ] = cellCenter(0, 0);
+
   return (
-    <group ref={groupRef} position={[0, 0, 8]}>
+    <group ref={groupRef} position={[spawnX, 0, spawnZ]}>
       <mesh position={[0, 0.9, 0]} castShadow>
         <capsuleGeometry args={[0.22, 0.6, 8, 16]} />
         <meshStandardMaterial color="#2563eb" roughness={0.5} />
@@ -121,39 +93,58 @@ function PlayerAvatar({ groupRef }: PlayerAvatarProps) {
   );
 }
 
-// ── R3F Canvas (overlaid on top of the Mapbox map) ──────────────────────────
-
-function StreetCanvas3D({ playerGroupRef }: { playerGroupRef: RefObject<THREE.Group | null> }) {
-  return (
-    <Canvas
-      shadows
-      dpr={[1, 2]}
-      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-      gl={{ antialias: true, alpha: true }}
-    >
-      <OrthographicCamera makeDefault position={[0, 25, 25]} zoom={18} near={0.1} far={100} />
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[10, 20, 5]} intensity={1.0} castShadow />
-
-      <AccraStreetPlane />
-      <TroTroBoarding
-        stopPosition={TROTRO_STOP_POSITION}
-        playerRef={playerGroupRef}
-        onArriveAt={(destId) => console.log(`[tro-tro] onArriveAt → ${destId}`)}
-      />
-      <PlayerAvatar groupRef={playerGroupRef} />
-    </Canvas>
-  );
-}
-
-// ── Main export — AccraMap base + R3F overlay ──────────────────────────────
+// ── Main Canvas ─────────────────────────────────────────────────────────────
 
 export function StreetCanvas() {
   const playerGroupRef = useRef<THREE.Group>(null);
 
+  // Tro-tro stop position = Circle Station (cell [3,2])
+  const [troTroX, troTroZ] = cellCenter(3, 2);
+  const trotroStopPosition: [number, number, number] = [troTroX, 0, troTroZ];
+
   return (
-    <AccraMap>
-      <StreetCanvas3D playerGroupRef={playerGroupRef} />
-    </AccraMap>
+    <Canvas
+      shadows
+      dpr={[1, 2]}
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+      gl={{ antialias: true }}
+    >
+      <OrthographicCamera makeDefault position={[0, 50, 50]} zoom={10} near={0.1} far={200} />
+
+      <ambientLight intensity={0.5} />
+      <directionalLight
+        position={[30, 50, 20]}
+        intensity={1.3}
+        castShadow
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
+        shadow-camera-left={-60}
+        shadow-camera-right={60}
+        shadow-camera-top={60}
+        shadow-camera-bottom={-60}
+      />
+
+      {/* Custom Accra city grid — 5x5 blocks with roads + buildings + landmarks */}
+      <AccraCityGrid />
+
+      {/* Tro-tro boarding system at Circle Station */}
+      <TroTroBoarding
+        stopPosition={trotroStopPosition}
+        playerRef={playerGroupRef}
+        onArriveAt={(destId) => console.log(`[tro-tro] Arrived at ${destId}`)}
+      />
+
+      {/* Player avatar — spawns at Adabraka (home), walks with WASD */}
+      <PlayerAvatar groupRef={playerGroupRef} />
+
+      <OrbitControls
+        enablePan={false}
+        enableZoom={true}
+        minZoom={5}
+        maxZoom={25}
+        minPolarAngle={0.1}
+        maxPolarAngle={Math.PI / 2.1}
+      />
+    </Canvas>
   );
 }
