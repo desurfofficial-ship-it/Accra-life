@@ -1,31 +1,47 @@
 /**
- * StreetCanvas.tsx — Phase-4 Tro-tro UI Visuals
+ * StreetCanvas.tsx — the live custom map world (phase-1-custom-map)
  *
- * Integrates GameAPI for tro-tro interaction detection:
- * - Checks gameAPI.interactions.getActiveTarget() each frame via useFrame
- * - If the target is a tro-tro stop, renders <TroTroPrompt> overlay
- * - Adds yellow emissive glow to the Tro-tro stop model when active
- * - If not, renders nothing (prompt hidden, no glow)
+ * Renders the 5x5 Accra grid (AccraCityGrid) and integrates the REAL game
+ * systems through window.GameAPI once the game boots:
+ * - Player avatar is driven by the real InputManager (keyboard WASD +
+ *   agent setJoystickInput) and mirrors its position into PlayerController
+ *   every frame, so InteractionSystem, getLocationAt() and presence all
+ *   follow the custom map player.
+ * - The interactive tro-tro stop sits at the Circle station cell [3,2]
+ *   (GridMap.TROTRO_STATION_WORLD); boarding uses the real Wallet,
+ *   EXP_TROTRO_FARE ticket SKU and TrotroService seat state (TroTroBoarding).
+ * - Prompt overlay shows the live cash balance + canonical fare.
+ * Pre-boot (onboarding) the canvas runs in demo mode: local WASD, demo
+ * balance.
  */
 
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrthographicCamera, OrbitControls } from '@react-three/drei';
 import { useRef, useEffect, useState, type RefObject } from 'react';
 import * as THREE from 'three';
-import { AccraCityGrid, TOTAL_SIZE, cellCenter } from './AccraCityGrid';
+import { AccraCityGrid } from './AccraCityGrid';
 import { MarketStalls } from './MarketStalls';
 import { CityTrees } from './CityTrees';
 import { LandscapeProps } from './LandscapeProps';
 import { SuburbHouses } from './SuburbHouses';
 import { TroTroBoarding } from './TroTroBoarding';
 import { TroTroPrompt } from '../ui/TroTroPrompt';
+import { getGameAPI } from './gameAPIBridge';
+import { TROTRO_STATION_WORLD, TOTAL_SIZE } from '../game/World/GridMap';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const TROTRO_STOP_POSITION: [number, number, number] = [0, 0, 0];
+// The interactive tro-tro stop sits AT the Circle station cell [3,2] on the
+// custom grid map (GridMap.TROTRO_STATION_WORLD = [0, 16]) — the same spot
+// the hidden world's trotro_stop interactable and mate occupy.
+const TROTRO_STOP_POSITION: [number, number, number] = [
+  TROTRO_STATION_WORLD[0], 0, TROTRO_STATION_WORLD[1]
+];
 const TROTRO_FARE = 5;
 const TROTRO_STOP_ID = 'trotro_stop';
-const MOVE_SPEED = 6.0;
+const MOVE_SPEED = 6.0;   // demo-mode walk speed (pre-onboarding)
+const WALK_SPEED = 4.5;   // canon PlayerController walkSpeed
+const SPRINT_SPEED = 7.3; // canon PlayerController sprintSpeed
 const WORLD_BOUNDS = {
   minX: -TOTAL_SIZE / 2, maxX: TOTAL_SIZE / 2,
   minZ: -TOTAL_SIZE / 2, maxZ: TOTAL_SIZE / 2,
@@ -62,6 +78,15 @@ interface PlayerAvatarProps {
   groupRef: RefObject<THREE.Group | null>;
 }
 
+/**
+ * The visible player on the custom map. Movement input comes from the REAL
+ * InputManager (via window.GameAPI) once the game boots — so local WASD and
+ * agent-driven setJoystickInput both move this avatar. Before boot it falls
+ * back to a local keyboard handler (onboarding demo). Every frame the
+ * avatar's position is mirrored into the PlayerController object so the
+ * InteractionSystem, location resolution and multiplayer presence follow
+ * the custom map player.
+ */
 function PlayerAvatar({ groupRef }: PlayerAvatarProps) {
   const keysRef = useRef<Record<string, boolean>>({});
 
@@ -78,14 +103,25 @@ function PlayerAvatar({ groupRef }: PlayerAvatarProps) {
 
   useFrame((_state, delta) => {
     if (!groupRef.current) return;
-    const keys = keysRef.current;
+    const api = getGameAPI();
+
+    // Movement input: real InputManager when live, local keys pre-boot
     let dx = 0, dz = 0;
-    if (keys['w'] || keys['arrowup']) dz -= 1;
-    if (keys['s'] || keys['arrowdown']) dz += 1;
-    if (keys['a'] || keys['arrowleft']) dx -= 1;
-    if (keys['d'] || keys['arrowright']) dx += 1;
+    let speed = MOVE_SPEED;
+    if (api) {
+      const mi = api.input.getMovementInput();
+      dx = mi.moveX;
+      dz = mi.moveZ;
+      speed = mi.sprint ? SPRINT_SPEED : WALK_SPEED;
+    } else {
+      const keys = keysRef.current;
+      if (keys['w'] || keys['arrowup']) dz -= 1;
+      if (keys['s'] || keys['arrowdown']) dz += 1;
+      if (keys['a'] || keys['arrowleft']) dx -= 1;
+      if (keys['d'] || keys['arrowright']) dx += 1;
+    }
     if (dx !== 0 || dz !== 0) { const len = Math.sqrt(dx*dx + dz*dz); dx /= len; dz /= len; }
-    const moveDist = MOVE_SPEED * delta;
+    const moveDist = speed * delta;
     groupRef.current.position.x += dx * moveDist;
     groupRef.current.position.z += dz * moveDist;
     groupRef.current.position.x = THREE.MathUtils.clamp(groupRef.current.position.x, WORLD_BOUNDS.minX, WORLD_BOUNDS.maxX);
@@ -97,6 +133,16 @@ function PlayerAvatar({ groupRef }: PlayerAvatarProps) {
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
       groupRef.current.rotation.y += diff * 0.15;
+    }
+
+    // Mirror into the real PlayerController (shared Vector3) — keeps
+    // InteractionSystem proximity + facing, getLocationAt(), presence
+    // (position AND heading) and the agent-facing gameAPI.position in
+    // step with the visible avatar.
+    if (api) {
+      const p = api.player.position;
+      p.set(groupRef.current.position.x, p.y, groupRef.current.position.z);
+      api.player.rotationY = groupRef.current.rotation.y;
     }
   });
 
@@ -204,9 +250,20 @@ function InteractionDetector({
 export function StreetCanvas() {
   const playerGroupRef = useRef<THREE.Group>(null);
   const [troTroActive, setTroTroActive] = useState(false);
+  // Live wallet data for the GTA-style prompt — demo values until the
+  // real bridge boots (window.GameAPI appears after onboarding).
+  const [balance, setBalance] = useState(20);
+  const [fare, setFare] = useState(TROTRO_FARE);
 
-  // Demo balance — in the real game this would be gameAPI.getCashBalance()
-  const playerBalance = 20;
+  useEffect(() => {
+    const t = window.setInterval(() => {
+      const api = getGameAPI();
+      if (!api) return;
+      setBalance(api.getCashBalance());
+      setFare(api.getCanonicalFareGHS());
+    }, 400);
+    return () => window.clearInterval(t);
+  }, []);
 
   return (
     <>
@@ -216,6 +273,10 @@ export function StreetCanvas() {
         dpr={[1, 2]}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
         gl={{ antialias: true }}
+        onCreated={({ scene, camera }) => {
+          (window as unknown as { __r3fScene?: THREE.Scene; __r3fCamera?: THREE.Camera }).__r3fScene = scene;
+          (window as unknown as { __r3fCamera?: THREE.Camera }).__r3fCamera = camera;
+        }}
       >
         <OrthographicCamera makeDefault position={[0, 25, 25]} zoom={18} near={0.1} far={100} />
         <ambientLight intensity={0.5} />
@@ -226,6 +287,17 @@ export function StreetCanvas() {
           shadow-mapSize-width={1024}
           shadow-mapSize-height={1024}
         />
+
+        {/* ── The custom 5x5 Accra grid map ──
+            District blocks, roads, landmarks (AccraCityGrid) + the asset
+            packs placed on grid cells (stalls, trees, offices, farm,
+            suburb houses). These were previously unmounted — the map is
+            now the live game world. */}
+        <AccraCityGrid />
+        <MarketStalls />
+        <CityTrees />
+        <LandscapeProps />
+        <SuburbHouses />
 
         <AccraStreetPlane />
 
@@ -259,8 +331,8 @@ export function StreetCanvas() {
 
       {/* GTA-style tro-tro prompt overlay — shows when player is in range */}
       <TroTroPrompt
-        fare={TROTRO_FARE}
-        playerBalance={playerBalance}
+        fare={fare}
+        playerBalance={balance}
         visible={troTroActive}
       />
     </>

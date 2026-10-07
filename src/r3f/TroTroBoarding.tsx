@@ -1,17 +1,24 @@
 /**
- * TroTroBoarding.tsx — Full implementation of the tro-tro-system.md v2.0.0 spec
+ * TroTroBoarding.tsx — tro-tro boarding on the custom map, wired to the
+ * REAL game systems (skills/tro-tro-system.md v4 five-method contract).
  *
- * Implements the mandatory 7-step boarding sequence:
+ * Mandatory boarding sequence (per contract):
  *   1. Dialogue  — Mate greets with authentic Accra flavor
- *   2. Capacity  — check currentPassengers >= 14 (Sprinter van)
- *   3. Fare       — check balance >= ₵6 (CASH-only)
- *   4. Debit      — deductBalance(₵6)
- *   5. Ticket    — addToInventory('tro-tro-ticket')
- *   6. Animation — boarding visual
- *   7. Transit   — position update to next zone
+ *   2. Capacity  — gameAPI.isTrotroFull() (real TrotroService, 14 seats,
+ *                  persisted across sessions via the economy snapshot)
+ *   3. Fare      — gameAPI.canAfford / balance check (real Wallet, CASH)
+ *   4. Debit     — gameAPI.purchaseEverydayExpense('EXP_TROTRO_FARE')
+ *                  (canonical ₵6 path — debits AND grants the real ticket
+ *                  item trotro_ticket_osu_circle into the player's inventory)
+ *   5. Ticket    — gameAPI.hasOwnedItem('trotro_ticket_osu_circle')
+ *   6. Boarding  — gameAPI.boardPassenger() (real seat accounting)
+ *   7. Transit   — teleport the player to the destination district cell
+ *                  (GridMap.TROTRO_DESTINATIONS) and free the seat
+ *                  (gameAPI.alightPassenger() — transit-end turnover)
  *
- * Any step failing aborts with the spec's authentic dialogue.
- * Ordering is mandatory per the contract.
+ * When window.GameAPI is not yet available (pre-onboarding) the component
+ * runs the same 7 steps against local demo state so the custom map stays
+ * explorable behind the onboarding overlay.
  */
 
 import { useFrame } from '@react-three/fiber';
@@ -19,13 +26,20 @@ import { Html } from '@react-three/drei';
 import { useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { TroTroStop } from './TroTroStop';
+import { getGameAPI } from './gameAPIBridge';
+import {
+  TROTRO_DESTINATIONS,
+  destinationArrival,
+  type TrotroDestination
+} from '../game/World/GridMap';
 
 // ── Spec constants ──────────────────────────────────────────────────────────
 
-const FARE = 6;                          // ₵6 canonical Osu–Circle fare
-const CAPACITY = 14;                     // Sprinter van seats
-const INTERACTION_RANGE = 3.0;          // meters — spec Rule 1
+const CAPACITY = 14;                     // Sprinter van seats (TrotroService)
+const INTERACTION_RANGE = 3.0;           // meters — spec Rule 1
 const VAN_CYCLE_MS = 30_000;            // 30s — next van arrives if full
+const DEMO_FARE = 6;                     // demo canonical fare (pre-boot)
+const TROTRO_TICKET_ITEM_ID = 'trotro_ticket_osu_circle';
 
 // ── Mate dialogue lines (authentic Accra flavor per spec) ───────────────────
 
@@ -40,15 +54,6 @@ const MATE_DIALOGUE = {
   boarded: 'Make you sit well. We dey go!',
 };
 
-// ── Travel destinations (maps to the existing travel system) ────────────────
-
-const DESTINATIONS = [
-  { id: 'circle', name: 'Circle', fare: 6 },
-  { id: 'makola', name: 'Makola Market', fare: 6 },
-  { id: 'osu', name: 'Osu', fare: 4 },
-  { id: 'labadi', name: 'Labadi Beach', fare: 8 },
-];
-
 // ── State ────────────────────────────────────────────────────────────────────
 
 interface BoardingState {
@@ -56,14 +61,14 @@ interface BoardingState {
   dialogue: string;
   currentPassengers: number;
   vanDepartedAt: number | null;
-  playerBalance: number;     // demo: starts at ₵20, real integration via Wallet
+  playerBalance: number;     // demo: starts at ₵20, real: Wallet.getCashBalance()
   ticketIssued: boolean;
 }
 
 const INITIAL_STATE: BoardingState = {
   phase: 'idle',
   dialogue: '',
-  currentPassengers: 12,     // start with 12/14 — leaves room for the player
+  currentPassengers: 12,     // demo: 12/14 — leaves room for the player
   vanDepartedAt: null,
   playerBalance: 20,          // demo balance — real: Wallet.getCashBalance()
   ticketIssued: false,
@@ -74,7 +79,7 @@ const INITIAL_STATE: BoardingState = {
 interface TroTroBoardingProps {
   stopPosition: [number, number, number];
   playerRef: React.RefObject<THREE.Group | null>;
-  /** Called when boarding completes — the parent teleports the player. */
+  /** Called when boarding completes — the arrival teleport already happened. */
   onArriveAt?: (destinationId: string) => void;
 }
 
@@ -84,72 +89,154 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
   const stepTimerRef = useRef<number>(0);
   const selectedDestinationRef = useRef<string>('circle');
 
+  /** Canonical fare — real EXP_TROTRO_FARE when the bridge is live. */
+  const canonicalFare = useCallback(() => {
+    const api = getGameAPI();
+    return api ? api.getCanonicalFareGHS() : DEMO_FARE;
+  }, []);
+
+  /** Pull live seat/balance state from the real systems into display state. */
+  const syncFromAPI = useCallback(() => {
+    const api = getGameAPI();
+    if (!api) return;
+    setState(s => ({
+      ...s,
+      currentPassengers: api.getCurrentPassengers(),
+      playerBalance: api.getCashBalance(),
+      ticketIssued: api.hasOwnedItem(TROTRO_TICKET_ITEM_ID),
+    }));
+  }, []);
+
   // ── Step 1: Dialogue — Mate greets ────────────────────────────────────────
   const startGreeting = useCallback(() => {
     const line = MATE_DIALOGUE.greeting[Math.floor(Math.random() * MATE_DIALOGUE.greeting.length)];
     setState(s => ({ ...s, phase: 'greeting', dialogue: line }));
-    console.log(`[tro-tro] Mate: "${line}"`);
+    syncFromAPI();
     stepTimerRef.current = performance.now();
-  }, []);
+  }, [syncFromAPI]);
 
-  // ── Step 2: Capacity check ───────────────────────────────────────────────
+  // ── Step 2: Capacity check (real TrotroService) ──────────────────────────
   const checkCapacity = useCallback(() => {
+    const api = getGameAPI();
+    if (api) {
+      if (api.isTrotroFull()) {
+        console.log(`[tro-tro] Mate: "${MATE_DIALOGUE.full}" (van ${api.getCurrentPassengers()}/${api.getCapacity()})`);
+        setState(s => ({ ...s, phase: 'rejected', dialogue: MATE_DIALOGUE.full, vanDepartedAt: performance.now() }));
+        return;
+      }
+      setState(s => ({
+        ...s,
+        phase: 'capacity_check',
+        dialogue: `${api.getSeatsAvailable()} seats free. Pay ₵${api.getCanonicalFareGHS()}?`,
+      }));
+      return;
+    }
+    // Demo fallback (pre-boot)
     setState(s => {
       if (s.currentPassengers >= CAPACITY) {
-        console.log(`[tro-tro] Mate: "${MATE_DIALOGUE.full}"`);
         return { ...s, phase: 'rejected', dialogue: MATE_DIALOGUE.full, vanDepartedAt: performance.now() };
       }
-      return { ...s, phase: 'capacity_check', dialogue: `${CAPACITY - s.currentPassengers} seats free. Pay ₵${FARE}?` };
+      return { ...s, phase: 'capacity_check', dialogue: `${CAPACITY - s.currentPassengers} seats free. Pay ₵${DEMO_FARE}?` };
     });
   }, []);
 
-  // ── Step 3-7: Board (fare check → debit → ticket → animate → transit) ────
-  const board = useCallback((destinationId: string) => {
+  // ── Steps 3-7: board (fare → debit+ticket → seat → transit → arrive) ─────
+  const board = useCallback((destinationId: TrotroDestination['id']) => {
     selectedDestinationRef.current = destinationId;
-    const dest = DESTINATIONS.find(d => d.id === destinationId);
-    const fare = dest?.fare ?? FARE;
+    const dest = TROTRO_DESTINATIONS.find(d => d.id === destinationId) as TrotroDestination | undefined;
+    const destName = dest?.name ?? destinationId;
+    const api = getGameAPI();
 
+    // ── Step 7 helper: teleport the visible player to the arrival cell ──
+    const arriveAtDestination = () => {
+      const arrival = destinationArrival(destinationId);
+      if (arrival && playerRef?.current) {
+        playerRef.current.position.set(arrival[0], 0, arrival[1]);
+        console.log(`[tro-tro] Teleported to ${destName} cell (world ${arrival[0].toFixed(1)}, ${arrival[1].toFixed(1)})`);
+      }
+      onArriveAt?.(destinationId);
+    };
+
+    if (api) {
+      // Real flow — ordering is mandatory per the contract.
+      if (api.isTrotroFull()) {
+        setState(s => ({ ...s, phase: 'rejected', dialogue: MATE_DIALOGUE.full, vanDepartedAt: performance.now() }));
+        return;
+      }
+      // Step 3+4: fare gate + canonical debit (grants the real ticket item)
+      const buy = api.purchaseEverydayExpense('EXP_TROTRO_FARE');
+      if (!buy.success) {
+        console.log(`[tro-tro] Mate: "${MATE_DIALOGUE.insufficient}" (${buy.message ?? 'declined'})`);
+        setState(s => ({ ...s, phase: 'rejected', dialogue: MATE_DIALOGUE.insufficient, playerBalance: api.getCashBalance() }));
+        return;
+      }
+      // Step 5: ticket verification (real inventory)
+      const ticketOwned = api.hasOwnedItem(TROTRO_TICKET_ITEM_ID);
+      // Step 6: real seat accounting (false = van filled up in the meantime)
+      const seated = api.boardPassenger();
+      if (!seated) {
+        setState(s => ({ ...s, phase: 'rejected', dialogue: MATE_DIALOGUE.full, vanDepartedAt: performance.now() }));
+        return;
+      }
+      console.log(`[tro-tro] purchaseEverydayExpense('EXP_TROTRO_FARE') ok · ticket=${ticketOwned} · balance ₵${api.getCashBalance()} · van ${api.getCurrentPassengers()}/${api.getCapacity()}`);
+
+      setState(s => ({
+        ...s,
+        phase: 'boarding',
+        dialogue: `${MATE_DIALOGUE.boarded} → ${destName}`,
+        playerBalance: api.getCashBalance(),
+        ticketIssued: ticketOwned,
+        currentPassengers: api.getCurrentPassengers(),
+      }));
+
+      // Step 7: transit → arrive → free the seat (turnover)
+      window.setTimeout(() => {
+        setState(prev => ({ ...prev, phase: 'transit', dialogue: MATE_DIALOGUE.boarded }));
+        window.setTimeout(() => {
+          arriveAtDestination();
+          api.alightPassenger();
+          setState(prev => ({
+            ...prev,
+            phase: 'arrived',
+            dialogue: `Arrived at ${destName}!`,
+            currentPassengers: api.getCurrentPassengers(),
+            playerBalance: api.getCashBalance(),
+          }));
+          window.setTimeout(() => {
+            setState(prev => ({ ...prev, phase: 'idle', dialogue: '', ticketIssued: false }));
+            syncFromAPI();
+          }, 3000);
+        }, 1500);
+      }, 1000);
+      return;
+    }
+
+    // ── Demo fallback (pre-boot): local wallet math ──
+    const fare = DEMO_FARE;
     setState(s => {
-      // Step 3: Fare check
       if (s.playerBalance < fare) {
-        console.log(`[tro-tro] Mate: "${MATE_DIALOGUE.insufficient}" (balance ₵${s.playerBalance}, need ₵${fare})`);
         return { ...s, phase: 'rejected', dialogue: MATE_DIALOGUE.insufficient };
       }
-
-      // Step 4: Debit
-      const newBalance = s.playerBalance - fare;
-      console.log(`[tro-tro] deductBalance(₵${fare}) → true (balance ₵${s.playerBalance} → ₵${newBalance})`);
-
-      // Step 5: Ticket
-      console.log(`[tro-tro] addToInventory('tro-tro-ticket') → issued`);
-
-      // Step 6: Boarding animation trigger
-      console.log(`[tro-tro] Boarding animation → boarding van to ${dest?.name ?? destinationId}`);
-
-      // Step 7: Transit (delayed — let the boarding animation play briefly)
-      setTimeout(() => {
-        console.log(`[tro-tro] Transit → ${dest?.name ?? destinationId}`);
+      window.setTimeout(() => {
         setState(prev => ({ ...prev, phase: 'transit', dialogue: MATE_DIALOGUE.boarded }));
-        setTimeout(() => {
-          setState(prev => ({ ...prev, phase: 'arrived', dialogue: `Arrived at ${dest?.name ?? destinationId}!` }));
-          onArriveAt?.(destinationId);
-          // Reset after 3s
-          setTimeout(() => {
+        window.setTimeout(() => {
+          arriveAtDestination();
+          setState(prev => ({ ...prev, phase: 'arrived', dialogue: `Arrived at ${destName}!` }));
+          window.setTimeout(() => {
             setState(prev => ({ ...prev, phase: 'idle', dialogue: '', ticketIssued: false }));
           }, 3000);
         }, 1500);
       }, 1000);
-
       return {
         ...s,
         phase: 'boarding',
-        dialogue: `${MATE_DIALOGUE.boarded} → ${dest?.name ?? destinationId}`,
-        playerBalance: newBalance,
+        dialogue: `${MATE_DIALOGUE.boarded} → ${destName}`,
+        playerBalance: s.playerBalance - fare,
         ticketIssued: true,
         currentPassengers: s.currentPassengers + 1,
       };
     });
-  }, [onArriveAt]);
+  }, [onArriveAt, playerRef, syncFromAPI]);
 
   // ── useFrame: proximity check (Rule 1) ────────────────────────────────────
   useFrame(() => {
@@ -164,10 +251,9 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
     if (inRange && !wasInRangeRef.current) {
       // ENTERING range — start the 7-step sequence from Step 1
       wasInRangeRef.current = true;
-      console.log('Tro-tro interaction available: Press E to board');
       startGreeting();
       // Auto-advance to capacity check after 1.5s
-      setTimeout(() => checkCapacity(), 1500);
+      window.setTimeout(() => checkCapacity(), 1500);
     } else if (!inRange && wasInRangeRef.current) {
       // LEAVING range — reset
       wasInRangeRef.current = false;
@@ -176,14 +262,18 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
         : s));
     }
 
-    // Van cycle: if rejected (full van), after 30s a new van arrives
+    // Van cycle: if rejected (full van), after 30s a fresh van arrives
     if (state.phase === 'rejected' && state.vanDepartedAt) {
       if (performance.now() - state.vanDepartedAt > VAN_CYCLE_MS) {
-        setState(s => ({ ...s, phase: 'idle', dialogue: '', currentPassengers: 8 + Math.floor(Math.random() * 5), vanDepartedAt: null }));
+        const api = getGameAPI();
+        if (api) api.resetVehicle(); // fresh van, empty seats
+        setState(s => ({ ...s, phase: 'idle', dialogue: '', currentPassengers: api ? api.getCurrentPassengers() : 8 + Math.floor(Math.random() * 5), vanDepartedAt: null }));
         console.log('[tro-tro] New van arrived. Re-approach to board.');
       }
     }
   });
+
+  const fare = canonicalFare();
 
   return (
     <group position={stopPosition}>
@@ -223,7 +313,7 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
             {/* Boarding buttons — appear after capacity check passes */}
             {state.phase === 'capacity_check' && (
               <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                {DESTINATIONS.map(dest => (
+                {TROTRO_DESTINATIONS.map(dest => (
                   <button
                     key={dest.id}
                     onClick={() => board(dest.id)}
@@ -234,7 +324,7 @@ export function TroTroBoarding({ stopPosition, playerRef, onArriveAt }: TroTroBo
                       cursor: 'pointer',
                     }}
                   >
-                    {dest.name} ₵{dest.fare}
+                    {dest.name} ₵{fare}
                   </button>
                 ))}
               </div>
