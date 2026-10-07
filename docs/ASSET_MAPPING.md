@@ -1,6 +1,6 @@
 # Accra Life — Asset Mapping (Master Reference)
 
-`version: 1.0.0` · `updated: 2026-10-08` · `maintainer: every agent that
+`version: 1.1.0` · `updated: 2026-10-08` · `maintainer: every agent that
 touches visuals`
 
 This document maps **every game object to its asset file path**. It is the
@@ -264,23 +264,26 @@ wiring:
 | Road OBJs | `public/assets/obj/roads/` | not referenced anywhere in `src/` |
 | Tree/bush FBX full set | 21 trees + 13 bushes in `public/assets/fbx/trees/` (5+3 wired) | seeded placement can take more variants for free |
 
-### Known defect: 2 texture 404s on every boot (cosmetic, logged 2026-10-08)
+### FIXED 2026-10-08: texture 404s on boot (was: 2 per boot, cosmetic)
 
-The OBJ packs' MTL files reference texture images that were **never
-committed**. Three.js falls back to the MTL's flat Kd color, so the
-houses/offices render untextured-but-colored — no crash, but the browser
-console shows two 404s each boot:
+The OBJ packs' MTL files referenced texture images that were **never
+committed** (`/obj/houses/textures/buildings-houses_v1.jpg` via `map_Kd`
+in every `public/assets/obj/houses/*.mtl`, and `/obj/textures/basetexture.jpg`
+via `public/assets/obj/landscape/building-office-small.mtl`). Three.js fell
+back to the MTL's flat Kd color, so the houses/offices rendered
+untextured-but-colored — no crash, but the browser console showed two 404s
+each boot.
 
-| Missing file | Referenced by | Impact |
-|---|---|---|
-| `/obj/houses/textures/buildings-houses_v1.jpg` | `map_Kd` in every `public/assets/obj/houses/*.mtl` (Blender export `print_buildings-houses_v1.blend`) | house OBJs render flat color |
-| `/obj/textures/basetexture.jpg` | `map_Kd` in `public/assets/obj/landscape/building-office-small.mtl` | office OBJ renders flat color |
+**Resolution (v4.11):** the dead `map_Kd` lines were stripped from all 15
+affected MTLs (16 references), so boots are now 404-free. Materials render
+their Kd diffuse color — visually identical to the previous fallback.
 
-Fix options (pick one when the art pass lands): commit the real texture
-JPEGs at those exact paths (preferred — restores the pack's intended
-look), or strip the `map_Kd` lines from the MTLs to silence the 404s.
-Do NOT "fix" this by deleting the map_Kd references AND losing the
-intended-texture note — the paths above are the resurrection targets.
+**Resurrection targets (unchanged):** if the art pass lands the real
+textures, commit the JPEGs at the two paths above and re-add one
+`map_Kd <relative-path>` line per material (house MTLs ->
+`textures/buildings-houses_v1.jpg`; office MTL -> `../textures/basetexture.jpg`).
+The Blender export `print_buildings-houses_v1.blend` documents the original
+materials.
 
 ## 14. Licensing summary
 
