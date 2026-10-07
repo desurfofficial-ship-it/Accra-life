@@ -26,6 +26,8 @@ import { LandscapeProps } from './LandscapeProps';
 import { SuburbHouses } from './SuburbHouses';
 import { InteriorFurniture } from './InteriorFurniture';
 import { BeachProps } from './BeachProps';
+import { HomeCompound } from './HomeCompound';
+import { ResidentialShowroom } from './ResidentialShowroom';
 import { TroTroBoarding } from './TroTroBoarding';
 import { TroTroPrompt } from '../ui/TroTroPrompt';
 import { getGameAPI } from './gameAPIBridge';
@@ -302,6 +304,15 @@ export function StreetCanvas() {
         <SuburbHouses />
         <InteriorFurniture />
         <BeachProps />
+
+        {/* Player home compound landmark (mixed cell [2,0], world
+            [-32, 0]) — the visible look-alike of the hidden systems-layer
+            compound; home_door interactable sits at the same anchor. */}
+        <HomeCompound />
+
+        {/* Residential "scene.gltf" pack mounted as a furnished
+            showroom on cell [3,1] (50 MB, Suspense-lazy). */}
+        <ResidentialShowroom />
 
         <AccraStreetPlane />
 

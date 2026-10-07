@@ -3,6 +3,17 @@ import { ColliderBox } from '../Player/PlayerController';
 import { InteractableTarget } from '../Player/InteractionSystem';
 import { sharedArtLibrary } from '../Art/AssetRegistry';
 import { HOUSING_TIERS, type HousingTierId } from '../Home/HomeSystem';
+import { HOME_COMPOUND_ANCHOR } from './GridMap';
+
+/**
+ * Compound world anchor — adabraka grid cell [row 0, col 1] (world
+ * [-16, -32], per GridMap.HOME_COMPOUND_ANCHOR). Every absolute position
+ * in this module (group origin, wall colliders, doorway interactable,
+ * cutaway zones) derives from these two numbers so the compound always
+ * coincides with the visible custom map cell.
+ */
+const COMPOUND_X = HOME_COMPOUND_ANCHOR.world[0];
+const COMPOUND_Z = HOME_COMPOUND_ANCHOR.world[1];
 
 let compoundRootGroup: THREE.Group | null = null;
 let dynamicHouseShellGroup: THREE.Group | null = null;
@@ -36,23 +47,26 @@ export function updatePlayerCompoundCutaway(playerPos: THREE.Vector3): boolean {
   // deactivation only triggers when clearly OUTSIDE the compound walls.
   let newState = isCutawayActive;
   if (isCutawayActive) {
-    // Deactivate only when clearly outside the compound (wide margin).
+    // Deactivate only when clearly outside the compound (wide margin,
+    // relative to the compound anchor — same margins as the original
+    // old-world placement: ±5.3 m on X, -4.4/+4.6 m on Z).
     if (
-      playerPos.x < -15.8 ||
-      playerPos.x > -5.2 ||
-      playerPos.z < 7.8 ||
-      playerPos.z > 16.8
+      playerPos.x < COMPOUND_X - 5.3 ||
+      playerPos.x > COMPOUND_X + 5.3 ||
+      playerPos.z < COMPOUND_Z - 4.4 ||
+      playerPos.z > COMPOUND_Z + 4.6
     ) {
       newState = false;
     }
   } else {
     // Activate only when clearly inside the room (deep margin to avoid
-    // doorway jitter — the doorway is at z≈10.6, activation requires z>9.5).
+    // doorway jitter — the doorway sits 1.6 m south of the anchor,
+    // activation requires z > COMPOUND_Z - 2.7).
     if (
-      playerPos.x >= -14.8 &&
-      playerPos.x <= -6.2 &&
-      playerPos.z >= 9.5 &&
-      playerPos.z <= 15.5
+      playerPos.x >= COMPOUND_X - 4.3 &&
+      playerPos.x <= COMPOUND_X + 4.3 &&
+      playerPos.z >= COMPOUND_Z - 2.7 &&
+      playerPos.z <= COMPOUND_Z + 3.3
     ) {
       newState = true;
     }
@@ -359,9 +373,10 @@ function createDynamicHouseShell(
   roofGroup.add(frontRoofSlope, rearRoofSlope, ridgeBeam);
   shellGroup.add(roofGroup);
 
-  // Dynamic World-Space Wall Colliders (group offset is X = -10.5, Z = 12.2)
-  const gx = -10.5;
-  const gz = 12.2;
+  // Dynamic World-Space Wall Colliders (group offset = compound anchor,
+  // GridMap.HOME_COMPOUND_ANCHOR: adabraka cell [row 0, col 1])
+  const gx = COMPOUND_X;
+  const gz = COMPOUND_Z;
   const minX = gx - roomW / 2 - 0.08;
   const maxX = gx + roomW / 2 + 0.08;
   const minZ = gz - 1.6 - 0.06;
@@ -601,7 +616,7 @@ export function buildPlayerCompoundHouse(
 
   const group = new THREE.Group();
   group.name = 'ACC_HOUSE_001';
-  group.position.set(-10.5, 0, 12.2);
+  group.position.set(COMPOUND_X, 0, COMPOUND_Z);
   compoundRootGroup = group;
 
   const matTerracottaPlinth = sharedArtLibrary.getMaterial('house_plinth_terra', {
@@ -711,20 +726,21 @@ export function buildPlayerCompoundHouse(
 
   scene.add(group);
 
-  // Outer compound perimeter colliders (always active)
+  // Outer compound perimeter colliders (always active; all boxes derived
+  // from the compound anchor — identical relative offsets as before)
   colliders.push(
     // Polytank tower in back-east corner
-    { id: 'ACC_HOUSE_001_POLYTANK', minX: -6.85, maxX: -5.85, minZ: 14.75, maxZ: 15.85, height: 4.4 },
+    { id: 'ACC_HOUSE_001_POLYTANK', minX: COMPOUND_X + 3.65, maxX: COMPOUND_X + 4.65, minZ: COMPOUND_Z + 2.55, maxZ: COMPOUND_Z + 3.65, height: 4.4 },
     // Compound front wall left of gate
-    { id: 'ACC_HOUSE_001_WALL_L', minX: -15.55, maxX: -11.82, minZ: 7.92, maxZ: 8.58, height: 1.8 },
+    { id: 'ACC_HOUSE_001_WALL_L', minX: COMPOUND_X - 5.05, maxX: COMPOUND_X - 1.32, minZ: COMPOUND_Z - 4.28, maxZ: COMPOUND_Z - 3.62, height: 1.8 },
     // Compound front wall right of gate
-    { id: 'ACC_HOUSE_001_WALL_R', minX: -9.18, maxX: -5.45, minZ: 7.92, maxZ: 8.58, height: 1.8 },
+    { id: 'ACC_HOUSE_001_WALL_R', minX: COMPOUND_X + 1.32, maxX: COMPOUND_X + 5.05, minZ: COMPOUND_Z - 4.28, maxZ: COMPOUND_Z - 3.62, height: 1.8 },
     // Compound outer West wall
-    { id: 'ACC_HOUSE_001_WALL_W', minX: -15.58, maxX: -14.82, minZ: 7.92, maxZ: 16.55, height: 1.8 },
+    { id: 'ACC_HOUSE_001_WALL_W', minX: COMPOUND_X - 5.08, maxX: COMPOUND_X - 4.32, minZ: COMPOUND_Z - 4.28, maxZ: COMPOUND_Z + 4.35, height: 1.8 },
     // Compound outer East wall
-    { id: 'ACC_HOUSE_001_WALL_E', minX: -6.18, maxX: -5.42, minZ: 7.92, maxZ: 16.55, height: 1.8 },
+    { id: 'ACC_HOUSE_001_WALL_E', minX: COMPOUND_X + 4.32, maxX: COMPOUND_X + 5.08, minZ: COMPOUND_Z - 4.28, maxZ: COMPOUND_Z + 4.35, height: 1.8 },
     // Compound outer Back wall
-    { id: 'ACC_HOUSE_001_WALL_BACK', minX: -15.58, maxX: -5.42, minZ: 15.82, maxZ: 16.55, height: 1.8 }
+    { id: 'ACC_HOUSE_001_WALL_BACK', minX: COMPOUND_X - 5.08, maxX: COMPOUND_X + 5.08, minZ: COMPOUND_Z + 3.62, maxZ: COMPOUND_Z + 4.35, height: 1.8 }
   );
 
   interactables.push({
@@ -733,8 +749,8 @@ export function buildPlayerCompoundHouse(
     title: 'Your Home',
     promptLabel: 'Home · Rest & Upgrade',
     interactionResponse: 'Your Accra home — rest, cook, host, or upgrade your room.',
-    position: new THREE.Vector3(-10.5, 0.24, 10.6),
-    lookAtPosition: new THREE.Vector3(-10.5, 0.24, 12.2),
+    position: new THREE.Vector3(COMPOUND_X, 0.24, COMPOUND_Z - 1.6),
+    lookAtPosition: new THREE.Vector3(COMPOUND_X, 0.24, COMPOUND_Z),
     radius: 3.8
   });
 }

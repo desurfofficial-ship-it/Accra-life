@@ -35,6 +35,7 @@ import { PlacementEngine, buildPlacedFurnitureMesh } from './game/Housing/Placem
 import { HomeFurnitureVisuals } from './game/Home/HomeFurnitureVisuals';
 import { fetchHomeShowcase, publishHomeShowcase, setDevShowcaseOverride } from './game/Home/HomeShowcase';
 import { rebuildPlayerCompoundForTier, isPlayerInCompoundCutaway } from './game/World/PlayerCompound';
+import { HOME_COMPOUND_ANCHOR } from './game/World/GridMap';
 import { PresenceManager, type PresenceStatus } from './game/Multiplayer/PresenceManager';
 import { LocationChatManager } from './game/Multiplayer/LocationChatManager';
 import { FriendsSystem, type FriendEntry, type InboxMessageView } from './game/Multiplayer/FriendsSystem';
@@ -172,7 +173,13 @@ let lastLiveEventShownSeconds = -1;
 // instanceId → live mesh. Lets us add/remove meshes the moment furniture is
 // placed or sold, instead of waiting for the next game reload.
 // Shared room origin (compound interior floor center, per PlayerCompound).
-const ROOM_ORIGIN = new THREE.Vector3(-10.5, 0.24, 11.1);
+// Derived from GridMap.HOME_COMPOUND_ANCHOR (adabraka cell [row 0, col 1],
+// world [-16, -32]); the interior floor sits 1.1 m south of the anchor.
+const ROOM_ORIGIN = new THREE.Vector3(
+  HOME_COMPOUND_ANCHOR.world[0],
+  0.24,
+  HOME_COMPOUND_ANCHOR.world[1] - 1.1
+);
 // Debounce handle for the housing → Firestore cloud sync.
 let housingCloudSyncTimer: ReturnType<typeof setTimeout> | null = null;
 let playerDisplayName = 'Chale';
@@ -1156,15 +1163,17 @@ const placedFurnitureMeshes = new Map<string, THREE.Group>();
  * render previously-placed furniture on game start.
  *
  * Called from startGame() after Phase1Scene is created. The room origin
- * is set to the player's compound interior floor center (-10.5, 0.24, 11.1)
- * — matches PlayerCompound's interior floor position.
+ * is set to the player's compound interior floor center — derived from
+ * GridMap.HOME_COMPOUND_ANCHOR (adabraka cell [row 0, col 1], world
+ * [-16, -32]) with the floor 1.1 m south of the anchor.
  */
 function initHousingEngine(phase1: Phase1Scene): void {
-  // The compound is at world (-10.5, 0, 12.2); the interior floor is at
+  // The compound is at the GridMap.HOME_COMPOUND_ANCHOR (adabraka cell
+  // [row 0, col 1], world [-16, 0, -32]); the interior floor is at
   // y=0.24 (per PlayerCompound's interiorFloorMesh position). The room
   // center (where the placement engine's origin sits) is at the interior
-  // floor center, which is around (-10.5, 0.24, 11.1) — slightly south of
-  // the compound group's position because the interior is offset.
+  // floor center — slightly south of the compound group's position
+  // because the interior is offset.
   placementEngine = new PlacementEngine(
     phase1.scene,
     phase1.thirdPersonCamera.camera,
