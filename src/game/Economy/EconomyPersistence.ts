@@ -4,6 +4,11 @@ import {
   PlayerOwnershipFoundations
 } from './EconomicTypes';
 import { SerializedWalletState } from './Wallet';
+// Static imports: firebase.ts is already statically imported by Wallet,
+// PresenceManager, etc., so these dynamic imports gained nothing and only
+// produced a Vite INEFFECTIVE_DYNAMIC_IMPORT warning at build time.
+import { auth, db } from '../../firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 export interface PersistedJobState {
   activeJobId: string | null;
@@ -106,9 +111,7 @@ export class EconomyPersistence {
     snapshot: PersistedPhase3EconomySnapshot
   ): Promise<void> {
     try {
-      const { auth, db } = await import('../../firebase');
       if (!auth.currentUser) return;
-      const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
       const playerRef = doc(db, 'players', auth.currentUser.uid);
       // Strict security rules require:
       //   - ownerId == auth.uid on every write (so create-rule identity check passes)
