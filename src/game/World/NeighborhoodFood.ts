@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ColliderBox } from '../Player/PlayerController';
 import { InteractableTarget } from '../Player/InteractionSystem';
 import { sharedArtLibrary } from '../Art/AssetRegistry';
+import { FOOD_VENDOR_ANCHOR } from './GridMap';
 
 export function buildFoodVendorJoint(
   scene: THREE.Scene,
@@ -10,7 +11,10 @@ export function buildFoodVendorJoint(
 ): void {
   const group = new THREE.Group();
   group.name = 'ACC_RESTAURANT_001';
-  group.position.set(8.5, 0, -10.2);
+  // Custom map integration: the joint stands on its Makola market cell
+  // [row 1, col 2] (GridMap.FOOD_VENDOR_ANCHOR = world [0, -16]) so the
+  // interactable coincides with the visible R3F market stalls.
+  group.position.set(FOOD_VENDOR_ANCHOR.world[0], 0, FOOD_VENDOR_ANCHOR.world[1]);
 
   const matPatioSlab = sharedArtLibrary.getMaterial('food_patio_slab', {
     color: 0xd6d3d1,
@@ -287,12 +291,16 @@ export function buildFoodVendorJoint(
 
   scene.add(group);
 
+  // Collider tracks the relocated group (same local offsets as the old
+  // world: x -3.6..+3.6, z -2.7..+2.3 around the anchor).
+  const fx = FOOD_VENDOR_ANCHOR.world[0];
+  const fz = FOOD_VENDOR_ANCHOR.world[1];
   colliders.push({
     id: 'ACC_RESTAURANT_001',
-    minX: 4.9,
-    maxX: 12.1,
-    minZ: -12.9,
-    maxZ: -7.9,
+    minX: fx - 3.6,
+    maxX: fx + 3.6,
+    minZ: fz - 2.7,
+    maxZ: fz + 2.3,
     height: 3.8
   });
 
@@ -302,8 +310,8 @@ export function buildFoodVendorJoint(
     title: 'Sister Akosua’s Waakye & Jollof Joint',
     promptLabel: 'Waakye · ₵12',
     interactionResponse: 'Sister Akosua’s Waakye — rice, beans, shito, plantain, egg.',
-    position: new THREE.Vector3(8.5, 0.14, -6.9),
-    lookAtPosition: new THREE.Vector3(8.5, 0.14, -8.4),
+    position: new THREE.Vector3(fx, 0.14, fz + 3.3),
+    lookAtPosition: new THREE.Vector3(fx, 0.14, fz + 1.8),
     radius: 3.4
   });
 }

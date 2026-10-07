@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { InputManager } from './InputManager';
 import { buildStylizedGhanaianCharacter, CharacterRig, type PlayerLookOptions } from '../Art/CharacterBuilder';
 import { getSurfaceHeightAt } from '../World/WorldSurface';
+import { HALF as GRID_MAP_HALF } from '../World/GridMap';
 
 export interface ColliderBox {
   id: string;
@@ -25,8 +26,10 @@ export class PlayerController {
   private readonly walkSpeed = 4.5;
   private readonly sprintSpeed = 7.3;
   private readonly playerRadius = 0.42;
-  private readonly worldBoundsX = 25.0;
-  private readonly worldBoundsZ = 17.2;
+  // Custom map integration: movement bounds follow the 5x5 Accra grid map
+  // (±42m, GridMap.HALF) instead of the legacy neighborhood (±25/±17.2).
+  private readonly worldBoundsX = GRID_MAP_HALF;
+  private readonly worldBoundsZ = GRID_MAP_HALF;
 
   private currentSpeed = 0;
   private smoothedTurnRate = 0;

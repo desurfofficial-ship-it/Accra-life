@@ -33,6 +33,14 @@ export class Phase1Scene {
   public readonly interactionSystem: InteractionSystem;
   public readonly npcRigs: CharacterRig[];
 
+  /**
+   * Custom map integration: when the R3F canvas (src/r3f) owns the visible
+   * view, main.ts disables ONLY this scene's render call — the simulation
+   * above it (player, interactions, NPC rigs, camera) keeps running so the
+   * systems layer stays live while the GPU draws just the custom map.
+   */
+  public renderEnabled = true;
+
   private readonly container: HTMLElement;
   private colliders: ColliderBox[] = [];
   private clock = new THREE.Clock();
@@ -52,7 +60,13 @@ export class Phase1Scene {
 
     this.renderer = this.createSafeRenderer(initW, initH);
 
+    // Custom map integration: #r3f-root hosts the live 5x5 Accra grid
+    // (src/r3f — the player-facing world). It renders ABOVE this canvas,
+    // so it must survive the container wipe below.
+    const r3fRoot = document.getElementById('r3f-root');
+    r3fRoot?.remove();
     container.innerHTML = '';
+    if (r3fRoot) container.appendChild(r3fRoot);
     container.appendChild(this.renderer.domElement);
 
     this.setupLighting();
@@ -199,11 +213,13 @@ export class Phase1Scene {
     this.thirdPersonCamera.update(dt, this.player.position, this.colliders);
     this.interactionSystem.update(dt, this.player.position, this.player.getForwardVector());
 
-    try {
-      this.renderer.render(this.scene, this.thirdPersonCamera.camera);
-    } catch {
-      this.switchToFallbackRenderer();
-      this.renderer.render(this.scene, this.thirdPersonCamera.camera);
+    if (this.renderEnabled) {
+      try {
+        this.renderer.render(this.scene, this.thirdPersonCamera.camera);
+      } catch {
+        this.switchToFallbackRenderer();
+        this.renderer.render(this.scene, this.thirdPersonCamera.camera);
+      }
     }
   };
 }

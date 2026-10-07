@@ -19,6 +19,8 @@ import {
   ACCRA_EVERYDAY_EXPENSES,
   EconomyManager
 } from './game/Economy/EconomyManager';
+import { createGameAPI, GameAPI } from './game/GameAPI';
+import { TrotroService } from './game/World/TrotroService';
 import { JobManager } from './game/Jobs/JobManager';
 import {
   ACCRA_LEGAL_JOBS,
@@ -33,11 +35,13 @@ import { PlacementEngine, buildPlacedFurnitureMesh } from './game/Housing/Placem
 import { HomeFurnitureVisuals } from './game/Home/HomeFurnitureVisuals';
 import { fetchHomeShowcase, publishHomeShowcase, setDevShowcaseOverride } from './game/Home/HomeShowcase';
 import { rebuildPlayerCompoundForTier, isPlayerInCompoundCutaway } from './game/World/PlayerCompound';
+import { HOME_COMPOUND_ANCHOR } from './game/World/GridMap';
 import { PresenceManager, type PresenceStatus } from './game/Multiplayer/PresenceManager';
 import { LocationChatManager } from './game/Multiplayer/LocationChatManager';
 import { FriendsSystem, type FriendEntry, type InboxMessageView } from './game/Multiplayer/FriendsSystem';
 import type { NearbyPlayer, ChatMessageView } from './game/Multiplayer/types';
 import { getLocationAt, getLocationDef, type LocationId } from './game/World/Locations';
+import { TROTRO_BOARD_EVENT } from './r3f/gameAPIBridge';
 
 const container = document.getElementById('viewportContainer');
 const promptEl = document.getElementById('interactionPrompt');
@@ -81,6 +85,8 @@ let sprintToggled = false;
 let currentModalTab: ModalTabId = 'jobs';
 let currentFocusedInteractableId: string | null = null;
 let phase1SceneRef: Phase1Scene | null = null;
+/** Live GameAPI bridge (AI-agent skill layer routing, skills/tro-tro-system.md). */
+let gameAPI: GameAPI | null = null;
 
 // ---- Multiplayer (presence + chat) module refs ----
 let presenceManager: PresenceManager | null = null;
@@ -145,6 +151,14 @@ const visitFurnitureMeshes: THREE.Object3D[] = [];
 const visitPingSentFor = new Set<string>();
 
 const economyManager = new EconomyManager();
+/** Real passenger/capacity state for the ACC_TROTRO_001 van (skills v3.1). */
+const trotroService = new TrotroService();
+// Persist ACC_TROTRO_001 seat counts inside the economy snapshot (and
+// restore them on loadFromPersistence).
+economyManager.bindTrotroPassengerState(
+  () => trotroService.getSnapshot(),
+  (n) => trotroService.loadPassengers(n)
+);
 const jobSystem = new JobManager(economyManager);
 const crimeSystem = new HeatSystem(economyManager);
 const needsSystem = new NeedsSystem();
@@ -159,7 +173,13 @@ let lastLiveEventShownSeconds = -1;
 // instanceId → live mesh. Lets us add/remove meshes the moment furniture is
 // placed or sold, instead of waiting for the next game reload.
 // Shared room origin (compound interior floor center, per PlayerCompound).
-const ROOM_ORIGIN = new THREE.Vector3(-10.5, 0.24, 11.1);
+// Derived from GridMap.HOME_COMPOUND_ANCHOR (adabraka cell [row 0, col 1],
+// world [-16, -32]); the interior floor sits 1.1 m south of the anchor.
+const ROOM_ORIGIN = new THREE.Vector3(
+  HOME_COMPOUND_ANCHOR.world[0],
+  0.24,
+  HOME_COMPOUND_ANCHOR.world[1] - 1.1
+);
 // Debounce handle for the housing → Firestore cloud sync.
 let housingCloudSyncTimer: ReturnType<typeof setTimeout> | null = null;
 let playerDisplayName = 'Chale';
@@ -369,6 +389,13 @@ needsSystem.onUpdate(() => syncNeedsHUD());
 
 function updateInteractionPromptUI(target: InteractableTarget | null): void {
   if (!promptEl || !promptTitleEl) return;
+  // Custom map integration: the R3F layer renders its own GTA-style
+  // boarding prompt + Mate panel for the tro-tro stop (bottom-center,
+  // same position as this DOM prompt) — keep this one hidden for it.
+  if (target && target.id === 'trotro_stop') {
+    promptEl.classList.remove('visible', 'objective-match');
+    return;
+  }
   if (target) {
     const obj = getActiveObjectiveInfo();
     const match = obj && obj.targetInteractableId === target.id;
@@ -1136,15 +1163,17 @@ const placedFurnitureMeshes = new Map<string, THREE.Group>();
  * render previously-placed furniture on game start.
  *
  * Called from startGame() after Phase1Scene is created. The room origin
- * is set to the player's compound interior floor center (-10.5, 0.24, 11.1)
- * — matches PlayerCompound's interior floor position.
+ * is set to the player's compound interior floor center — derived from
+ * GridMap.HOME_COMPOUND_ANCHOR (adabraka cell [row 0, col 1], world
+ * [-16, -32]) with the floor 1.1 m south of the anchor.
  */
 function initHousingEngine(phase1: Phase1Scene): void {
-  // The compound is at world (-10.5, 0, 12.2); the interior floor is at
+  // The compound is at the GridMap.HOME_COMPOUND_ANCHOR (adabraka cell
+  // [row 0, col 1], world [-16, 0, -32]); the interior floor is at
   // y=0.24 (per PlayerCompound's interiorFloorMesh position). The room
   // center (where the placement engine's origin sits) is at the interior
-  // floor center, which is around (-10.5, 0.24, 11.1) — slightly south of
-  // the compound group's position because the interior is offset.
+  // floor center — slightly south of the compound group's position
+  // because the interior is offset.
   placementEngine = new PlacementEngine(
     phase1.scene,
     phase1.thirdPersonCamera.camera,
@@ -1334,6 +1363,15 @@ function hidePlacementHud(): void {
 }
 
 function handleWorldTargetInteracted(target: InteractableTarget): void {
+  // Custom map integration: the R3F layer (src/r3f/TroTroBoarding.tsx) owns
+  // tro-tro boarding UI — the Mate panel, fare gates and seat state. Route
+  // the [E] key into that panel instead of the DOM modals
+  // (skills/tro-tro-system.md [ROUTING], live bridge row).
+  if (target.id === 'trotro_stop') {
+    window.dispatchEvent(new CustomEvent(TROTRO_BOARD_EVENT));
+    return;
+  }
+
   const illegalAdvance = crimeSystem.tryAdvanceAtInteractable(target.id, target.assetId);
   if (illegalAdvance.handled) {
     showInteractionFeedback(illegalAdvance.message, illegalAdvance.arrested);
@@ -1417,7 +1455,13 @@ function startGame(profile: OnboardingResult): void {
   }
 
   if (container) {
+    // Custom map integration: #r3f-root hosts the live 5x5 Accra grid
+    // (src/r3f — the player-facing world). Preserve it across the wipe so
+    // the custom map keeps rendering above the systems-hosting scene.
+    const r3fRoot = document.getElementById('r3f-root');
+    if (r3fRoot) r3fRoot.remove();
     container.innerHTML = '';
+    if (r3fRoot) container.appendChild(r3fRoot);
     const phase1 = new Phase1Scene(
       container,
       {
@@ -1427,6 +1471,26 @@ function startGame(profile: OnboardingResult): void {
       { look: { skin: profile.skin, hair: profile.hair } }
     );
     phase1SceneRef = phase1;
+    // GameAPI bridge — live wiring for the AI-agent skill layer
+    // (skills/tro-tro-system.md [ROUTING]): every AI-facing call below
+    // routes 1:1 into the owning system. Exposed on window so the agent
+    // host (and devtools) can drive the game without touching internals.
+    gameAPI = createGameAPI({
+      economy: economyManager,
+      player: phase1.player,
+      input: phase1.inputManager,
+      interactions: phase1.interactionSystem,
+      trotro: trotroService
+    });
+    (window as unknown as { GameAPI?: GameAPI }).GameAPI = gameAPI;
+    // Custom map: the R3F canvas owns the visible view — keep this scene
+    // SIMULATING (movement, interactions, NPC rigs) but skip its renderer
+    // to save GPU. Falls back to rendering if the R3F root is missing.
+    if (document.getElementById('r3f-root')) {
+      phase1.renderEnabled = false;
+    }
+    // Dev/debug handle — mirrors the window.__r3fScene/__r3fCamera pattern.
+    (window as unknown as { __phase1Scene?: Phase1Scene }).__phase1Scene = phase1;
     rebuildPlayerCompoundForTier(homeSystem.getHousingTierId());
     homeVisuals = new HomeFurnitureVisuals(phase1.scene);
     // Fixed-slot rendering disabled — PlacementEngine is the sole furniture renderer;

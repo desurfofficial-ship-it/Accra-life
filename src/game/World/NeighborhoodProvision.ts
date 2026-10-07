@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ColliderBox } from '../Player/PlayerController';
 import { InteractableTarget } from '../Player/InteractionSystem';
 import { sharedArtLibrary } from '../Art/AssetRegistry';
+import { PROVISION_STORE_ANCHOR } from './GridMap';
 
 export function buildProvisionStore(
   scene: THREE.Scene,
@@ -10,7 +11,10 @@ export function buildProvisionStore(
 ): void {
   const group = new THREE.Group();
   group.name = 'ACC_SHOP_001';
-  group.position.set(-9.5, 0, -10.4);
+  // Custom map integration: the store stands on its Adabraka district cell
+  // [row 0, col 1] (GridMap.PROVISION_STORE_ANCHOR = world [-16, -32]) so
+  // the interactable coincides with the visible R3F map cell.
+  group.position.set(PROVISION_STORE_ANCHOR.world[0], 0, PROVISION_STORE_ANCHOR.world[1]);
 
   const matKioskBlue = sharedArtLibrary.getMaterial('shop_kiosk_blue', {
     color: 0x0284c7,
@@ -284,12 +288,16 @@ export function buildProvisionStore(
 
   scene.add(group);
 
+  // Collider tracks the relocated group (same local offsets as the old
+  // world: x -3.1..+3.1, z -2.4..+2.75 around the anchor).
+  const sx = PROVISION_STORE_ANCHOR.world[0];
+  const sz = PROVISION_STORE_ANCHOR.world[1];
   colliders.push({
     id: 'ACC_SHOP_001',
-    minX: -12.6,
-    maxX: -6.4,
-    minZ: -12.8,
-    maxZ: -7.65,
+    minX: sx - 3.1,
+    maxX: sx + 3.1,
+    minZ: sz - 2.4,
+    maxZ: sz + 2.75,
     height: 4.2
   });
 
@@ -299,8 +307,8 @@ export function buildProvisionStore(
     title: 'Adabraka Provision Store & MoMo',
     promptLabel: 'Shop',
     interactionResponse: 'Adabraka Provisions — Milo, Peak milk, sugar bread, MoMo.',
-    position: new THREE.Vector3(-9.5, 0.14, -6.7),
-    lookAtPosition: new THREE.Vector3(-9.5, 0.14, -8.2),
+    position: new THREE.Vector3(sx, 0.14, sz + 3.7),
+    lookAtPosition: new THREE.Vector3(sx, 0.14, sz + 2.2),
     radius: 3.4
   });
 }

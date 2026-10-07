@@ -4,6 +4,7 @@ import { InteractableTarget } from '../Player/InteractionSystem';
 import { sharedArtLibrary } from '../Art/AssetRegistry';
 import { buildStylizedGhanaianCharacter, CharacterRig } from '../Art/CharacterBuilder';
 import { getSurfaceHeightAt } from './WorldSurface';
+import { cellCenter } from './GridMap';
 
 export function buildUtilityPole(
   scene: THREE.Scene,
@@ -135,6 +136,13 @@ export function spawnPhase2TestNPCs(
   interactables: InteractableTarget[],
   npcRigs: CharacterRig[]
 ): void {
+  // Custom map integration: NPCs stand on their matching grid cells so the
+  // hidden-layer interactables coincide with the visible R3F map — Kojo and
+  // Ama hustle in the Makola market cells, Uncle Mensah stays on the
+  // Adabraka corner he calls home (offsets keep them clear of stall props).
+  const [kojoX, kojoZ] = cellCenter(2, 1);              // Makola west cell  [-16, 0]
+  const [amaCellX, amaCellZ] = cellCenter(2, 2);        // Makola SE cell    [0, 0]
+  const [mensahCellX, mensahCellZ] = cellCenter(1, 1);  // Adabraka corner   [-16, -16]
   const placements: Array<{
     id: 'NPC_MALE_001' | 'NPC_FEMALE_001' | 'NPC_OLDER_001';
     x: number;
@@ -145,24 +153,24 @@ export function spawnPhase2TestNPCs(
   }> = [
     {
       id: 'NPC_MALE_001',
-      x: -2.5,
-      z: -7.2,
+      x: kojoX,
+      z: kojoZ,
       title: 'Kojo',
       prompt: 'Talk',
       interactId: 'npc_male_001'
     },
     {
       id: 'NPC_FEMALE_001',
-      x: 4.0,
-      z: -7.0,
+      x: amaCellX + 3,
+      z: amaCellZ + 3,
       title: 'Ama',
       prompt: 'Talk',
       interactId: 'npc_female_001'
     },
     {
       id: 'NPC_OLDER_001',
-      x: -4.0,
-      z: 7.0,
+      x: mensahCellX - 3,
+      z: mensahCellZ + 3,
       title: 'Uncle Mensah',
       prompt: 'Errand',
       interactId: 'npc_older_001'

@@ -1,0 +1,11 @@
+Model Information:
+* title:	Residential Furniture
+* source:	https://sketchfab.com/3d-models/residential-furniture-622e5089f251459fb8fc321646432e22
+* author:	ATD-London (https://sketchfab.com/ATD-London)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Residential Furniture" (https://sketchfab.com/3d-models/residential-furniture-622e5089f251459fb8fc321646432e22) by ATD-London (https://sketchfab.com/ATD-London) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
