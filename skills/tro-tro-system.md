@@ -1,12 +1,13 @@
 ---
 name: tro-tro-system
-version: 4.8.0
-domain: trotro boarding & transit (GameAPI six-method contract on the
-  live custom grid map, incl. the van lifecycle state machine)
+version: 4.9.0
+domain: trotro boarding & transit (GameAPI contract on the
+  live custom grid map, incl. the van lifecycle state machine and the
+  NORMAL/RUSH_HOUR world-event surface)
 description: >
   Governs how AI agents board the Accra trotro through the live GameAPI
   bridge (window.GameAPI, wired in src/main.ts startGame()). The [CONTRACT]
-  is the owner-issued six-method surface — every call is a real method on
+  is the owner-issued contract surface — every call is a real method on
   src/game/GameAPI.ts, runtime smoke-tested. v4.6 adds the physical van
   state: getTrotroStatus() exposes the phase-5 lifecycle state machine
   (EN_ROUTE → ARRIVING → IDLE_AT_STOP → BOARDING → DEPARTING) and [LOGIC]
@@ -17,11 +18,21 @@ description: >
   the Mate voice now matches real Accra station culture — route barks
   with intermediate stops ("Osu! Circle! Osu! Circle!"), the iconic
   change call ("Enter with your change o!"), and a dwell bark so the
-  Mate is LOUDEST while the van waits to fill, not silent. The [ROUTING]
+  Mate is LOUDEST while the van waits to fill, not silent. v4.9 adds the
+  world-event layer: gameAPI.getCurrentEvent() exposes the shared
+  NORMAL ↔ RUSH_HOUR cycle — during RUSH_HOUR the door fare surges ×1.5
+  (₵5 → ₵7.5 via gameAPI.getFareDue()), the van cycles ~40% faster and
+  the Mate barks the chaos line 'Circle! Circle! Rush hour o! No time to
+  argue, enter or stay!'. The [ROUTING]
   section maps each method to the src/game/ file that actually executes it.
 format: hybrid — [CONTRACT] GameAPI methods + [ROUTING] + [LOGIC] + [EXAMPLES] (TypeScript)
-contract_policy: six-method surface, copy-exact from src/game/GameAPI.ts
-supersedes: v4.7.0 (fare dwell: the unboarded van departs on its own —
+contract_policy: nine-method surface (six core + three v4.9 event
+  methods), copy-exact from src/game/GameAPI.ts
+supersedes: v4.8.0 (Mate-voice culture pass: route barks + DWELL
+  fill-up barks — unchanged; v4.9 adds the EventService world-event
+  cycle, the getCurrentEvent/getFareDue/getEventMultiplier bridge
+  methods, the surged door fare and the rush-hour Mate voice);
+  v4.7.0 (fare dwell: the unboarded van departs on its own —
   unchanged; v4.8 adds the Mate-voice culture pass: MATE_LINES.ARRIVING
   route barks + MATE_LINES.DWELL fill-up barks, LivingTrotro dwell shout);
   v4.6.0 (van lifecycle state machine: the getTrotroStatus bridge
@@ -113,6 +124,22 @@ gameAPI.isTrotroFull(): boolean;    // true ⇒ mate refuses ("No space! Next on
 
 gameAPI.boardPassenger(): boolean;  // false ⇒ van not docked (state gate) or
                                     //         filled between checks
+
+// ── v4.9 world-event surface (Rush Hour) ────────────────────────────
+
+gameAPI.getCurrentEvent(): 'NORMAL' | 'RUSH_HOUR';
+//   The live world event, shared by every game layer (EventService
+//   singleton). RUSH_HOUR: door fare surges ×1.5 (₵5 → ₵7.5), the van
+//   cycles ~40% faster (dwell 8 s → ~5 s) and the Mate barks the chaos
+//   line. Read this BEFORE starting the boarding sequence.
+
+gameAPI.getEventMultiplier(): number; // 1.0 (NORMAL) | 1.5 (RUSH_HOUR)
+
+gameAPI.getFareDue(): number;
+//   The fare actually due at the door right now: base × event
+//   multiplier — ₵5 normally, ₵7.5 during RUSH_HOUR. THE number to
+//   debit; never hardcode ₵5 — getCanonicalFareGHS() stays the BASE
+//   price (₵5) and getFareDue() is the door price.
 ```
 
 No other call is part of this skill's contract. (The bridge exposes more —
@@ -137,6 +164,14 @@ boot with the live instances; every method delegates 1:1:
   `Wallet.spendMoney` in `src/game/Economy/Wallet.ts`** — the bridge
   applies `category: 'TRANSPORT'` when it is omitted, so the ledger row is
   always a fare row.
+- **When the AI calls `gameAPI.getCurrentEvent()`, `getEventMultiplier()`
+  or `getFareDue()`, the GameAPI bridge routes these to the shared
+  `eventService` singleton in `src/game/World/EventService.ts`** (the
+  NORMAL ↔ RUSH_HOUR cycle) **and `TrotroService.getFareDueGHS` in
+  `src/game/World/TrotroService.ts`** (base × multiplier, rounded to
+  pesewas). The door debit path (`TroTroBoarding`) passes this exact
+  amount into `purchaseEverydayExpense('EXP_TROTRO_FARE', { amountGHS:
+  getFareDue() })`, so the surge money and the ledger always agree.
 - **When the AI calls `gameAPI.hasOwnedItem('trotro_ticket_osu_circle')`,
   the GameAPI bridge routes this to
   `EconomyManager.getOwnershipFoundations().ownedItemIds` in
@@ -363,33 +398,59 @@ is the canonical module both the visuals and the game systems consume.
      that starts a purchase inside a closing window is how fares get
      burned. Wait for the next clean 'IDLE_AT_STOP'.
 
-2. **Capacity gate**: IF `gameAPI.isTrotroFull()` is true, the Mate
+2. **Event gate — read the world before quoting a fare (v4.9)**: call
+   `gameAPI.getCurrentEvent()` at the start of every boarding attempt and
+   branch the Mate's behavior:
+   - **IF `gameAPI.getCurrentEvent() === 'RUSH_HOUR'`**: the door fare is
+     dynamically higher — `gameAPI.getFareDue()` returns **₵7.5** (base
+     ₵5 × 1.5 surge multiplier; `getEventMultiplier()` reads 1.5). The
+     Mate's dialogue must change to reflect the chaos: **'Circle! Circle!
+     Rush hour o! No time to argue, enter or stay!'** — drop the relaxed
+     patter, quote the surged price, no haggling beats. The boarding
+     animation is faster/more urgent: the van dwell shrinks 8 s → ~5 s,
+     the Mate's greeting → capacity-check pacing drops 1500 ms → 700 ms,
+     and every other van phase compresses to ~60%. Budget the whole
+     purchase inside the shorter window — a stale 'IDLE_AT_STOP' read
+     burns faster here.
+   - **IF `gameAPI.getCurrentEvent() === 'NORMAL'`**: use the standard,
+     relaxed boarding logic and dialogue — flat ₵5 door fare
+     (`getFareDue()` = ₵5), the v4.8 route-call/dwell barks, spec
+     timings (2 s arrival / 8 s dwell / 5 s boarding).
+   - In BOTH branches the amount you debit MUST be `gameAPI.getFareDue()`
+     — never a hardcoded ₵5, never your own arithmetic on
+     `getCanonicalFareGHS()` (that stays the event-blind BASE price). The
+     event can flip mid-transaction; the bridge debits the door price it
+     reads at purchase time.
+
+3. **Capacity gate**: IF `gameAPI.isTrotroFull()` is true, the Mate
    refuses — 'No space! Next one!' — abort boarding. Do NOT call
    `spendMoney`. Wait for the next van (passenger turnover is automatic
    when the van cycle resets).
 
-3. **Fare gate + boarding**: IF `gameAPI.canAfford(5, 'CASH')` is true,
-   THEN call `gameAPI.spendMoney({ amount: 5, description: "Trotro fare
-   (Mate's van)", channel: 'CASH' })` and then `gameAPI.boardPassenger()`.
+4. **Fare gate + boarding**: IF `gameAPI.canAfford(gameAPI.getFareDue(),
+   'CASH')` is true, THEN call `gameAPI.spendMoney({ amount:
+   gameAPI.getFareDue(), description: "Trotro fare (Mate's van)",
+   channel: 'CASH' })` and then `gameAPI.boardPassenger()`.
    - A `null` receipt ⇒ the wallet refused the debit — abort and surface
      `E_INSUFFICIENT_FUNDS`.
    - A `false` from `gameAPI.boardPassenger()` ⇒ the van filled or pulled
      away between the checks — treat as a refusal; the fare is already
      paid and counts toward the next boarding attempt.
 
-4. **Ticket verification**: the canonical fare purchase grants the real
+5. **Ticket verification**: the canonical fare purchase grants the real
    owned item — after a successful `spendMoney`,
    `gameAPI.hasOwnedItem('trotro_ticket_osu_circle')` returns `true`.
    Verify it before declaring the boarding complete.
 
-5. **Recovery**: IF `gameAPI.canAfford(5, 'CASH')` is false, do NOT call
-   `spendMoney` — the Mate waves the player back ('Oga, you no get
-   change? Abeg shift make others enter.'). Earn first:
-   `JOB_TROTRO_MATE` (₵15, 30 s cooldown) via the economy flow, then
-   retry the sequence.
+6. **Recovery**: IF `gameAPI.canAfford(gameAPI.getFareDue(), 'CASH')` is
+   false, do NOT call `spendMoney` — the Mate waves the player back
+   ('Oga, you no get change? Abeg shift make others enter.'; during
+   RUSH_HOUR he is even less patient). Earn first: `JOB_TROTRO_MATE`
+   (₵15, 30 s cooldown) via the economy flow, then retry the sequence.
 
-**Ordering is mandatory**: `getTrotroStatus()` → `isTrotroFull()` →
-`canAfford()` → `spendMoney()` → `boardPassenger()` → `hasOwnedItem()`.
+**Ordering is mandatory**: `getTrotroStatus()` → `getCurrentEvent()` →
+`isTrotroFull()` → `canAfford(getFareDue())` → `spendMoney(getFareDue())` →
+`boardPassenger()` → `hasOwnedItem()`.
 Calling `spendMoney` while the van is not 'IDLE_AT_STOP', or
 `boardPassenger` before the debit, is a contract violation.
 
@@ -473,6 +534,65 @@ async function boardTrotro(fare: number): Promise<
   const ticketHeld = gameAPI.hasOwnedItem('trotro_ticket_osu_circle'); // true
 
   return 'BOARDED';                          // balance now ₵15, van 1 seat fuller
+}
+```
+
+### Rush Hour boarding — event-aware surge fare (v4.9)
+
+```ts
+// Player walks up to the Osu–Circle stop mid-RUSH_HOUR.
+// Base fare ₵5 × 1.5 surge = ₵7.5 due at the door. Balance: ₵500.
+async function boardTrotroRushHour(): Promise<
+  'BOARDED_RUSH' | 'VAN_MOVING' | 'VAN_FULL' | 'NO_FUNDS' | 'DEBIT_REFUSED'
+> {
+  // 0. State gate (unchanged, MANDATORY FIRST) — the van must be docked,
+  //    and in RUSH_HOUR the dwell is only ~5 s, so act on a FRESH read.
+  if (gameAPI.getTrotroStatus() !== 'IDLE_AT_STOP') {
+    return 'VAN_MOVING';                     // van cycling — wait at the stop
+  }
+
+  // 1. Event gate (v4.9) — read the world, branch the Mate's voice.
+  const event = gameAPI.getCurrentEvent();          // 'RUSH_HOUR'
+  const fareDue = gameAPI.getFareDue();             // 7.5  (base 5 × 1.5)
+  if (event === 'RUSH_HOUR') {
+    // The chaos voice — exactly the [LOGIC] line, delivered BEFORE any
+    // money moves. The Mate has no time to argue; neither should the AI.
+    // (The Mate's own voice comes from MATE_LINES.RUSH_HOUR via
+    // LivingTrotro; the agent mirrors it in its own narration log.)
+    console.log('[mate] Circle! Circle! Rush hour o! No time to argue, enter or stay!');
+    console.log(`[mate] Door fare now ₵${fareDue} — no haggling today!`);
+  }
+  // NORMAL branch: skip the bark, quote the flat ₵5, use the relaxed
+  // route-call patter and full spec timings.
+
+  // 2. Capacity gate — unchanged.
+  if (gameAPI.isTrotroFull()) {
+    return 'VAN_FULL';                       // Mate: 'No space! Next one!'
+  }
+
+  // 3. Fare gate on the DOOR price — canAfford(7.5, 'CASH') → true.
+  if (!gameAPI.canAfford(fareDue, 'CASH')) {
+    return 'NO_FUNDS';
+  }
+
+  // 4. Debit the surged door price — ledger row: TRANSPORT / CASH,
+  //    description flags the surge (500 → 492.5).
+  const receipt = gameAPI.spendMoney({
+    amount: fareDue,                         // 7.5 — NEVER a hardcoded 5
+    description: "Trotro fare (Mate's van) — rush hour",
+    channel: 'CASH'
+  });
+  if (!receipt) return 'DEBIT_REFUSED';
+
+  // 5. Seat the passenger — the BOARDING window auto-closes in ~3 s
+  //    during RUSH_HOUR (5 s × 0.6 speed factor), so board immediately.
+  const seated = gameAPI.boardPassenger();   // true
+  if (!seated) return 'VAN_MOVING';          // door shut mid-transaction
+
+  // 6. Ticket proof — same SKU as NORMAL.
+  const ticketHeld = gameAPI.hasOwnedItem('trotro_ticket_osu_circle'); // true
+
+  return 'BOARDED_RUSH';                     // balance now ₵492.5, ticket held
 }
 ```
 
