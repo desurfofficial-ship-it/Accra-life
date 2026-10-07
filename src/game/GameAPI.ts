@@ -163,10 +163,6 @@ export class GameAPI {
     return this.trotro.getSnapshot();
   }
 
-  public isTrotroFull(): boolean {
-    return this.trotro.isFull();
-  }
-
   /** `false` → van full, mate refuses ("No space! Next one!"). */
   public boardPassenger(): boolean {
     return this.trotro.boardPassenger();
@@ -174,6 +170,37 @@ export class GameAPI {
 
   public alightPassenger(): boolean {
     return this.trotro.alightPassenger();
+  }
+
+  public getCurrentPassengers(): number {
+    return this.trotro.getCurrentPassengers();
+  }
+
+  public getCapacity(): number {
+    return this.trotro.getCapacity();
+  }
+
+  public getSeatsAvailable(): number {
+    return this.trotro.getSeatsAvailable();
+  }
+
+  public isFull(): boolean {
+    return this.trotro.isFull();
+  }
+
+  /** Bulk load (world-state rebuild); returns passengers actually seated. */
+  public loadPassengers(count: number): number {
+    return this.trotro.loadPassengers(count);
+  }
+
+  /** Van pulls away / depot reset — empties the vehicle. */
+  public resetVehicle(): void {
+    this.trotro.resetVehicle();
+  }
+
+  /** Canonical Osu–Circle fare from the real SKU table. */
+  public getCanonicalFareGHS(): number {
+    return this.trotro.getCanonicalFareGHS();
   }
 }
 

@@ -1,6 +1,6 @@
 ---
 name: tro-tro-system
-version: 3.1.0
+version: 3.1.1
 domain: trotro boarding & transit (real-symbol contract + real GameAPI bridge)
 description: >
   Governs how AI agents handle Tro-tro interactions using ONLY functions
@@ -12,7 +12,9 @@ description: >
   a real service (TrotroService, capacity 14).
 format: hybrid — [CONTRACT] real exports + [ROUTING] GameAPI bridge + [LOGIC] + [EXAMPLES]
 contract_policy: zero invented names — every symbol below is copy-exact from src
-supersedes: v3.0.0 (real-symbol rewrite; ticket + capacity were flagged
+supersedes: v3.1.0 (now live-wired in src/main.ts and exposed as
+  window.GameAPI; runtime smoke-tested end to end);
+  v3.0.0 (real-symbol rewrite; ticket + capacity were flagged
   not-in-src — both are now implemented in src and contracted here);
   v2.1.0 GridLocation spec — dropped: no grid type exists in src;
   v1.0.0 deep mechanics live in skills/tro-tro-adapter.ts
@@ -263,10 +265,13 @@ export function createGameAPI(options?: GameAPIOptions): GameAPI;
 ## [ROUTING] GameAPI Bridge
 
 The AI never imports `src/` directly. Every call crosses the **GameAPI
-bridge** — as of v3.1 a real file: `src/game/GameAPI.ts`. Construct it at
-boot with `createGameAPI({ economy, player, input, interactions, trotro })`
-(hand it the live instances built in `src/main.ts`); every method then
-delegates 1:1 to the owning system. Routing rules:
+bridge** — as of v3.1 a real file: `src/game/GameAPI.ts`. It is wired live
+in `src/main.ts` `startGame()` — `createGameAPI({ economy, player, input,
+interactions, trotro })` with the boot-time live instances — and exposed as
+**`window.GameAPI`** for the agent host and devtools. Every method
+delegates 1:1 to the owning system; runtime smoke test verified all 22
+routed methods end-to-end (fare purchase grants the ticket, capacity
+refusal at 14/14, Mate interaction at the stop). Routing rules:
 
 - **When the AI calls `spendMoney(params)`, the GameAPI bridge routes this to
   `Wallet.spendMoney` in `src/game/Economy/Wallet.ts`.**
