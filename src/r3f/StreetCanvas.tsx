@@ -27,6 +27,7 @@ import { InteriorFurniture } from './InteriorFurniture';
 import { BuildingAssets } from './BuildingAssets';
 import { TroTroBoarding, DEMO_FARE, DEMO_START_BALANCE } from './TroTroBoarding';
 import { LivingTrotro } from './LivingTrotro';
+import { LivingPlayerAvatar } from './LivingPlayerAvatar';
 import { LivingVendor } from './LivingVendor';
 import { TrotroService } from '../game/World/TrotroService';
 import { MAKOLA_VENDOR_STAND_WORLD } from '../game/World/GridMap';
@@ -52,6 +53,9 @@ interface PlayerAvatarProps {
 
 function PlayerAvatar({ groupRef }: PlayerAvatarProps) {
   const keysRef = useRef<Record<string, boolean>>({});
+  // Phase-8 animation-gating: tracks whether the player is currently moving
+  // (dx/dz ≠ 0) so LivingPlayerAvatar can pause the walk animation when idle.
+  const isMovingRef = useRef(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => { keysRef.current[e.key.toLowerCase()] = true; };
@@ -99,6 +103,9 @@ function PlayerAvatar({ groupRef }: PlayerAvatarProps) {
       while (diff < -Math.PI) diff += Math.PI * 2;
       groupRef.current.rotation.y += diff * 0.15;
     }
+    // Phase-8 animation gating: write isMoving so LivingPlayerAvatar's
+    // useFrame can pause/resume the walk animation.
+    isMovingRef.current = (dx !== 0 || dz !== 0);
   });
 
   // Spawn at Adabraka (cell [0,0] = home district)
@@ -106,18 +113,11 @@ function PlayerAvatar({ groupRef }: PlayerAvatarProps) {
 
   return (
     <group ref={groupRef} position={[spawnX, 0, spawnZ]}>
-      <mesh position={[0, 0.9, 0]} castShadow>
-        <capsuleGeometry args={[0.22, 0.6, 8, 16]} />
-        <meshStandardMaterial color="#2563eb" roughness={0.5} />
-      </mesh>
-      <mesh position={[0, 1.55, 0]} castShadow>
-        <sphereGeometry args={[0.18, 16, 12]} />
-        <meshStandardMaterial color="#60a5fa" roughness={0.5} />
-      </mesh>
-      <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.35, 16]} />
-        <meshBasicMaterial color="#000000" transparent opacity={0.25} />
-      </mesh>
+      {/* Phase-8: real rigged character model (Sunset Walking Low Poly Girl
+          by micaelsampaio, CC-BY-4.0). Walk animation plays on loop; the
+          isMovingRef gates it — paused when the player stands still, resumed
+          when WASD/joystick input is non-zero. */}
+      <LivingPlayerAvatar isMovingRef={isMovingRef} />
     </group>
   );
 }
