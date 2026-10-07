@@ -2,21 +2,42 @@
  * StreetCanvas.tsx — Phase-1 R3F Bridge
  *
  * Renders:
- * 1. An OrthographicCamera (flat, 2D-like view)
- * 2. An Accra street plane (asphalt + markings + sidewalks)
- * 3. A Tro-tro Stop model (yellow sign + small shelter)
- * 4. A Player Avatar (capsule mesh that moves with WASD/arrows)
- * 5. useFrame distance check: when the avatar is within 2m of the
- *    tro-tro stop, logs "Tro-tro interaction available" to the console
- * 6. OrbitControls so the 3D plane can be rotated
+ * 1. OrthographicCamera (flat, 2D-like view)
+ * 2. Accra street plane (asphalt + markings + sidewalks)
+ * 3. <TroTroStop /> — modular yellow sign at [0, 0, 0]
+ * 4. Player Avatar — WASD movement + useFrame distance check
+ *    to TroTroStop. When distance < 3m, logs:
+ *    'Tro-tro interaction available: Press E to board'
+ * 5. OrbitControls for view rotation
  *
- * The existing GTA-style HUD (from index.html) stays FIXED on top.
+ * The existing GTA-style HUD (from index.html) stays fixed on top.
+ *
+ * Ready to hook into tro-tro-system.md skill logic: the PlayerAvatar
+ * accepts an optional `onTroTroBoard` callback. When the player is in
+ * range and presses E, the callback fires (default: console.log).
  */
 
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrthographicCamera, OrbitControls } from '@react-three/drei';
-import { useRef, useState, useEffect, type RefObject } from 'react';
+import { useRef, useEffect } from 'react';
 import * as THREE from 'three';
+import { TroTroStop } from './TroTroStop';
+
+// ────────────────────────────────────────────────────────────────────────────
+// Constants
+// ────────────────────────────────────────────────────────────────────────────
+
+/** World position of the Tro-tro Stop sign. */
+const TROTRO_STOP_POSITION: [number, number, number] = [0, 0, 0];
+
+/** Distance (meters) within which the tro-tro interaction is available. */
+const INTERACTION_RANGE = 3;
+
+/** Movement speed (meters/second). */
+const MOVE_SPEED = 4.0;
+
+/** World bounds for clamping the avatar. */
+const WORLD_BOUNDS = { minX: -24, maxX: 24, minZ: -16, maxZ: 16 };
 
 // ────────────────────────────────────────────────────────────────────────────
 // Accra Street Plane
@@ -25,37 +46,28 @@ import * as THREE from 'three';
 function AccraStreetPlane() {
   return (
     <group>
-      {/* Asphalt road (68m × 7m) */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <boxGeometry args={[68, 0.02, 7.0]} />
         <meshStandardMaterial color="#2e3846" roughness={0.86} />
       </mesh>
-
-      {/* Center dashed line */}
       {Array.from({ length: 13 }).map((_, i) => (
         <mesh key={`dash-${i}`} position={[-28 + i * 5.4, 0.021, 0]}>
           <boxGeometry args={[2.4, 0.01, 0.16]} />
           <meshStandardMaterial color="#f8fafc" />
         </mesh>
       ))}
-
-      {/* Edge lines (yellow) */}
       {[-3.35, 3.35].map((z, i) => (
         <mesh key={`edge-${i}`} position={[0, 0.021, z]}>
           <boxGeometry args={[68, 0.01, 0.1]} />
           <meshStandardMaterial color="#facc15" />
         </mesh>
       ))}
-
-      {/* Sidewalks */}
       {[-6.05, 6.05].map((z, i) => (
         <mesh key={`sidewalk-${i}`} position={[0, 0.04, z]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <boxGeometry args={[68, 0.08, 3.3]} />
           <meshStandardMaterial color="#64748b" roughness={0.8} />
         </mesh>
       ))}
-
-      {/* Laterite ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
         <boxGeometry args={[88, 0.01, 88]} />
         <meshStandardMaterial color="#a6754b" roughness={0.94} />
@@ -65,71 +77,33 @@ function AccraStreetPlane() {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Tro-tro Stop — yellow sign + small shelter
+// Player Avatar — WASD movement + useFrame distance check to TroTroStop
 // ────────────────────────────────────────────────────────────────────────────
 
-const TROTRO_STOP_POSITION: [number, number, number] = [9.0, 0, 5.0];
-
-function TrotroStop() {
-  return (
-    <group position={TROTRO_STOP_POSITION}>
-      {/* Shelter roof (flat box) */}
-      <mesh position={[0, 2.6, -2.5]} castShadow>
-        <boxGeometry args={[4.5, 0.12, 2.8]} />
-        <meshStandardMaterial color="#64748b" roughness={0.7} />
-      </mesh>
-
-      {/* Shelter posts (2) */}
-      {[-2.0, 2.0].map((x, i) => (
-        <mesh key={`post-${i}`} position={[x, 1.25, -2.5]} castShadow>
-          <cylinderGeometry args={[0.08, 0.1, 2.5, 8]} />
-          <meshStandardMaterial color="#64748b" roughness={0.7} />
-        </mesh>
-      ))}
-
-      {/* Bench under shelter */}
-      <mesh position={[0, 0.4, -2.3]} castShadow>
-        <boxGeometry args={[3.6, 0.4, 0.5]} />
-        <meshStandardMaterial color="#78350f" roughness={0.72} />
-      </mesh>
-
-      {/* Yellow "TROTRO" sign post */}
-      <mesh position={[0, 1.5, 0]} castShadow>
-        <cylinderGeometry args={[0.04, 0.04, 3.0, 8]} />
-        <meshStandardMaterial color="#1f2937" roughness={0.4} metalness={0.6} />
-      </mesh>
-
-      {/* Sign panel (yellow plane) */}
-      <mesh position={[0, 2.2, 0.02]}>
-        <planeGeometry args={[1.2, 0.4]} />
-        <meshStandardMaterial color="#facc15" roughness={0.4} side={THREE.DoubleSide} />
-      </mesh>
-
-      {/* Sign text stripe (blue band) */}
-      <mesh position={[0, 2.2, 0.03]}>
-        <planeGeometry args={[1.0, 0.14]} />
-        <meshStandardMaterial color="#005bb5" roughness={0.4} side={THREE.DoubleSide} />
-      </mesh>
-    </group>
-  );
+interface PlayerAvatarProps {
+  /** Callback when the player presses E while in range of the tro-tro stop.
+   *  Default: console.log. Ready to hook into tro-tro-system.md skill logic. */
+  onTroTroBoard?: () => void;
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Player Avatar — capsule mesh that moves with WASD/arrows
-// ────────────────────────────────────────────────────────────────────────────
-
-const MOVE_SPEED = 4.0; // meters per second
-const INTERACTION_RANGE = 2.0; // meters — trigger distance for tro-tro stop
-
-function PlayerAvatar({ trotroStopPosition }: { trotroStopPosition: [number, number, number] }) {
+function PlayerAvatar({ onTroTroBoard }: PlayerAvatarProps) {
   const groupRef = useRef<THREE.Group>(null);
   const keysRef = useRef<Record<string, boolean>>({});
-  const wasInRangeRef = useRef(false); // debounce: only log on ENTERING range
+  const wasInRangeRef = useRef(false);
 
-  // Set up keyboard listeners
+  // Keyboard listeners — store in ref for efficient per-frame reads
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       keysRef.current[e.key.toLowerCase()] = true;
+
+      // E key — boarding action (only fires if currently in range)
+      if (e.key.toLowerCase() === 'e' && wasInRangeRef.current) {
+        if (onTroTroBoard) {
+          onTroTroBoard();
+        } else {
+          console.log('Boarding tro-tro... (skill logic not yet hooked)');
+        }
+      }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
       keysRef.current[e.key.toLowerCase()] = false;
@@ -140,13 +114,13 @@ function PlayerAvatar({ trotroStopPosition }: { trotroStopPosition: [number, num
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, []);
+  }, [onTroTroBoard]);
 
-  // useFrame: move the avatar + check distance to tro-tro stop
+  // useFrame — movement + distance check (runs every frame, synced to render)
   useFrame((_state, delta) => {
     if (!groupRef.current) return;
 
-    // Read keyboard input → movement vector
+    // ── Read keyboard → movement vector ──
     const keys = keysRef.current;
     let dx = 0;
     let dz = 0;
@@ -155,44 +129,46 @@ function PlayerAvatar({ trotroStopPosition }: { trotroStopPosition: [number, num
     if (keys['a'] || keys['arrowleft']) dx -= 1;
     if (keys['d'] || keys['arrowright']) dx += 1;
 
-    // Normalize diagonal movement
+    // Normalize diagonal
     if (dx !== 0 || dz !== 0) {
       const len = Math.sqrt(dx * dx + dz * dz);
       dx /= len;
       dz /= len;
     }
 
-    // Apply movement (delta = seconds since last frame)
+    // Apply movement
     const moveDist = MOVE_SPEED * delta;
     groupRef.current.position.x += dx * moveDist;
     groupRef.current.position.z += dz * moveDist;
 
-    // Clamp to world bounds (±25 X, ±17 Z)
-    groupRef.current.position.x = THREE.MathUtils.clamp(groupRef.current.position.x, -24, 24);
-    groupRef.current.position.z = THREE.MathUtils.clamp(groupRef.current.position.z, -16, 16);
+    // Clamp to world bounds
+    groupRef.current.position.x = THREE.MathUtils.clamp(
+      groupRef.current.position.x, WORLD_BOUNDS.minX, WORLD_BOUNDS.maxX
+    );
+    groupRef.current.position.z = THREE.MathUtils.clamp(
+      groupRef.current.position.z, WORLD_BOUNDS.minZ, WORLD_BOUNDS.maxZ
+    );
 
-    // Rotate the avatar to face movement direction
+    // Smooth rotation toward movement direction
     if (dx !== 0 || dz !== 0) {
       const targetAngle = Math.atan2(dx, dz);
-      // Smooth rotation (lerp toward target angle)
       const current = groupRef.current.rotation.y;
       let diff = targetAngle - current;
-      // Wrap to shortest path
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
       groupRef.current.rotation.y += diff * 0.15;
     }
 
-    // ── Distance check: is the avatar within 2m of the tro-tro stop? ──
+    // ── Distance check: player vs Tro-tro Stop ──
     const playerPos = groupRef.current.position;
-    const stopPos = new THREE.Vector3(...trotroStopPosition);
+    const stopPos = new THREE.Vector3(...TROTRO_STOP_POSITION);
     const distance = playerPos.distanceTo(stopPos);
 
-    if (distance <= INTERACTION_RANGE) {
-      // Only log on ENTERING range (not every frame while inside)
+    if (distance < INTERACTION_RANGE) {
+      // Only log on ENTERING range (debounce — not every frame)
       if (!wasInRangeRef.current) {
         wasInRangeRef.current = true;
-        console.log('Tro-tro interaction available');
+        console.log('Tro-tro interaction available: Press E to board');
       }
     } else {
       wasInRangeRef.current = false;
@@ -200,20 +176,18 @@ function PlayerAvatar({ trotroStopPosition }: { trotroStopPosition: [number, num
   });
 
   return (
-    <group ref={groupRef} position={[0, 0, 5.8]}>
+    <group ref={groupRef} position={[0, 0, 8]}>
       {/* Body capsule (blue) */}
       <mesh position={[0, 0.9, 0]} castShadow>
         <capsuleGeometry args={[0.22, 0.6, 8, 16]} />
         <meshStandardMaterial color="#2563eb" roughness={0.5} />
       </mesh>
-
-      {/* Head sphere (lighter blue) */}
+      {/* Head sphere */}
       <mesh position={[0, 1.55, 0]} castShadow>
         <sphereGeometry args={[0.18, 16, 12]} />
         <meshStandardMaterial color="#60a5fa" roughness={0.5} />
       </mesh>
-
-      {/* Shadow blob (simple dark circle under the avatar) */}
+      {/* Shadow blob */}
       <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[0.35, 16]} />
         <meshBasicMaterial color="#000000" transparent opacity={0.25} />
@@ -234,15 +208,8 @@ export function StreetCanvas() {
       style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
       gl={{ antialias: true }}
     >
-      <OrthographicCamera
-        makeDefault
-        position={[0, 25, 25]}
-        zoom={18}
-        near={0.1}
-        far={100}
-      />
+      <OrthographicCamera makeDefault position={[0, 25, 25]} zoom={18} near={0.1} far={100} />
 
-      {/* Lighting */}
       <ambientLight intensity={0.6} />
       <directionalLight
         position={[10, 20, 5]}
@@ -252,18 +219,14 @@ export function StreetCanvas() {
         shadow-mapSize-height={1024}
       />
 
-      {/* Accra street */}
       <AccraStreetPlane />
 
-      {/* Tro-tro Stop model */}
-      <TrotroStop />
+      {/* Modular Tro-tro Stop at [0, 0, 0] — yellow cylinder sign */}
+      <TroTroStop position={TROTRO_STOP_POSITION} />
 
-      {/* Player Avatar — moves with WASD/arrows, checks distance to
-          tro-tro stop via useFrame */}
-      <PlayerAvatar trotroStopPosition={TROTRO_STOP_POSITION} />
+      {/* Player avatar with useFrame distance check + E key boarding */}
+      <PlayerAvatar />
 
-      {/* OrbitControls — rotate the view. Keyboard movement still
-          works because OrbitControls only captures mouse/touch. */}
       <OrbitControls
         enablePan={false}
         enableZoom={true}
