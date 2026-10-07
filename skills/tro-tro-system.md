@@ -1,7 +1,8 @@
 ---
 name: tro-tro-system
-version: 4.0.0
-domain: trotro boarding & transit (GameAPI five-method contract)
+version: 4.1.0
+domain: trotro boarding & transit (GameAPI five-method contract on the
+  live custom grid map)
 description: >
   Governs how AI agents board the Accra trotro through the live GameAPI
   bridge (window.GameAPI, wired in src/main.ts startGame()). The [CONTRACT]
@@ -10,15 +11,20 @@ description: >
   each method to the src/game/ file that actually executes it.
 format: hybrid — [CONTRACT] GameAPI methods + [ROUTING] + [LOGIC] + [EXAMPLES] (TypeScript)
 contract_policy: five-method surface, copy-exact from src/game/GameAPI.ts
-supersedes: v3.1.1 (wide src-signature contract — replaced by the
-  owner-issued five-method GameAPI surface; routing truth unchanged);
-  v3.0.0 real-symbol rewrite; v2.x GridLocation/GPS specs — dropped;
+supersedes: v4.0.0 (five-method contract — unchanged; v4.1 adds the live
+  custom 5x5 Accra grid map: the station cell, zone->LocationId map and
+  the R3F boarding panel that routes the same five methods);
+  v3.x real-symbol rewrites; v2.x GridLocation/GPS specs — dropped;
   v1.0.0 deep mechanics live in skills/tro-tro-adapter.ts
 source_files:
   - src/game/GameAPI.ts (the bridge — live at window.GameAPI)
   - src/game/Economy/Wallet.ts (canAfford / spendMoney)
   - src/game/Economy/EconomyManager.ts (hasOwnedItem → ownership)
   - src/game/World/TrotroService.ts (isTrotroFull / boardPassenger)
+  - src/game/World/GridMap.ts (canonical 5x5 grid: cells, districts,
+    zone->LocationId, TROTRO_STATION_GRID, TROTRO_DESTINATIONS)
+  - src/r3f/StreetCanvas.tsx + src/r3f/TroTroBoarding.tsx (the visible
+    custom map world — avatar, station, boarding panel)
 adapter: skills/agent-adapter.ts#GameBindings + skills/tro-tro-adapter.ts
 independence: callable alone; needs only the five methods below
 ---
@@ -92,6 +98,40 @@ Passenger turnover is automatic: the adapter seats the player on
 `board()` and frees seats when the van cycle resets
 (`skills/tro-tro-adapter.ts`), and every seat change is persisted into the
 `EconomyPersistence` snapshot via `EconomyManager.bindTrotroPassengerState`.
+
+## [ROUTING] The Live Custom Map (v4.1)
+
+The game world is the custom 5x5 Accra grid (`src/r3f`, mounted in
+`StreetCanvas.tsx` — 84 m, 12 m cells, 4 m roads). `src/game/World/GridMap.ts`
+is the canonical module both the visuals and the game systems consume.
+
+- **The station is at grid cell column 2, row 3** —
+  `GridMap.TROTRO_STATION_GRID = { x: 2, z: 3, zone: 'circle_station' }`,
+  world center `TROTRO_STATION_WORLD = [0, 16]`. The R3F interactive stop,
+  the hidden world's `trotro_stop` interactable (radius 3.5) and the Mate
+  panel all sit on the same cell.
+- **Zones map 1:1 onto real LocationIds** (`GridMap.resolveLocationIdOnGrid`,
+  consumed first by `Locations.getLocationAt`): adabraka →
+  `adabraka_neighborhood`, makola → `makola_market`, circle_station →
+  `circle_trotro_stop`, osu → `osu_oxford_street`, labadi →
+  `labadi_beach`. Roads/mixed cells fall through to legacy bounds.
+- **The visible player is the R3F avatar** (`StreetCanvas.PlayerAvatar`):
+  movement input comes from the real `InputManager` (keyboard WASD **and**
+  agent `gameAPI.setJoystickInput`), speeds are canon (4.5 walk / 7.3
+  sprint), and every frame the avatar's position + rotation are mirrored
+  into `PlayerController` — so `gameAPI.position`, `getActiveTarget()`,
+  `getLocationAt()`, presence and the location pill all follow the avatar.
+- **The GTA-style boarding panel on the map** (`src/r3f/TroTroBoarding.tsx`)
+  executes the same five-method sequence as [LOGIC]: proximity →
+  `isTrotroFull()` → `purchaseEverydayExpense('EXP_TROTRO_FARE')` (real
+  debit + real ticket) → `hasOwnedItem('trotro_ticket_osu_circle')` →
+  `boardPassenger()` → transit → teleport to the destination district cell
+  (`GridMap.TROTRO_DESTINATIONS` / `destinationArrival`) →
+  `alightPassenger()` turnover. Fare shown is
+  `gameAPI.getCanonicalFareGHS()` (₵6) for every destination.
+- **Agent-facing movement**: `gameAPI.setJoystickInput(x, y)` drives the
+  visible avatar (positive y = south/+z, positive x = east/+x); world
+  bounds are the map edge (±42 m, `GridMap.HALF`).
 
 ## [LOGIC] Behavioral Instructions
 
