@@ -13,7 +13,12 @@ Main-agent orchestration protocol for the independently callable skills:
 `src/game/World/GridMap.ts` (canonical cells/districts/zone→LocationId map) +
 `src/r3f/StreetCanvas.tsx` (visible world). The R3F avatar is driven by the real
 `InputManager` and mirrors position/rotation into `PlayerController`; the
-on-map boarding panel routes the same five GameAPI methods. Station cell:
+on-map boarding panel routes the same six GameAPI methods. Since v4.6 the
+van runs the phase-5 lifecycle state machine (`TrotroService`: EN_ROUTE →
+ARRIVING → IDLE_AT_STOP → BOARDING → DEPARTING) and boarding is gated on
+`gameAPI.getTrotroStatus() === 'IDLE_AT_STOP'` BEFORE any funds or space
+check — a 'DEPARTING' van gets the missed-van line ('Ah! You missed it!
+Wait for the next one!') and a wait/chase beat, never a debit. Station cell:
 `GridMap.TROTRO_STATION_GRID { x: 2, z: 3, zone: 'circle_station' }`.
 The [E] key at the station routes into the R3F Mate panel
 (`handleWorldTargetInteracted` → `TROTRO_BOARD_EVENT` → `TroTroBoarding.tsx`),
@@ -167,7 +172,7 @@ On failure `ok:false` and `error` is populated:
 | "Get to Makola Market" | `movement.travel("makola_market")` (auto-pays fare via economy) |
 | "Catch a trotro to 37 Station" | `movement.approach_interactable("trotro_stop")` → `tro-tro.negotiate_fare("CIRCLE_TO_37")` → `tro-tro.pay_and_board` |
 | "The fare is too high" | `tro-tro.contest_fare` (max 2 rounds, −₵1 each, base-fare floor) |
-| "The van is pulling away!" | `tro-tro.chase_and_board` (sprint 7.3 > van 5.5 m/s, hold 2.2 m for 1.2 s) |
+| "The van is pulling away!" | `gameAPI.getTrotroStatus()` → `'DEPARTING'` ⇒ ABORT + "Ah! You missed it! Wait for the next one!" + wait state; `tro-tro.chase_and_board` degrades to a miss (flavor beat, sprint 7.3 > van 5.5 m/s, hold 2.2 m for 1.2 s — never boards a moving van) |
 | "The van is full" | capacity gate: `gameAPI.isTrotroFull()` → `E_VAN_FULL`; wait for van-cycle turnover, then retry |
 | "Do I have a ticket?" | `gameAPI.hasOwnedItem("trotro_ticket_osu_circle")` (granted by the fare purchase) |
 | "No cash for the fare" | `economy.accept_work("JOB_TROTRO_MATE")` at the stop → retry after 30 s van cycle |

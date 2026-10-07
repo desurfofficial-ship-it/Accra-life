@@ -1,23 +1,25 @@
 ---
 name: tro-tro-system
-version: 4.5.0
-domain: trotro boarding & transit (GameAPI five-method contract on the
-  live custom grid map)
+version: 4.6.0
+domain: trotro boarding & transit (GameAPI six-method contract on the
+  live custom grid map, incl. the van lifecycle state machine)
 description: >
   Governs how AI agents board the Accra trotro through the live GameAPI
   bridge (window.GameAPI, wired in src/main.ts startGame()). The [CONTRACT]
-  is the owner-issued five-method surface — every call is a real method on
-  src/game/GameAPI.ts, runtime smoke-tested. The [ROUTING] section maps
-  each method to the src/game/ file that actually executes it.
+  is the owner-issued six-method surface — every call is a real method on
+  src/game/GameAPI.ts, runtime smoke-tested. v4.6 adds the physical van
+  state: getTrotroStatus() exposes the phase-5 lifecycle state machine
+  (EN_ROUTE → ARRIVING → IDLE_AT_STOP → BOARDING → DEPARTING) and [LOGIC]
+  makes IDLE_AT_STOP a mandatory pre-condition before any funds or space
+  check. The [ROUTING] section maps each method to the src/game/ file that
+  actually executes it.
 format: hybrid — [CONTRACT] GameAPI methods + [ROUTING] + [LOGIC] + [EXAMPLES] (TypeScript)
-contract_policy: five-method surface, copy-exact from src/game/GameAPI.ts
-supersedes: v4.4.0 (compound anchor cell [2,0], residential showroom,
-  furniture auto-fit, food texture path — unchanged; v4.5 adds the
-  venue-proximity location pass so fine-grained venue pills/recovery
-  actions win over district cells, anchor-derived WorldSurface
-  elevations, and fixes the last five pre-map coordinate leftovers:
-  placement room origin x2, arrest respawn, visit enter/leave gate
-  teleports);
+contract_policy: six-method surface, copy-exact from src/game/GameAPI.ts
+supersedes: v4.5.0 (venue-proximity location pass, anchor-derived WorldSurface
+  elevations, last five pre-map coordinate leftovers fixed — unchanged;
+  v4.6 adds the van lifecycle state machine: the getTrotroStatus bridge
+  method, the mandatory IDLE_AT_STOP pre-board gate and the DEPARTING
+  missed-van culture);
   v4.3 momo_agent / susu_collector / chale_wote_panel anchors + GLB pack
   mounts — unchanged;
   v4.2 [E]-key Mate panel routing + provision/waakye/NPC cell anchors +
@@ -26,16 +28,23 @@ supersedes: v4.4.0 (compound anchor cell [2,0], residential showroom,
   v3.x real-symbol rewrites; v2.x GridLocation/GPS specs — dropped;
   v1.0.0 deep mechanics live in skills/tro-tro-adapter.ts
 source_files:
-  - src/game/GameAPI.ts (the bridge — live at window.GameAPI)
+  - src/game/GameAPI.ts (the bridge — live at window.GameAPI; getTrotroStatus
+    routes 1:1 to TrotroService.getState)
   - src/game/Economy/Wallet.ts (canAfford / spendMoney)
   - src/game/Economy/EconomyManager.ts (hasOwnedItem → ownership)
-  - src/game/World/TrotroService.ts (isTrotroFull / boardPassenger)
+  - src/game/World/TrotroService.ts (getTrotroStatus / isTrotroFull /
+    boardPassenger + the phase-5 lifecycle machine: type TrotroState,
+    auto-timers 2 s/5 s/8 s, MATE_LINES incl. MISSED and NOT_AT_STOP)
+  - src/r3f/LivingTrotro.tsx (drives startCycle(), renders every state,
+    plays MATE_LINES shout/bubble per transition)
+  - src/r3f/StreetCanvas.tsx (adopts window.GameAPI.trotro at boot — the
+    visible van and the AI bridge share ONE TrotroService instance)
   - src/game/World/GridMap.ts (canonical 5x5 grid: cells, districts,
     zone->LocationId, TROTRO_STATION_GRID, TROTRO_DESTINATIONS,
     PROVISION_STORE_ANCHOR, FOOD_VENDOR_ANCHOR, MOMO_AGENT_ANCHOR,
     SUSU_COLLECTOR_ANCHOR, CHALE_WOTE_ANCHOR, HOME_COMPOUND_ANCHOR)
-  - src/r3f/StreetCanvas.tsx + src/r3f/TroTroBoarding.tsx (the visible
-    custom map world — avatar, station, boarding panel, [E] listener)
+  - src/r3f/TroTroBoarding.tsx (the visible custom map world — avatar,
+    station, boarding panel with the v4.6 state gate, [E] listener)
   - src/game/World/Locations.ts (getLocationAt: venue-proximity zones →
     grid districts → legacy bounds; anchor-derived venue rects)
   - src/game/World/WorldSurface.ts (surface elevations: anchor-derived
@@ -47,7 +56,7 @@ source_files:
     compound landmark + residential scene.gltf diorama on cell [3,1])
   - src/main.ts#handleWorldTargetInteracted ([E] key → TROTRO_BOARD_EVENT)
 adapter: skills/agent-adapter.ts#GameBindings + skills/tro-tro-adapter.ts
-independence: callable alone; needs only the five methods below
+independence: callable alone; needs only the six methods below
 ---
 
 # Skill: Tro-Tro Boarding & Transit System
@@ -58,12 +67,28 @@ independence: callable alone; needs only the five methods below
 > are actually **`NeighborhoodTrotro.ts`**, **`Wallet.ts`** and
 > **`PlayerController.ts`**. `deductCedis`, `deductBalance`,
 > `addToInventory` and `triggerNPCDialogue` do not exist anywhere in src —
-> the five real methods below replace them all.
+> the six real methods below replace them all. The van is a living
+> vehicle (phase 5): it drives its own lifecycle, and the AI must respect
+> its physical state before touching money or seats.
 
 ## [CONTRACT] Allowed GameAPI Methods (copy-exact from src/game/GameAPI.ts)
 
 ```ts
 // src/game/GameAPI.ts — wired live as window.GameAPI
+gameAPI.getTrotroStatus():
+  'EN_ROUTE' | 'ARRIVING' | 'IDLE_AT_STOP' | 'BOARDING' | 'DEPARTING';
+//   Physical state of ACC_TROTRO_001 — real type: TrotroState
+//   (src/game/World/TrotroService.ts, auto-timed lifecycle):
+//   • EN_ROUTE     — van on the road, nowhere near the stop
+//   • ARRIVING     — van pulling in (auto → IDLE_AT_STOP after 2 s)
+//   • IDLE_AT_STOP — docked, door open, Mate taking fares ← BOARD HERE
+//                    (waits indefinitely until the first board)
+//   • BOARDING     — boarding window open (auto → DEPARTING after 5 s;
+//                    the engine still seats latecomers, the [LOGIC]
+//                    gate below does not — don't start a purchase here)
+//   • DEPARTING    — van pulling away (auto → EN_ROUTE after 8 s)
+//   Read-only for the AI: only the host/renderer drives the lifecycle.
+
 gameAPI.canAfford(amount: number, channel: 'CASH'): boolean;
 
 gameAPI.spendMoney(params: {
@@ -76,19 +101,25 @@ gameAPI.hasOwnedItem('trotro_ticket_osu_circle'): boolean;
 
 gameAPI.isTrotroFull(): boolean;    // true ⇒ mate refuses ("No space! Next one!")
 
-gameAPI.boardPassenger(): boolean;  // false ⇒ van filled between checks
+gameAPI.boardPassenger(): boolean;  // false ⇒ van not docked (state gate) or
+                                    //         filled between checks
 ```
 
 No other call is part of this skill's contract. (The bridge exposes more —
-`getSnapshot`, `getCashBalance`, `purchaseEverydayExpense`,
-`triggerCurrentInteraction`, `alightPassenger`, … — for the host and the
-other skills; see [ROUTING] for what the five above hit.)
+`getSnapshot` (includes `.state`), `getCashBalance`,
+`purchaseEverydayExpense`, `triggerCurrentInteraction`, `alightPassenger`,
+… — for the host and the other skills; see [ROUTING] for what the six
+above hit.)
 
 ## [ROUTING] Where Each Method Really Executes
 
 The AI never imports `src/` directly. `window.GameAPI` is constructed at
 boot with the live instances; every method delegates 1:1:
 
+- **When the AI calls `gameAPI.getTrotroStatus()`, the GameAPI bridge
+  routes this to `TrotroService.getState` in
+  `src/game/World/TrotroService.ts`** — the phase-5 lifecycle state
+  machine, read-only for the AI.
 - **When the AI calls `gameAPI.canAfford(5, 'CASH')`, the GameAPI bridge
   routes this to `Wallet.canAfford` in `src/game/Economy/Wallet.ts`.**
 - **When the AI calls `gameAPI.spendMoney({ amount, description,
@@ -109,6 +140,7 @@ boot with the live instances; every method delegates 1:1:
 
 | AI-facing call | Routed to | File |
 |---|---|---|
+| `gameAPI.getTrotroStatus()` | `TrotroService.getState` (phase-5 machine) | `src/game/World/TrotroService.ts` |
 | `gameAPI.canAfford(amount, 'CASH')` | `Wallet.canAfford` | `src/game/Economy/Wallet.ts` |
 | `gameAPI.spendMoney({amount, description, channel: 'CASH'})` | `Wallet.spendMoney` (bridge adds `category: 'TRANSPORT'`) | `src/game/Economy/Wallet.ts` |
 | `gameAPI.hasOwnedItem('trotro_ticket_osu_circle')` | `EconomyManager.getOwnershipFoundations().ownedItemIds` | `src/game/Economy/EconomyManager.ts` |
@@ -119,6 +151,19 @@ Passenger turnover is automatic: the adapter seats the player on
 `board()` and frees seats when the van cycle resets
 (`skills/tro-tro-adapter.ts`), and every seat change is persisted into the
 `EconomyPersistence` snapshot via `EconomyManager.bindTrotroPassengerState`.
+
+**One van, one machine (v4.6).** The van is a living vehicle:
+`TrotroService` runs the phase-5 lifecycle (`EN_ROUTE → ARRIVING →
+IDLE_AT_STOP → BOARDING → DEPARTING → EN_ROUTE`, auto-timers 2 s / 5 s /
+8 s + 1 s en-route gap, `MATE_LINES` shout/bubble per transition via
+`LivingTrotro`, which calls `startCycle()` on mount). Since v4.6 the
+visible van and the bridge share ONE instance — `src/r3f/StreetCanvas.tsx`
+adopts `window.GameAPI.trotro` as soon as the systems layer boots (a
+pre-boot fallback van runs before that) — so what the AI reads through
+`getTrotroStatus()` is exactly the physical van the player sees. (Before
+this wiring the bridge instance sat in 'EN_ROUTE' forever and
+`boardPassenger()` was dead on main — the state gate is what made that
+bug visible.)
 
 ## [ROUTING] The Live Custom Map (v4.2)
 
@@ -165,13 +210,18 @@ is the canonical module both the visuals and the game systems consume.
   into `PlayerController` — so `gameAPI.position`, `getActiveTarget()`,
   `getLocationAt()`, presence and the location pill all follow the avatar.
 - **The GTA-style boarding panel on the map** (`src/r3f/TroTroBoarding.tsx`)
-  executes the same five-method sequence as [LOGIC]: proximity →
-  `isTrotroFull()` → `purchaseEverydayExpense('EXP_TROTRO_FARE')` (real
-  debit + real ticket) → `hasOwnedItem('trotro_ticket_osu_circle')` →
-  `boardPassenger()` → transit → teleport to the destination district cell
+  executes the same six-method sequence as [LOGIC]: proximity →
+  `getTrotroStatus()` (v4.6 state gate — only 'IDLE_AT_STOP'/'BOARDING'
+  proceed; 'DEPARTING' surfaces `MATE_LINES.MISSED`, 'EN_ROUTE'/'ARRIVING'
+  `MATE_LINES.NOT_AT_STOP`) → `isTrotroFull()` →
+  `purchaseEverydayExpense('EXP_TROTRO_FARE')` (real debit + real ticket) →
+  `hasOwnedItem('trotro_ticket_osu_circle')` → `boardPassenger()` →
+  transit → teleport to the destination district cell
   (`GridMap.TROTRO_DESTINATIONS` / `destinationArrival`) →
   `alightPassenger()` turnover. Fare shown is
-  `gameAPI.getCanonicalFareGHS()` (₵6) for every destination.
+  `gameAPI.getCanonicalFareGHS()` (₵6) for every destination. The old 30 s
+  `resetVehicle()` cooldown is gone — the live machine cycles the van back
+  to the stop by itself.
 - **Agent-facing movement**: `gameAPI.setJoystickInput(x, y)` drives the
   visible avatar (positive y = south/+z, positive x = east/+x); world
   bounds are the map edge (±42 m, `GridMap.HALF`).
@@ -269,45 +319,76 @@ is the canonical module both the visuals and the game systems consume.
 
 ## [LOGIC] Behavioral Instructions
 
-1. **Capacity gate**: IF `gameAPI.isTrotroFull()` is true, the Mate
+1. **State gate — mandatory, checked FIRST (v4.6)**: BEFORE checking
+   funds or space, call `gameAPI.getTrotroStatus()`. IF
+   `gameAPI.getTrotroStatus() !== 'IDLE_AT_STOP'` THEN ABORT — do not
+   call `isTrotroFull`, `canAfford`, `spendMoney` or `boardPassenger`.
+   A van that is 'EN_ROUTE', 'ARRIVING' or 'DEPARTING' cannot be boarded
+   no matter what the seat count says; the AI must respect the physical
+   state of the vehicle.
+   - **'DEPARTING'** (the van is pulling away): say the missed-van line —
+     **'Ah! You missed it! Wait for the next one!'** — while the Mate
+     shouts his own pull-away line (`MATE_LINES.DEPARTING`, 'Hold tight!
+     We dey move!'). Then initiate a **wait** state at the stop. An
+     optional short **chase** beat is allowed using the v1.0 door-chase
+     numbers (sprint 7.3 vs van 5.5 m/s, 2.2 m window held 1.2 s, miss
+     past 3.5 m) — but the chase is pure flavor: the state gate means a
+     'DEPARTING' van can never be re-boarded, so the beat always ends in
+     the wait state. No money moves.
+   - **'EN_ROUTE' / 'ARRIVING'**: wait at the stop ('No van at the stop
+     yet — wait for the next one.'). The machine docks the van by itself
+     (auto → 'IDLE_AT_STOP' after ~3 s).
+   - **'BOARDING'**: the Mate is still seating someone in the 5 s window
+     that auto-closes into 'DEPARTING'. The engine would physically seat
+     a latecomer, but this skill's gate is stricter on purpose — an agent
+     that starts a purchase inside a closing window is how fares get
+     burned. Wait for the next clean 'IDLE_AT_STOP'.
+
+2. **Capacity gate**: IF `gameAPI.isTrotroFull()` is true, the Mate
    refuses — 'No space! Next one!' — abort boarding. Do NOT call
    `spendMoney`. Wait for the next van (passenger turnover is automatic
    when the van cycle resets).
 
-2. **Fare gate + boarding**: IF `gameAPI.canAfford(5, 'CASH')` is true,
+3. **Fare gate + boarding**: IF `gameAPI.canAfford(5, 'CASH')` is true,
    THEN call `gameAPI.spendMoney({ amount: 5, description: "Trotro fare
    (Mate's van)", channel: 'CASH' })` and then `gameAPI.boardPassenger()`.
    - A `null` receipt ⇒ the wallet refused the debit — abort and surface
      `E_INSUFFICIENT_FUNDS`.
-   - A `false` from `gameAPI.boardPassenger()` ⇒ the van filled between
-     the checks — treat as a refusal; the fare is already paid and counts
-     toward the next boarding attempt.
+   - A `false` from `gameAPI.boardPassenger()` ⇒ the van filled or pulled
+     away between the checks — treat as a refusal; the fare is already
+     paid and counts toward the next boarding attempt.
 
-3. **Ticket verification**: the canonical fare purchase grants the real
+4. **Ticket verification**: the canonical fare purchase grants the real
    owned item — after a successful `spendMoney`,
    `gameAPI.hasOwnedItem('trotro_ticket_osu_circle')` returns `true`.
    Verify it before declaring the boarding complete.
 
-4. **Recovery**: IF `gameAPI.canAfford(5, 'CASH')` is false, do NOT call
+5. **Recovery**: IF `gameAPI.canAfford(5, 'CASH')` is false, do NOT call
    `spendMoney` — the Mate waves the player back ('Oga, you no get
    change? Abeg shift make others enter.'). Earn first:
    `JOB_TROTRO_MATE` (₵15, 30 s cooldown) via the economy flow, then
    retry the sequence.
 
-**Ordering is mandatory**: `isTrotroFull()` → `canAfford()` →
-`spendMoney()` → `boardPassenger()` → `hasOwnedItem()`. Calling
-`spendMoney` while the van is full, or `boardPassenger` before the debit,
-is a contract violation.
+**Ordering is mandatory**: `getTrotroStatus()` → `isTrotroFull()` →
+`canAfford()` → `spendMoney()` → `boardPassenger()` → `hasOwnedItem()`.
+Calling `spendMoney` while the van is not 'IDLE_AT_STOP', or
+`boardPassenger` before the debit, is a contract violation.
 
 ## [EXAMPLES] Exact TypeScript the Agent Generates
 
-### Successful boarding — fare ₵5, balance ₵20
+### Successful boarding — fare ₵5, balance ₵20, van docked
 
 ```ts
 // Player at the Osu–Circle stop. Fare: ₵5. Cash balance: ₵20.
 async function boardTrotro(fare: number): Promise<
-  'BOARDED' | 'VAN_FULL' | 'NO_FUNDS' | 'DEBIT_REFUSED'
+  'BOARDED' | 'VAN_MOVING' | 'VAN_FULL' | 'NO_FUNDS' | 'DEBIT_REFUSED'
 > {
+  // 0. State gate (v4.6, MANDATORY FIRST) — physical state of the van.
+  //    Abort before ANY funds or space check unless the van is docked.
+  if (gameAPI.getTrotroStatus() !== 'IDLE_AT_STOP') {
+    return 'VAN_MOVING';                     // see the DEPARTING example below
+  }
+
   // 1. Capacity gate — real state from TrotroService (capacity 14).
   if (gameAPI.isTrotroFull()) {
     return 'VAN_FULL';                       // Mate: 'No space! Next one!'
@@ -335,6 +416,52 @@ async function boardTrotro(fare: number): Promise<
   return 'BOARDED';                          // balance now ₵15, van 1 seat fuller
 }
 ```
+
+### Boarding rejected — the van is 'DEPARTING' (the v4.6 state rule)
+
+```ts
+// The player reaches ACC_PROP_001 just as the Mate taps the van side and
+// the doors shut. The AI must respect the physical state of the vehicle:
+// the status check comes FIRST, before funds or space.
+
+// Step 1 — read the van's physical state (routes to TrotroService.getState).
+const status = gameAPI.getTrotroStatus();
+
+if (status !== 'IDLE_AT_STOP') {
+  // Step 2 — ABORT. No isTrotroFull, no canAfford, no spendMoney,
+  // no boardPassenger. The seat count is irrelevant — the van is moving.
+
+  if (status === 'DEPARTING') {
+    // Step 3 — cultural response. The Mate is shouting his own line
+    // (MATE_LINES.DEPARTING: 'Hold tight! We dey move!'); the AI answers
+    // with the verbatim missed-van line and sets the wait state.
+    //   say("Ah! You missed it! Wait for the next one!")
+    //   set_state('WAIT_NEXT_TROTRO')          // stand at the stop
+    //
+    // Optional one-beat chase (flavor ONLY — it can never board a
+    // DEPARTING van): sprint alongside using the v1.0 door-chase numbers
+    // (7.3 vs 5.5 m/s, 2.2 m window held 1.2 s, miss past 3.5 m), then
+    // settle back into WAIT_NEXT_TROTRO.
+    //
+    // No wallet debit, no ledger row, no ticket — nothing to roll back.
+    // The machine auto-cycles: DEPARTING →(8 s)→ EN_ROUTE →(1 s)→
+    // ARRIVING →(2 s)→ IDLE_AT_STOP — retry from the state gate then.
+    return 'VAN_MOVING';                     // ≈ 11 s until the next stop
+  }
+
+  // 'EN_ROUTE' / 'ARRIVING' / 'BOARDING' — same abort, no chase beat:
+  // wait at the stop until the status reads 'IDLE_AT_STOP' again.
+  return 'VAN_MOVING';
+}
+
+// Step 4 — only NOW the van is docked: proceed to the capacity gate.
+if (gameAPI.isTrotroFull()) return 'VAN_FULL';
+```
+
+What the AI did right: it **asked the van before it asked the wallet**.
+Under the old five-method ordering an agent could pass the capacity and
+fare gates and only discover at `boardPassenger()` that the van had left —
+fare already gone. Under v4.6 the moving-van case never reaches money.
 
 ### Failed boarding — balance ₵2, fare ₵5
 
@@ -373,4 +500,7 @@ remains in force as the **reference implementation**
 the real systems above (`Wallet`, `TrotroService`, `EconomyManager`) and
 now drives passenger turnover automatically at the transit end. Haggle
 only ever lowers the fare argument passed to `spendMoney` — it never
-bypasses the [LOGIC] ordering.
+bypasses the [LOGIC] ordering. Since v4.6 the door-chase doubles as the
+[LOGIC] 'DEPARTING' chase beat — pure flavor that always ends in the wait
+state, because the state gate keeps boarding impossible once the van pulls
+away.

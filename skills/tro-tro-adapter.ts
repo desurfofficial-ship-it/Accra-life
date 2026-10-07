@@ -601,6 +601,16 @@ export class TroTroSystemImpl implements TroTroSystemRuntime {
   /** Debit the standing quote for a caught van. Never throws. */
   private settleChasePayment(gapM: number): ChaseOutcome {
     const offer = this.offer!;
+    // v4.6 state gate (tro-tro-system.md [LOGIC] rule 1): the REAL van
+    // must be physically docked before any debit. This adapter simulates
+    // its own chase van, but the seat comes from the live machine — if
+    // ACC_TROTRO_001 is EN_ROUTE/ARRIVING/DEPARTING, a caught door cannot
+    // seat anyone and the beat degrades to a miss (no money moves).
+    const vanState = this.b.trotroService?.getState();
+    if (vanState !== undefined && vanState !== 'IDLE_AT_STOP' && vanState !== 'BOARDING') {
+      this.departVan('MISSED');
+      return { boarded: false, gapM, phaseAfter: 'MISSED' };
+    }
     if (!this.b.wallet.canAfford(offer.quotedFareGHS, 'CASH')) {
       const shortfall = Number((offer.quotedFareGHS - this.b.wallet.getCashBalance()).toFixed(2));
       this.departVan('REFUSED_FUNDS');
@@ -637,6 +647,8 @@ export class TroTroSystemImpl implements TroTroSystemRuntime {
     this.quoteDeadlineMs = null;
     this.nextVanAtMs = this.ports.nowMs() + TROTRO_CONFIG.NEXT_VAN_MS;
     this.releaseChaseControls();
+    // Seat accounting only lands when the live van is docked (v4.6 state
+    // gate) — settleChasePayment already refused moving-van outcomes.
     this.b.trotroService?.boardPassenger();   // seat the player on the real van
     if (destination) this.ports.arriveAt(destination);
     this.b.toast(toastLine);
