@@ -8,6 +8,7 @@ Main-agent orchestration protocol for the independently callable skills:
 | [`dialogue_skill.md`](./dialogue_skill.md) | Interactions, NPC talk, location chat | `src/game/Player/InteractionSystem.ts`, `src/game/Multiplayer/LocationChatManager.ts` |
 | [`economy_skill.md`](./economy_skill.md) | Wallet, jobs, hustles, crime heat, housing spend | `src/game/Economy/*`, `src/game/Jobs/*`, `src/game/Crime/HeatSystem.ts`, `src/game/Home/HomeSystem.ts` |
 | [`tro-tro-system.md`](./tro-tro-system.md) | Trotro boarding, Mate fare negotiation, zone pricing, door chase | `src/game/World/NeighborhoodTrotro.ts` + reference implementation [`tro-tro-adapter.ts`](./tro-tro-adapter.ts) |
+| [`vendor-system.md`](./vendor-system.md) | Makola street-vendor timed shift — NORMAL ₵10 / RUSH_HOUR ₵15 tiers, engine-owned payout | `src/game/Jobs/VendorService.ts`, `src/r3f/LivingVendor.tsx`, `src/game/World/EventService.ts` |
 
 **Live custom map (v4.5):** the game world is the custom 5x5 Accra grid —
 `src/game/World/GridMap.ts` (canonical cells/districts/zone→LocationId map) +
