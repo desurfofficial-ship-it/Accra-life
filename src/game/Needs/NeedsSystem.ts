@@ -29,9 +29,29 @@ export class NeedsSystem {
   private energy = 80;
   private fatigueReductionPct = 0;
   private listeners = new Set<NeedsListener>();
+  /** When true, tick() is a no-op (modals open, cutscenes, etc.). */
+  private drainPaused = false;
+  /** Wall-clock ms when the session started (for early-game half-drain). */
+  private sessionStartMs = performance.now();
+  /** First N real-time minutes get half drain. */
+  private static readonly EARLY_GAME_MS = 10 * 60 * 1000;
 
   constructor() {
     this.load();
+    this.sessionStartMs = performance.now();
+  }
+
+  public setDrainPaused(paused: boolean): void {
+    this.drainPaused = paused;
+  }
+
+  public isDrainPaused(): boolean {
+    return this.drainPaused;
+  }
+
+  /** Reset the early-game timer (call on fresh guest start). */
+  public markSessionStart(): void {
+    this.sessionStartMs = performance.now();
   }
 
   public setFatigueReductionPct(pct: number): void {
@@ -60,31 +80,21 @@ export class NeedsSystem {
     return { ok: true };
   }
 
-  /**
-   * Passive decay while living in Accra. Call once per frame.
-   *
-   * Optional `modifiers` parameter: named multipliers scale the
-   * corresponding need's decay. The housing system uses this to apply
-   * passive bonuses from placed furniture (fan reduces energy decay,
-   * bed reduces energy decay, etc.). Default multiplier is 1.0 (normal).
-   *
-   * The fatigueReductionPct (housing-tier bonus) compounds multiplicatively
-   * with the modifier: effectiveEnergyDecay = DECAY_PER_SECOND.energy ×
-   * (1 - fatigueReductionPct/100) × (modifiers.energy ?? 1).
-   */
   public tick(
     dtSeconds: number,
     modifiers?: { hunger?: number; energy?: number }
   ): void {
     if (dtSeconds <= 0 || dtSeconds > 2) return;
+    if (this.drainPaused) return;
     const m = modifiers ?? {};
-    const energyFactor = (1 - this.fatigueReductionPct / 100) * (m.energy ?? 1);
-    this.hunger = Math.max(0, this.hunger - DECAY_PER_SECOND.hunger * dtSeconds * (m.hunger ?? 1));
+    const early =
+      performance.now() - this.sessionStartMs < NeedsSystem.EARLY_GAME_MS ? 0.5 : 1;
+    const energyFactor = (1 - this.fatigueReductionPct / 100) * (m.energy ?? 1) * early;
+    this.hunger = Math.max(0, this.hunger - DECAY_PER_SECOND.hunger * dtSeconds * (m.hunger ?? 1) * early);
     this.energy = Math.max(0, this.energy - DECAY_PER_SECOND.energy * energyFactor * dtSeconds);
     this.notify();
   }
 
-  /** After finishing a job / hustle shift */
   public onWorkCompleted(): { energyAfter: number; message: string } {
     const before = this.energy;
     const costFactor = 1 - (this.fatigueReductionPct * 0.5) / 100;
@@ -101,7 +111,6 @@ export class NeedsSystem {
     };
   }
 
-  /** Buy / eat waakye or similar */
   public eatMeal(label = 'Waakye', hungerRestore = MEAL_HUNGER_RESTORE, energyBonus = 6): { success: boolean; message: string } {
     if (this.hunger >= 96 && this.energy >= 96) {
       return { success: false, message: 'Already full and energized.' };
@@ -117,7 +126,6 @@ export class NeedsSystem {
     };
   }
 
-  /** Boost energy via home relaxation / hosting social activity */
   public boostEnergy(amount: number, label: string): { success: boolean; message: string } {
     const before = this.energy;
     this.energy = Math.min(100, this.energy + Math.max(1, amount));
@@ -129,7 +137,6 @@ export class NeedsSystem {
     };
   }
 
-  /** Sleep / rest at compound. Optional bonus (e.g. own a bed or upgraded housing tier). */
   public sleep(bonus = 0, baseRestore = SLEEP_ENERGY_RESTORE): { success: boolean; message: string } {
     if (this.energy >= 95) {
       return { success: false, message: 'Already rested.' };
@@ -145,11 +152,6 @@ export class NeedsSystem {
     };
   }
 
-  /**
-   * Light rest — a small energy bump from furniture interactions
-   * (watching TV, relaxing on a sofa). Cheaper than sleep, capped at 95.
-   * Returns the result with a message showing the energy delta.
-   */
   public restLight(amount: number, label = 'Rest'): { success: boolean; message: string } {
     if (this.energy >= 95) {
       return { success: false, message: 'Already rested.' };
