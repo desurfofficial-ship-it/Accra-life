@@ -13,10 +13,14 @@ function GLBModel({
   url,
   position,
   rotation = 0,
+  footprint = TARGET_FOOTPRINT,
+  height = TARGET_HEIGHT,
 }: {
   url: string;
   position: [number, number, number];
   rotation?: number;
+  footprint?: number;
+  height?: number;
 }) {
   const { scene } = useGLTF(url, assetUrl('draco/'));
   const fitted = useMemo(() => {
@@ -27,15 +31,13 @@ function GLBModel({
         child.receiveShadow = true;
       }
     });
-    return fitToFootprint(m, TARGET_FOOTPRINT, TARGET_HEIGHT, url);
-  }, [scene, url]);
+    return fitToFootprint(m, footprint, height, url);
+  }, [scene, url, footprint, height]);
 
   return (
-    <primitive
-      object={fitted}
-      position={position}
-      rotation={[0, rotation, 0]}
-    />
+    <group position={position} rotation={[0, rotation, 0]}>
+      <primitive object={fitted} />
+    </group>
   );
 }
 
@@ -53,10 +55,10 @@ export function BuildingAssets() {
       <GLBModel url={assetUrl('assets/glb/interior/room_apartment_furniture.glb')} position={[a00X + 1, 0, a00Z - 2]} rotation={-0.3} />
       <GLBModel url={assetUrl('assets/glb/interior/room_bathroom.glb')} position={[a00X + 4, 0, a00Z + 1]} rotation={1.2} />
       <GLBModel url={assetUrl('assets/glb/interior/house_1f_interior.glb')} position={[a10X, 0, a10Z]} rotation={0} />
-      <GLBModel url={assetUrl('assets/glb/props/plastic_water_bottle.glb')} position={[m11X + 2, 0.8, m11Z - 1]} rotation={0.8} />
+      <GLBModel url={assetUrl('assets/glb/props/plastic_water_bottle.glb')} position={[m11X + 2, 0.8, m11Z - 1]} rotation={0.8} footprint={0.3} height={0.5} />
       <GLBModel url={assetUrl('assets/glb/buildings/building_office_room_window.glb')} position={[mx24X, 0, mx24Z]} rotation={0.5} />
       <GLBModel url={assetUrl('assets/glb/buildings/building_office_room_curtain.glb')} position={[mx03X, 0, mx03Z]} rotation={-0.3} />
-      <GLBModel url={assetUrl('assets/glb/interior/cinemamovie_theater_seat.glb')} position={[o33X - 1, 0, o33Z + 2]} rotation={1.5} />
+      <GLBModel url={assetUrl('assets/glb/interior/cinemamovie_theater_seat.glb')} position={[o33X - 1, 0, o33Z + 2]} rotation={1.5} footprint={1.5} height={1.5} />
     </Suspense>
   );
 }

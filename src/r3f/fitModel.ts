@@ -13,9 +13,51 @@
  * (18.9, 39.5, 0.43)) stay inside — the outer scale stays uniform.
  *
  * After scaling, the model is re-centred: x=z=0, bottom at y=0.
+ *
+ * IMPORTANT: callers MUST place the returned group via a parent
+ *   <group position={[x,y,z]}><primitive object={fitted} /></group>
+ * and MUST NOT set position/scale on the primitive itself — that would
+ * overwrite the centering offset computed here.
  */
 
 import * as THREE from 'three';
+
+export type ScaleWarning = {
+  url: string;
+  target: number;
+  fitted: number;
+  raw?: { x: number; y: number; z: number };
+  reason: string;
+};
+
+function recordScaleWarning(w: ScaleWarning): void {
+  console.warn('[scale]', w.url, w.reason, w);
+  if (typeof window !== 'undefined') {
+    const win = window as unknown as { __scaleWarnings?: ScaleWarning[] };
+    if (!win.__scaleWarnings) win.__scaleWarnings = [];
+    win.__scaleWarnings.push(w);
+    // Keep bounded
+    if (win.__scaleWarnings.length > 40) win.__scaleWarnings.shift();
+  }
+}
+
+/**
+ * Measure a tight world-space AABB, forcing geometry bounding boxes
+ * so empty/uninitialized geometries don't under-measure (which would
+ * over-scale and put the camera inside giant signage).
+ */
+function measureWorldBox(root: THREE.Object3D): THREE.Box3 {
+  root.updateMatrixWorld(true);
+  // Ensure every mesh has a local bounding box computed.
+  root.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (mesh.isMesh && mesh.geometry) {
+      const g = mesh.geometry;
+      if (!g.boundingBox) g.computeBoundingBox();
+    }
+  });
+  return new THREE.Box3().setFromObject(root);
+}
 
 /**
  * Clone an object, update its world matrices, measure its bounding box,
@@ -36,16 +78,15 @@ export function fitToFootprint(
   maxHeight?: number,
   url?: string,
 ): THREE.Group {
+  const label = url ?? '(unknown)';
+
   // Clone + force matrix update so Box3 measures the post-transform geometry.
   const clone = source.clone(true);
   const group = new THREE.Group();
+  group.name = `fit:${label.split('/').pop() ?? 'model'}`;
   group.add(clone);
 
-  // Update world matrices so the bounding box accounts for node scales.
-  group.updateMatrixWorld(true);
-
-  // Measure.
-  const box = new THREE.Box3().setFromObject(group);
+  const box = measureWorldBox(group);
   const size = new THREE.Vector3();
   box.getSize(size);
 
@@ -54,8 +95,14 @@ export function fitToFootprint(
     !Number.isFinite(size.x) || !Number.isFinite(size.y) || !Number.isFinite(size.z) ||
     size.x === 0 || size.y === 0 || size.z === 0
   ) {
-    console.warn('[scale]', url ?? '(unknown)', 'invalid size:', { x: size.x, y: size.y, z: size.z });
-    return group; // Return as-is — AssetBoundary will catch render issues.
+    recordScaleWarning({
+      url: label,
+      target: maxFootprint,
+      fitted: 0,
+      raw: { x: size.x, y: size.y, z: size.z },
+      reason: 'invalid/zero size — left unscaled',
+    });
+    return group;
   }
 
   // Compute uniform scale from footprint (max of X and Z).
@@ -68,36 +115,58 @@ export function fitToFootprint(
     scale = Math.min(scale, heightScale);
   }
 
+  // Safety clamps: never explode a near-zero measurement into a megastructure,
+  // and never shrink a sane model into invisibility via a bad target.
+  const MAX_SCALE_UP = 50; // if model is already smaller than target, allow up to 50×
+  const MIN_SCALE = 1e-8;
+  if (scale > MAX_SCALE_UP) {
+    recordScaleWarning({
+      url: label,
+      target: maxFootprint,
+      fitted: footprint * MAX_SCALE_UP,
+      raw: { x: size.x, y: size.y, z: size.z },
+      reason: `scale ${scale.toExponential(2)} capped at ${MAX_SCALE_UP}× (possible under-measured bbox)`,
+    });
+    scale = MAX_SCALE_UP;
+  }
+  if (scale < MIN_SCALE) {
+    recordScaleWarning({
+      url: label,
+      target: maxFootprint,
+      fitted: footprint * MIN_SCALE,
+      raw: { x: size.x, y: size.y, z: size.z },
+      reason: `scale ${scale.toExponential(2)} below min — left at min`,
+    });
+    scale = MIN_SCALE;
+  }
+
   // Apply uniform scale to the OUTER group (not the inner clone — preserves
   // the clone's internal node transforms, including non-uniform ones).
   group.scale.setScalar(scale);
 
   // Re-measure after scaling to re-centre.
-  group.updateMatrixWorld(true);
-  const fittedBox = new THREE.Box3().setFromObject(group);
+  const fittedBox = measureWorldBox(group);
   const fittedSize = new THREE.Vector3();
   const fittedCenter = new THREE.Vector3();
   fittedBox.getSize(fittedSize);
   fittedBox.getCenter(fittedCenter);
 
   // Offset the group so the model's bottom is at y=0 and centred on x=z=0.
+  // Callers must NOT overwrite this via <primitive position=...>; place via
+  // a parent <group position={[x,y,z]}> instead.
   group.position.set(-fittedCenter.x, -fittedBox.min.y, -fittedCenter.z);
 
-  // Dev assertion: if the fitted model is still larger than 2x the target,
-  // warn (visible in ?debug=1 overlay via recordAssetFailure).
+  // Dev assertion: if the fitted model is still larger than 2× the target,
+  // warn (visible in ?debug=1 overlay via window.__scaleWarnings).
   const fittedFootprint = Math.max(fittedSize.x, fittedSize.z);
   if (fittedFootprint > maxFootprint * 2 || !Number.isFinite(fittedFootprint)) {
-    console.warn('[scale]', url ?? '(unknown)', 'still too large after fit:', {
+    recordScaleWarning({
+      url: label,
       target: maxFootprint,
-      fittedFootprint,
-      fittedSize: { x: fittedSize.x, y: fittedSize.y, z: fittedSize.z },
+      fitted: fittedFootprint,
+      raw: { x: size.x, y: size.y, z: size.z },
+      reason: 'still too large after fit',
     });
-    // Record for the debug overlay.
-    if (typeof window !== 'undefined') {
-      const w = window as unknown as { __scaleWarnings?: Array<{ url: string; target: number; fitted: number }> };
-      if (!w.__scaleWarnings) w.__scaleWarnings = [];
-      w.__scaleWarnings.push({ url: url ?? '(unknown)', target: maxFootprint, fitted: fittedFootprint });
-    }
   }
 
   return group;
