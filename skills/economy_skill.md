@@ -260,3 +260,6 @@ unchanged at the game-system layer — `gameAPI.economy.*` still routes to
 - Shared runtime state: `src/bootstrap/state.ts`
 - System singletons + hydration: `src/bootstrap/services.ts`
 - Boot orchestrator (<50 lines): `src/main.ts`
+
+- Act wiring: `src/bootstrap/act.ts` (pure matrix: `src/game/Player/ActDecision.ts`)
+- Objective marker (R3F): `src/r3f/ObjectiveMarker.tsx`

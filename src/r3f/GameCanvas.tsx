@@ -33,6 +33,7 @@ import { MarketAssets } from './MarketAssets';
 import { AssetBoundary } from './AssetBoundary';
 import { isMobileDevice } from '../debug/DebugOverlay';
 import { FollowCamera } from './FollowCamera';
+import { ObjectiveMarker } from './ObjectiveMarker';
 import { TrotroService } from '../game/World/TrotroService';
 import { MAKOLA_VENDOR_STAND_WORLD } from '../game/World/GridMap';
 import { getGameAPI } from './gameAPIBridge';
@@ -45,7 +46,7 @@ const TROTRO_PROMPT_RANGE = 3.5;
 
 // ── Player Avatar ────────────────────────────────────────────────────────────
 
-const MOVE_SPEED = 6.0; // slightly faster for the larger map
+const MOVE_SPEED = 4.0; // slightly faster for the larger map
 const WORLD_BOUNDS = {
   minX: -TOTAL_SIZE / 2,
   maxX: TOTAL_SIZE / 2,
@@ -148,12 +149,32 @@ function PlayerAvatar({ groupRef }: PlayerAvatarProps) {
           when WASD/joystick input is non-zero. isSprintingRef drives the
           run clip when one exists (currently no run clip → procedural walk
           is just sped-up; future models with a run clip will use it). */}
-      <LivingPlayerAvatar isMovingRef={isMovingRef} isSprintingRef={isSprintingRef} />
+      <Suspense fallback={<PlayerPlaceholder />}>
+        <AssetBoundary name="PlayerAvatarModel">
+          <LivingPlayerAvatar isMovingRef={isMovingRef} isSprintingRef={isSprintingRef} />
+        </AssetBoundary>
+      </Suspense>
     </group>
   );
 }
 
 // ── Main Canvas ─────────────────────────────────────────────────────────────
+
+
+function PlayerPlaceholder() {
+  return (
+    <group>
+      <mesh position={[0, 0.75, 0]} castShadow>
+        <cylinderGeometry args={[0.26, 0.34, 0.95, 12]} />
+        <meshStandardMaterial color={0x38bdf8} roughness={0.7} />
+      </mesh>
+      <mesh position={[0, 1.42, 0]} castShadow>
+        <sphereGeometry args={[0.22, 16, 12]} />
+        <meshStandardMaterial color={0xf1c27d} roughness={0.6} />
+      </mesh>
+    </group>
+  );
+}
 
 export function GameCanvas() {
   const playerGroupRef = useRef<THREE.Group>(null);
@@ -355,6 +376,7 @@ export function GameCanvas() {
         </Suspense>
       </AssetBoundary>
 
+      <ObjectiveMarker />
       <FollowCamera targetRef={playerGroupRef} />
 
       <OrbitControls

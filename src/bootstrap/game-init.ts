@@ -11,7 +11,9 @@ import { container, promptEl, resetCameraBtn, sprintToggleBtn, interactTriggerBt
 import { S, type ModalTabId } from './state';
 import { COMPOUND_GATE_SPAWN } from './state';
 import { economyManager, jobSystem, crimeSystem, needsSystem, homeSystem } from './services';
-import { updateInteractionPromptUI, showInteractionFeedback, syncEconomyHUD } from '../ui/HUD';
+import { updateInteractionPromptUI, showInteractionFeedback, syncEconomyHUD, getActiveObjectiveInfo } from '../ui/HUD';
+import { resolveActDecision, updateActButtonLabel } from './act';
+import { maybeShowControlsHint } from './hints';
 import { openEconomyModal, closeEconomyModal, renderModalTabContent, updateLiveJobModalCooldowns } from './economy-modal';
 import { openHomeSheet, closeHomeSheet, initHousingEngine, openHomeStore, scheduleHousingCloudSync } from './housing-ui';
 import { handleWorldTargetInteracted } from './interactions';
@@ -25,6 +27,11 @@ import { HomeFurnitureVisuals } from '../game/Home/HomeFurnitureVisuals';
 import { rebuildPlayerCompoundForTier, isPlayerInCompoundCutaway } from '../game/World/PlayerCompound';
 
 export function startGame(profile: OnboardingResult): void {
+  // Playability patch rule 4: first-session detection — a wallet with zero
+  // transaction history is a brand-new player. Returning players who spent
+  // down to ₵0 do NOT re-qualify for the grant.
+  const firstSession = economyManager.wallet.getTransactions().length === 0;
+
   if (profile.origin === 'dbee' && economyManager.wallet.getCashBalance() === 0) {
     economyManager.wallet.addFunds({
       amount: 500,
@@ -34,6 +41,16 @@ export function startGame(profile: OnboardingResult): void {
   }
 
   if (container) {
+    // Playability patch rule 4: guests start with ₵20 so the cheapest
+    // meal is reachable while they learn the walk → Act → earn loop.
+    if (firstSession && economyManager.wallet.getCashBalance() === 0) {
+      economyManager.wallet.addFunds({
+        amount: 20,
+        category: 'REWARD',
+        description: 'Welcome grant — your first cedis'
+      });
+    }
+
     // Custom map integration: #r3f-root hosts the live 5x5 Accra grid
     // (src/r3f — the player-facing world). Preserve it across the wipe so
     // the custom map keeps rendering above the systems-hosting scene.
@@ -78,6 +95,14 @@ export function startGame(profile: OnboardingResult): void {
       }
       const rest = needsSystem.sleep(bedBonus, totalSleepRestore);
       showInteractionFeedback(rest.message, !rest.success);
+      syncEconomyHUD();
+      openHomeSheet();
+    });
+    document.getElementById('homeWaterBtn')?.addEventListener('click', () => {
+      // Playability patch rule 4: free water — a ₵0 player always has a
+      // recovery option at home besides sleeping.
+      const water = needsSystem.drinkWater();
+      showInteractionFeedback(water.message, !water.success);
       syncEconomyHUD();
       openHomeSheet();
     });
@@ -172,9 +197,30 @@ export function startGame(profile: OnboardingResult): void {
       showInteractionFeedback(`Resume · ${resumedJob.currentStep.stepTitle}`);
     } else if (resumedHustle) {
       showInteractionFeedback(`Resume · ${resumedHustle.currentStep.stepTitle}`);
-    } else if (economyManager.wallet.getCashBalance() === 0) {
+    } else if (!firstSession && economyManager.wallet.getCashBalance() === 0) {
       showInteractionFeedback('Jobs or Uncle Mensah for cash');
     }
+
+    // Playability patch rule 4: hand brand-new guests the free starter
+    // hustle automatically — the objective marker + Act prompt appear
+    // immediately, no menu literacy required. Pays ~₵15 inside a minute
+    // ("Help Aunty Ba carry pans": walk to the marker, Act 3 times).
+    if (
+      firstSession &&
+      profile.mode !== 'account' &&
+      !jobSystem.getActiveJob() &&
+      !jobSystem.getActiveHustle()
+    ) {
+      const starter = jobSystem.startSideHustle('HUSTLE_AUNTY_BA_STARTER');
+      if (starter.success) {
+        syncEconomyHUD();
+        showInteractionFeedback('Starter hustle on — follow the green marker to Aunty Ba');
+      }
+    }
+
+    // Playability patch rule 6: one-time controls hint for the first
+    // 60 seconds (dismissed by walking, acting, tapping it, or ~14s).
+    maybeShowControlsHint();
 
     crimeSystem.onArrest(() => {
       // Respawn at the compound gate (GridMap anchor-derived — was the
@@ -213,6 +259,9 @@ export function startGame(profile: OnboardingResult): void {
         S.lastCooldownUiTickMs = now;
         updateLiveJobModalCooldowns();
         updatePlaceRecoveryButton();
+        // Playability patch rule 2+3: distance-based Act caption
+        // ("Act: Carry Pans" in range / "Walk: Aunty Ba (32m)" out).
+        updateActButtonLabel();
       }
       requestAnimationFrame(tick);
     };
@@ -258,7 +307,44 @@ export function startGame(profile: OnboardingResult): void {
     });
     promptEl?.addEventListener('click', () => phase1.interactionSystem.triggerCurrentInteraction());
     interactTriggerBtn?.addEventListener('click', () => {
-      if (!phase1.interactionSystem.triggerCurrentInteraction()) openEconomyModal('jobs');
+      // Playability patch rule 3 — the Act contract. The old one-liner
+      // ("no focused target → openEconomyModal('jobs')") turned every
+      // out-of-range Act into a menu and froze the core loop; now Act
+      // NEVER opens a menu. In range → run the interaction; out of
+      // range with an active objective → walk toast + marker flash;
+      // idle → a one-line nudge toward the JOBS button.
+      const p1 = S.phase1SceneRef;
+      if (!p1) return;
+      const obj = getActiveObjectiveInfo();
+      const objTarget = p1.interactionSystem.getObjectiveTarget();
+      const decision = resolveActDecision({
+        hasActiveTarget: p1.interactionSystem.getActiveTarget() !== null,
+        objective: obj
+          ? {
+              targetInteractableId: obj.targetInteractableId,
+              targetTitle: obj.targetLocationName || obj.stepTitle,
+              stepTag: obj.tag
+            }
+          : null,
+        objectiveTargetPosition: objTarget
+          ? { x: objTarget.position.x, z: objTarget.position.z }
+          : null,
+        playerPosition: p1.player.position
+      });
+      if (decision.kind === 'interact') {
+        p1.interactionSystem.triggerCurrentInteraction();
+        return;
+      }
+      if (decision.kind === 'walk') {
+        const where =
+          decision.distanceM >= 0
+            ? `${decision.targetTitle} (${decision.distanceM}m)`
+            : decision.targetTitle;
+        showInteractionFeedback(`Walk to ${where}`, true);
+        p1.interactionSystem.flashObjectiveMarker();
+        return;
+      }
+      showInteractionFeedback('No active hustle — tap JOBS to pick one', true);
     });
     sprintToggleBtn?.addEventListener('click', () => {
       S.sprintToggled = !S.sprintToggled;

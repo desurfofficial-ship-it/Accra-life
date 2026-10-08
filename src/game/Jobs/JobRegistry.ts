@@ -190,6 +190,51 @@ export const ACCRA_LEGAL_JOBS: ReadonlyArray<LegalJobDefinition> = [
 
 export const ACCRA_SIDE_HUSTLES: ReadonlyArray<SideHustleDefinition> = [
   {
+    // Starter hustle (playability patch rule 4): zero capital, three Acts
+    // at ONE nearby marker, pays inside the first minute so a brand-new
+    // guest can buy food without ever opening a menu from Act. Auto-started
+    // for first-session guests by game-init (see bootstrap/game-init.ts).
+    id: 'HUSTLE_AUNTY_BA_STARTER',
+    title: 'Help Aunty Ba carry pans',
+    categoryLabel: 'Starter Hustle · ₵0 Capital',
+    startInteractableId: 'food_vendor',
+    upfrontCapitalGHS: 0.0,
+    grossPayoutGHS: 15.0,
+    summary: "Three lifts of cooking pans at Aunty Ba's waakye joint — instant cash.",
+    steps: [
+      {
+        stepId: 'aunty_ba_1',
+        stepTitle: 'First stack',
+        instruction: "Walk to the green marker at Aunty Ba's waakye joint and press Act to grab the first stack of pans.",
+        targetInteractableId: 'food_vendor',
+        requiredAssetId: 'ACC_RESTAURANT_001',
+        targetLocationName: "Aunty Ba (Waakye Joint)",
+        actionVerb: 'Carry Pans',
+        completionMessage: 'First stack up on your head. Two more lifts.'
+      },
+      {
+        stepId: 'aunty_ba_2',
+        stepTitle: 'Second stack',
+        instruction: 'Press Act again to carry the second stack to the bench.',
+        targetInteractableId: 'food_vendor',
+        requiredAssetId: 'ACC_RESTAURANT_001',
+        targetLocationName: "Aunty Ba (Waakye Joint)",
+        actionVerb: 'Carry Pans',
+        completionMessage: 'Nice hustle! One more lift.'
+      },
+      {
+        stepId: 'aunty_ba_3',
+        stepTitle: 'Last lift & pay',
+        instruction: 'One final Act — Aunty Ba pays you ₵15 on the spot.',
+        targetInteractableId: 'food_vendor',
+        requiredAssetId: 'ACC_RESTAURANT_001',
+        targetLocationName: "Aunty Ba (Waakye Joint)",
+        actionVerb: 'Carry Pans',
+        completionMessage: 'Aunty Ba laughs and pays you well.'
+      }
+    ]
+  },
+  {
     id: 'HUSTLE_NEIGHBORHOOD_ERRAND',
     title: 'ECG Prepaid & MoMo Errand Runner',
     categoryLabel: 'Informal Errand · ₵0 Capital',

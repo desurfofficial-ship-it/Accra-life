@@ -338,6 +338,10 @@ export function renderModalTabContent(): void {
   if (S.currentModalTab === 'wallet') {
     const wallet = economyManager.wallet;
     const txs = wallet.getTransactions().slice(0, 12);
+    // Playability patch rule 7: the Firebase diagnostic actions are
+    // developer tooling — a guest tapping "Sync to Firebase"/"Reload
+    // from Store" could clobber their save. Only render them with ?debug=1.
+    const debugMode = new URLSearchParams(window.location.search).has('debug');
     const diagCard = document.createElement('div');
     diagCard.className = 'econ-card';
     diagCard.innerHTML = `
@@ -351,10 +355,14 @@ export function renderModalTabContent(): void {
         <div>Dirty Cash: <strong style="color:#ff8888">${formatGHS(wallet.getUnsecuredIllegalCash())}</strong></div>
         <div>Lifetime Earned: <strong style="color:var(--gta-green)">${formatGHS(wallet.getLifetimeEarned())}</strong></div>
       </div>
-      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
-        <button id="diagSyncFirestoreBtn" class="econ-action-btn" type="button">Sync to Firebase</button>
-        <button id="diagReloadStoreBtn" class="econ-action-btn" style="background:#222;color:#fff;border-color:#555" type="button">Reload from Store</button>
-      </div>
+      ${
+        debugMode
+          ? `<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+              <button id="diagSyncFirestoreBtn" class="econ-action-btn" type="button">Sync to Firebase</button>
+              <button id="diagReloadStoreBtn" class="econ-action-btn" style="background:#222;color:#fff;border-color:#555" type="button">Reload from Store</button>
+            </div>`
+          : ''
+      }
     `;
     modalBodyContent.appendChild(diagCard);
 
