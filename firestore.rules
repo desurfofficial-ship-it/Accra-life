@@ -159,7 +159,14 @@ service cloud.firestore {
       }
       match /inbox/{msgId} {
         allow read, delete: if isOwner(userId);
-        allow create: if isSignedIn();
+        // Only the real sender, only known message types, bounded fields.
+        allow create: if isSignedIn()
+          && isValidId(msgId)
+          && request.resource.data.keys().hasOnly(['type', 'fromUid', 'fromName', 'createdAt'])
+          && request.resource.data.type in ['friend_request', 'friend_accept', 'home_visit']
+          && request.resource.data.fromUid == request.auth.uid
+          && isValidDisplayName(request.resource.data.fromName)
+          && request.resource.data.createdAt == request.time;
       }
     }
 
@@ -315,21 +322,10 @@ service cloud.firestore {
     // ============================================================
 
     match /chats/{chatId} {
-      allow read, write: if isSignedIn();
+      // Locked until DMs ship: was readable/writable by any signed-in user.
+      allow read, write: if false;
       match /messages/{messageId} {
-        allow read: if isSignedIn();
-        allow create: if isSignedIn()
-          && request.resource.data.senderId == request.auth.uid
-          && request.resource.data.text is string
-          && request.resource.data.text.size() >= 1
-          && request.resource.data.text.size() <= 500
-          && (!('read' in request.resource.data) || request.resource.data.read is bool);
-        allow update: if isSignedIn()
-          && resource.data.recipientId == request.auth.uid
-          && request.resource.data.read is bool
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt']);
-        allow delete: if isSignedIn()
-          && resource.data.senderId == request.auth.uid;
+        allow read, write: if false;
       }
     }
 

@@ -1,6 +1,6 @@
 # Life in Accra
 
-**Play:** https://desurfofficial-ship-it.github.io/lagos-life-ghana/
+**Play:** https://desurfofficial-ship-it.github.io/Accra-life/
 
 Life simulation set in Accra with NPC friends, wallets, visiting, money transfer, and **Firebase cloud save**.
 
