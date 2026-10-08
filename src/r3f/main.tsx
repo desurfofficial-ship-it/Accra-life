@@ -1,16 +1,12 @@
 /**
  * main.tsx — Phase-1 R3F Bridge entry point
- *
- * Mounts the GameCanvas into a div with id="r3f-root".
  */
-
 import { createRoot } from 'react-dom/client';
 import { GameCanvas } from './GameCanvas';
 import { bootstrapDebugOverlay } from '../debug/DebugOverlay';
 
 bootstrapDebugOverlay();
 
-// ?debug=1 unlocks developer wallet diagnostics.
 if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug')) {
   document.body.classList.add('debug-mode');
 }
