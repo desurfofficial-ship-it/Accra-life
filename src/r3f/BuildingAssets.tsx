@@ -45,8 +45,8 @@ export function BuildingAssets() {
   const [a00X, a00Z] = cellCenter(0, 0);
   const [a10X, a10Z] = cellCenter(1, 0);
   const [m11X, m11Z] = cellCenter(1, 1);
-  const [mx24X, mx24Z] = cellCenter(2, 4);
-  const [mx03X, mx03Z] = cellCenter(0, 3);
+  const [mx24X, mx24Z] = cellCenter(2, 3);
+  const [mx03X, mx03Z] = cellCenter(1, 2);
   const [o33X, o33Z] = cellCenter(3, 3);
 
   return (

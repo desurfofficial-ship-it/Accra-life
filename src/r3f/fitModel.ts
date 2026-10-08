@@ -18,6 +18,14 @@
  *   <group position={[x,y,z]}><primitive object={fitted} /></group>
  * and MUST NOT set position/scale on the primitive itself — that would
  * overwrite the centering offset computed here.
+ *
+ * HARDENING (post PR #16):
+ * - Never return an unscaled model when the bbox is zero/invalid.
+ *   A zero bbox is treated as "measurement failed" and we apply a
+ *   conservative fallback scale so the camera cannot sit inside
+ *   10-million-unit market signage.
+ * - Absolute post-fit clamp: if fitted footprint still exceeds
+ *   maxFootprint * 3, force another uniform shrink.
  */
 
 import * as THREE from 'three';
@@ -36,41 +44,29 @@ function recordScaleWarning(w: ScaleWarning): void {
     const win = window as unknown as { __scaleWarnings?: ScaleWarning[] };
     if (!win.__scaleWarnings) win.__scaleWarnings = [];
     win.__scaleWarnings.push(w);
-    // Keep bounded
     if (win.__scaleWarnings.length > 40) win.__scaleWarnings.shift();
   }
 }
 
-/**
- * Measure a tight world-space AABB, forcing geometry bounding boxes
- * so empty/uninitialized geometries don't under-measure (which would
- * over-scale and put the camera inside giant signage).
- */
 function measureWorldBox(root: THREE.Object3D): THREE.Box3 {
   root.updateMatrixWorld(true);
-  // Ensure every mesh has a local bounding box computed.
   root.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
     if (mesh.isMesh && mesh.geometry) {
       const g = mesh.geometry;
       if (!g.boundingBox) g.computeBoundingBox();
+      if (!g.boundingSphere) g.computeBoundingSphere();
     }
   });
   return new THREE.Box3().setFromObject(root);
 }
 
 /**
- * Clone an object, update its world matrices, measure its bounding box,
- * apply a uniform scale so the footprint fits, and re-centre at origin
- * with the base at y=0. Returns a THREE.Group wrapping the clone.
+ * Clone an object, measure its bounding box, apply a uniform scale so the
+ * footprint fits, and re-centre at origin with the base at y=0.
+ * Returns a THREE.Group wrapping the clone.
  *
- * @param source The original loaded scene/mesh (NOT mutated — cloned).
- * @param maxFootprint Target value for max(size.x, size.z) in world units.
- * @param maxHeight Optional max height. If the height-limited scale is
- *                  smaller than the footprint-limited scale, the smaller
- *                  one wins (so tall thin models don't exceed maxHeight).
- * @param url Optional URL for the dev assertion warning.
- * @returns A new THREE.Group containing the fitted clone.
+ * NEVER leaves the model at its raw (often multi-million-unit) scale.
  */
 export function fitToFootprint(
   source: THREE.Object3D,
@@ -80,90 +76,114 @@ export function fitToFootprint(
 ): THREE.Group {
   const label = url ?? '(unknown)';
 
-  // Clone + force matrix update so Box3 measures the post-transform geometry.
   const clone = source.clone(true);
   const group = new THREE.Group();
   group.name = `fit:${label.split('/').pop() ?? 'model'}`;
   group.add(clone);
 
-  const box = measureWorldBox(group);
-  const size = new THREE.Vector3();
+  let box = measureWorldBox(group);
+  let size = new THREE.Vector3();
   box.getSize(size);
 
-  // Guard against NaN or zero dimensions.
-  if (
+  const invalid =
     !Number.isFinite(size.x) || !Number.isFinite(size.y) || !Number.isFinite(size.z) ||
-    size.x === 0 || size.y === 0 || size.z === 0
-  ) {
+    size.x <= 0 || size.y <= 0 || size.z <= 0;
+
+  if (invalid) {
+    clone.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (mesh.isMesh && mesh.geometry) {
+        mesh.geometry.computeBoundingBox();
+        mesh.geometry.computeBoundingSphere();
+        mesh.geometry.boundingBox = null;
+      }
+    });
+    box = measureWorldBox(group);
+    box.getSize(size);
+  }
+
+  const stillInvalid =
+    !Number.isFinite(size.x) || !Number.isFinite(size.y) || !Number.isFinite(size.z) ||
+    size.x <= 0 || size.y <= 0 || size.z <= 0;
+
+  let scale: number;
+
+  if (stillInvalid) {
+    // Measurement failed — do NOT leave the model at raw scale.
+    scale = maxFootprint / 1000;
     recordScaleWarning({
       url: label,
       target: maxFootprint,
       fitted: 0,
       raw: { x: size.x, y: size.y, z: size.z },
-      reason: 'invalid/zero size — left unscaled',
+      reason: `invalid/zero size — applied fallback scale ${scale.toExponential(2)} (was: left unscaled)`,
     });
-    return group;
+  } else {
+    const footprint = Math.max(size.x, size.z);
+    scale = footprint > 0 ? maxFootprint / footprint : 1;
+
+    if (maxHeight !== undefined && size.y > 0) {
+      const heightScale = maxHeight / size.y;
+      scale = Math.min(scale, heightScale);
+    }
+
+    const MAX_SCALE_UP = 50;
+    const MIN_SCALE = 1e-8;
+    if (scale > MAX_SCALE_UP) {
+      recordScaleWarning({
+        url: label,
+        target: maxFootprint,
+        fitted: footprint * MAX_SCALE_UP,
+        raw: { x: size.x, y: size.y, z: size.z },
+        reason: `scale ${scale.toExponential(2)} capped at ${MAX_SCALE_UP}× (possible under-measured bbox)`,
+      });
+      scale = MAX_SCALE_UP;
+    }
+    if (scale < MIN_SCALE) {
+      recordScaleWarning({
+        url: label,
+        target: maxFootprint,
+        fitted: footprint * MIN_SCALE,
+        raw: { x: size.x, y: size.y, z: size.z },
+        reason: `scale ${scale.toExponential(2)} below min — left at min`,
+      });
+      scale = MIN_SCALE;
+    }
   }
 
-  // Compute uniform scale from footprint (max of X and Z).
-  const footprint = Math.max(size.x, size.z);
-  let scale = footprint > 0 ? maxFootprint / footprint : 1;
-
-  // If maxHeight is given and the height-limited scale is smaller, use that.
-  if (maxHeight !== undefined && size.y > 0) {
-    const heightScale = maxHeight / size.y;
-    scale = Math.min(scale, heightScale);
-  }
-
-  // Safety clamps: never explode a near-zero measurement into a megastructure,
-  // and never shrink a sane model into invisibility via a bad target.
-  const MAX_SCALE_UP = 50; // if model is already smaller than target, allow up to 50×
-  const MIN_SCALE = 1e-8;
-  if (scale > MAX_SCALE_UP) {
-    recordScaleWarning({
-      url: label,
-      target: maxFootprint,
-      fitted: footprint * MAX_SCALE_UP,
-      raw: { x: size.x, y: size.y, z: size.z },
-      reason: `scale ${scale.toExponential(2)} capped at ${MAX_SCALE_UP}× (possible under-measured bbox)`,
-    });
-    scale = MAX_SCALE_UP;
-  }
-  if (scale < MIN_SCALE) {
-    recordScaleWarning({
-      url: label,
-      target: maxFootprint,
-      fitted: footprint * MIN_SCALE,
-      raw: { x: size.x, y: size.y, z: size.z },
-      reason: `scale ${scale.toExponential(2)} below min — left at min`,
-    });
-    scale = MIN_SCALE;
-  }
-
-  // Apply uniform scale to the OUTER group (not the inner clone — preserves
-  // the clone's internal node transforms, including non-uniform ones).
   group.scale.setScalar(scale);
 
-  // Re-measure after scaling to re-centre.
   const fittedBox = measureWorldBox(group);
   const fittedSize = new THREE.Vector3();
   const fittedCenter = new THREE.Vector3();
   fittedBox.getSize(fittedSize);
   fittedBox.getCenter(fittedCenter);
 
-  // Offset the group so the model's bottom is at y=0 and centred on x=z=0.
-  // Callers must NOT overwrite this via <primitive position=...>; place via
-  // a parent <group position={[x,y,z]}> instead.
-  group.position.set(-fittedCenter.x, -fittedBox.min.y, -fittedCenter.z);
-
-  // Dev assertion: if the fitted model is still larger than 2× the target,
-  // warn (visible in ?debug=1 overlay via window.__scaleWarnings).
   const fittedFootprint = Math.max(fittedSize.x, fittedSize.z);
-  if (fittedFootprint > maxFootprint * 2 || !Number.isFinite(fittedFootprint)) {
+  if (Number.isFinite(fittedFootprint) && fittedFootprint > maxFootprint * 3) {
+    const extra = maxFootprint / fittedFootprint;
+    group.scale.multiplyScalar(extra);
     recordScaleWarning({
       url: label,
       target: maxFootprint,
       fitted: fittedFootprint,
+      raw: { x: size.x, y: size.y, z: size.z },
+      reason: `post-fit still ${fittedFootprint.toFixed(1)} (>3× target) — forced extra ×${extra.toExponential(2)}`,
+    });
+    const box2 = measureWorldBox(group);
+    box2.getSize(fittedSize);
+    box2.getCenter(fittedCenter);
+    fittedBox.copy(box2);
+  }
+
+  group.position.set(-fittedCenter.x, -fittedBox.min.y, -fittedCenter.z);
+
+  const finalFootprint = Math.max(fittedSize.x, fittedSize.z);
+  if (finalFootprint > maxFootprint * 2 || !Number.isFinite(finalFootprint)) {
+    recordScaleWarning({
+      url: label,
+      target: maxFootprint,
+      fitted: finalFootprint,
       raw: { x: size.x, y: size.y, z: size.z },
       reason: 'still too large after fit',
     });
