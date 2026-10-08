@@ -19,9 +19,14 @@ import { GameCanvas } from './GameCanvas';
 import { bootstrapDebugOverlay } from '../debug/DebugOverlay';
 
 // Boot the DebugOverlay (?debug=1) + strip backdrop-filter on mobile.
-// Safe to call at module load — it checks IS_MOBILE + DEBUG_ENABLED
-// internally and no-ops when neither applies.
 bootstrapDebugOverlay();
+
+// Wire the "Reset Camera" button to call the FollowCamera's reset fn.
+// The fn is exposed on window.__r3fResetCamera by FollowCamera.tsx once
+// the R3F tree mounts. Before that (pre-onboarding), it's a no-op.
+document.getElementById('resetCameraBtn')?.addEventListener('click', () => {
+  (window as unknown as { __r3fResetCamera?: () => void }).__r3fResetCamera?.();
+});
 
 const container = document.getElementById('r3f-root');
 if (container) {
