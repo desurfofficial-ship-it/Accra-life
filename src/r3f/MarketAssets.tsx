@@ -69,7 +69,7 @@ function GLBMarket({
   rotation?: number;
   scale?: number;
 }) {
-  const { scene } = useGLTF(url);
+  const { scene } = useGLTF(url, assetUrl('draco/'));
   const cloned = useMemo(() => {
     const m = scene.clone(true);
     m.traverse((child) => {
@@ -116,4 +116,4 @@ export function MarketAssets() {
 
 // Preload all market GLBs at module load (R3F caches by URL).
 // This kicks off fetches early so the Suspense fallback is brief.
-Object.values(URLS).forEach((url) => useGLTF.preload(url));
+// REMOVED FOR BOOT PAYLOAD: Object.values(URLS).forEach((url) => useGLTF.preload(url));

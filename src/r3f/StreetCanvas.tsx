@@ -31,6 +31,7 @@ import { LivingPlayerAvatar } from './LivingPlayerAvatar';
 import { LivingVendor } from './LivingVendor';
 import { MarketAssets } from './MarketAssets';
 import { AssetBoundary } from './AssetBoundary';
+import { isMobileDevice } from '../debug/DebugOverlay';
 import { TrotroService } from '../game/World/TrotroService';
 import { MAKOLA_VENDOR_STAND_WORLD } from '../game/World/GridMap';
 import { getGameAPI } from './gameAPIBridge';
@@ -224,10 +225,13 @@ export function StreetCanvas() {
         deprecation warning each boot and downgraded to PCFShadowMap
         anyway — so this is the same rendering, minus the warning). */}
     <Canvas
-      shadows="percentage"
-      dpr={[1, 2]}
+      // Mobile perf: lower dpr, no antialias, no shadows on phones (or
+      // one 1024 map if we add PerformanceMonitor later). Desktop keeps
+      // the full-quality settings.
+      shadows={!isMobileDevice()}
+      dpr={isMobileDevice() ? [1, 1.5] : [1, 2]}
       style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
-      gl={{ antialias: true }}
+      gl={{ antialias: !isMobileDevice() }}
     >
       <OrthographicCamera makeDefault position={[0, 50, 50]} zoom={10} near={0.1} far={200} />
 

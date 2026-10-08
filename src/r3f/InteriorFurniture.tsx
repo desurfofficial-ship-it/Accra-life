@@ -5,7 +5,7 @@ import { cellCenter } from './AccraCityGrid';
 import { assetUrl } from '../assetUrl';
 
 function FurnitureModel({ url, position, rotation, scale }: { url: string; position: [number, number, number]; rotation: number; scale: number }) {
-  const { scene } = useGLTF(url);
+  const { scene } = useGLTF(url, assetUrl('draco/'));
   const cloned = useMemo(() => { const m = scene.clone(true); m.traverse((c) => { if (c instanceof THREE.Mesh) { c.castShadow = true; c.receiveShadow = true; } }); return m; }, [scene]);
   return <primitive object={cloned} position={position} rotation={[0, rotation, 0]} scale={scale} />;
 }
@@ -18,4 +18,4 @@ export function InteriorFurniture() {
     <FurnitureModel url={assetUrl('assets/glb/furniture/chair_table_wardrobe_suitcase_furniture.glb')} position={[c0X + 3, 0, c0Z - 1]} rotation={1.2} scale={0.2} />
   </Suspense>);
 }
-useGLTF.preload(assetUrl('assets/glb/furniture/some_furniture.glb'));
+// REMOVED FOR BOOT PAYLOAD: useGLTF.preload(assetUrl('assets/glb/furniture/some_furniture.glb'));

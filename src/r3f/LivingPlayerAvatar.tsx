@@ -100,7 +100,7 @@ export interface LivingPlayerAvatarProps {
 
 export function LivingPlayerAvatar({ isMovingRef, isSprintingRef, parentGroupRef }: LivingPlayerAvatarProps) {
   // useGLTF caches by URL — multiple instances share the same loaded gltf.
-  const gltf = useGLTF(AVATAR_URL);
+  const gltf = useGLTF(AVATAR_URL, assetUrl('draco/'));
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
   // All AnimationActions created from the gltf, keyed by clip name.
   const actionsByNameRef = useRef<Map<string, THREE.AnimationAction>>(new Map());

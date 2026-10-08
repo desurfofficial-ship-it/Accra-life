@@ -10,7 +10,7 @@ import { assetUrl } from '../assetUrl';
 function OfficeBuilding({position,rotation,scale}:{position:[number,number,number];rotation:number;scale:number}) {
   const materials=useLoader(MTLLoader,assetUrl('assets/obj/landscape/building-office-small.mtl'));
   const obj=useLoader(OBJLoader,assetUrl('assets/obj/landscape/building-office-small.obj'));
-  const cloned=useMemo(()=>{materials.preload();const m=obj.clone(true);m.traverse((c)=>{if(c instanceof THREE.Mesh){c.material=materials.materials.Material||c.material;c.castShadow=true;c.receiveShadow=true;}});return m;},[obj,materials]);
+const cloned=useMemo(()=>{materials.preload();const m=obj.clone(true);m.traverse((c)=>{if(c instanceof THREE.Mesh){c.material=materials.materials.Material||c.material;c.castShadow=true;c.receiveShadow=true;}});return m;},[obj,materials]);
   return <primitive object={cloned} position={position} rotation={[0,rotation,0]} scale={scale} />;
 }
 
@@ -28,6 +28,6 @@ export function LandscapeProps() {
     <FarmBuilding position={[fX,0,fZ]} rotation={0.8} scale={0.02} />
   </Suspense>);
 }
-useLoader.preload(MTLLoader,assetUrl('assets/obj/landscape/building-office-small.mtl'));
-useLoader.preload(OBJLoader,assetUrl('assets/obj/landscape/building-office-small.obj'));
-useLoader.preload(FBXLoader,assetUrl('assets/fbx/farm/farm2_textured.FBX'));
+// REMOVED FOR BOOT PAYLOAD: useLoader.preload(MTLLoader,assetUrl('assets/obj/landscape/building-office-small.mtl'));
+// REMOVED FOR BOOT PAYLOAD: useLoader.preload(OBJLoader,assetUrl('assets/obj/landscape/building-office-small.obj'));
+// REMOVED FOR BOOT PAYLOAD: useLoader.preload(FBXLoader,assetUrl('assets/fbx/farm/farm2_textured.FBX'));

@@ -19,6 +19,7 @@
  * boundary, React unmounts the whole Canvas tree on the first 404.
  */
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { recordAssetFailure } from '../debug/DebugOverlay';
 
 export interface AssetBoundaryProps {
   children: ReactNode;
@@ -43,6 +44,7 @@ export class AssetBoundary extends Component<AssetBoundaryProps, AssetBoundarySt
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+    recordAssetFailure(this.props.name ?? 'unnamed', error.message);
     // eslint-disable-next-line no-console
     console.warn(
       `[asset] failed${this.props.name ? ` (${this.props.name})` : ''}:`,

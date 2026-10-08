@@ -27,7 +27,7 @@ interface ActiveRenderer {
 
 export class Phase1Scene {
   public readonly scene: THREE.Scene;
-  public renderer: ActiveRenderer;
+  public renderer: ActiveRenderer | null;
   public readonly inputManager: InputManager;
   public readonly player: PlayerController;
   public readonly thirdPersonCamera: ThirdPersonCamera;
@@ -41,6 +41,13 @@ export class Phase1Scene {
    * systems layer stays live while the GPU draws just the custom map.
    */
   public renderEnabled = true;
+
+  /** Mobile perf (PR spec point 2): when #r3f-root exists, Phase1Scene
+   *  must NOT create a WebGLRenderer — R3F owns the visible canvas. The
+   *  simulation (player, interactions, NPC rigs, camera) keeps running so
+   *  the systems layer stays live while the GPU draws just the custom map.
+   *  this.renderer is null in this mode; all calls are guarded. */
+  private readonly r3fActive: boolean;
 
   private readonly container: HTMLElement;
   private colliders: ColliderBox[] = [];
@@ -62,16 +69,24 @@ export class Phase1Scene {
     const initW = container.clientWidth || window.innerWidth;
     const initH = container.clientHeight || window.innerHeight;
 
-    this.renderer = this.createSafeRenderer(initW, initH);
+    // Detect R3F ownership BEFORE creating a renderer. When R3F owns the
+    // visible canvas, Phase1Scene runs simulation-only (no WebGL context,
+    // no shadow map, no canvas appended). Saves ~30MB of GPU memory + a
+    // whole second WebGL context that iOS will kill the tab over.
+    const r3fRoot = document.getElementById('r3f-root');
+    this.r3fActive = !!r3fRoot;
+
+    this.renderer = this.r3fActive ? null : this.createSafeRenderer(initW, initH);
 
     // Custom map integration: #r3f-root hosts the live 5x5 Accra grid
     // (src/r3f — the player-facing world). It renders ABOVE this canvas,
     // so it must survive the container wipe below.
-    const r3fRoot = document.getElementById('r3f-root');
     r3fRoot?.remove();
     container.innerHTML = '';
     if (r3fRoot) container.appendChild(r3fRoot);
-    container.appendChild(this.renderer.domElement);
+    if (this.renderer) {
+      container.appendChild(this.renderer.domElement);
+    }
 
     this.setupLighting();
 
@@ -108,8 +123,10 @@ export class Phase1Scene {
     const handleViewportResize = () => {
       const w = container.clientWidth || window.innerWidth;
       const h = container.clientHeight || window.innerHeight;
-      this.renderer.setSize(w, h);
-      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      if (this.renderer) {
+        this.renderer.setSize(w, h);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      }
       this.thirdPersonCamera.resize(w, h);
     };
 
@@ -248,12 +265,12 @@ export class Phase1Scene {
     this.thirdPersonCamera.update(dt, this.player.position, this.colliders);
     this.interactionSystem.update(dt, this.player.position, this.player.getForwardVector());
 
-    if (this.renderEnabled) {
+    if (this.renderEnabled && this.renderer) {
       try {
         this.renderer.render(this.scene, this.thirdPersonCamera.camera);
       } catch {
         this.switchToFallbackRenderer();
-        this.renderer.render(this.scene, this.thirdPersonCamera.camera);
+        if (this.renderer) this.renderer.render(this.scene, this.thirdPersonCamera.camera);
       }
     }
   };
