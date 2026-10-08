@@ -2,26 +2,7 @@
  * LivingVendor.tsx — the Makola street-vendor stand on the visible custom
  * map, wired to the REAL VendorService (skills/vendor-system.md contract).
  *
- * Flow (per contract):
- *   0. Proximity — the [E] key only binds within 3.5 m of the stand
- *      (same radius as the systems-layer 'makola_vendor_stand'
- *      interactable and the VendorService proximity gate).
- *   1. Trigger   — [E] (or VENDOR_SELL_EVENT from the systems layer)
- *                  → gameAPI.startVendorJob() (void — the bridge injects
- *                  the live player position into the service's gate).
- *   2. Dialogue  — the service locks the event ONCE and reports it via
- *                  onShiftUpdate(): NORMAL → 'Welcome! What you need
- *                  today?' (₵10) · RUSH_HOUR → 'Rush hour! Everyone
- *                  buying! Make haste!' (₵15).
- *   3. Shift     — 10 s selling bar; the ENGINE owns the timer.
- *   4. Payout    — the engine credits the wallet through the addFunds
- *                  path (category SALE, channel CASH) — this component
- *                  NEVER calls addFunds itself (double-credit guard).
- *                  Sale-complete beat: chime + '+₵' float + '[vendor]'
- *                  console log; then a 30 s restock cooldown applies.
- *
- * Pre-boot (window.GameAPI absent) the stand renders as scenery with a
- * 'market opens after boot' hint — same demo posture as TroTroBoarding.
+ * Labels: NEVER use <Html distanceFactor> under OrthographicCamera.
  */
 
 import { useFrame } from '@react-three/fiber';
@@ -30,10 +11,12 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import * as THREE from 'three';
 import { getGameAPI, VENDOR_SELL_EVENT } from './gameAPIBridge';
 import type { VendorService, VendorShiftSnapshot } from '../game/Jobs/VendorService';
+import {
+  reportWorldLabel,
+  shouldShowWorldLabel,
+  tickWorldLabelFrame,
+} from './worldLabel';
 
-// ── Constants ────────────────────────────────────────────────────────────────
-
-/** [E] range on the visible map — matches the interactable radius. */
 const E_KEY_RANGE = 3.5;
 
 const IDLE_SNAPSHOT: VendorShiftSnapshot = {
@@ -49,9 +32,6 @@ const IDLE_SNAPSHOT: VendorShiftSnapshot = {
   transactionId: null,
 };
 
-// ── Audio ────────────────────────────────────────────────────────────────────
-
-/** Sale-complete chime — a short WebAudio arpeggio (C6 · E6 · G6). */
 function playSaleChime() {
   try {
     const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -79,8 +59,6 @@ function playSaleChime() {
   console.log('[vendor] chime: sale complete');
 }
 
-// ── Component ────────────────────────────────────────────────────────────────
-
 interface LivingVendorProps {
   position: [number, number, number];
   playerRef: RefObject<THREE.Group | null>;
@@ -90,11 +68,7 @@ export function LivingVendor({ position, playerRef }: LivingVendorProps) {
   const [snapshot, setSnapshot] = useState<VendorShiftSnapshot>(IDLE_SNAPSHOT);
   const [, setNowMs] = useState(0);
   const serviceRef = useRef<VendorService | null>(null);
-  const bridgeReadyRef = useRef(false);
 
-  // Adopt the SHARED VendorService once the systems layer boots (same
-  // pattern as StreetCanvas adopting window.GameAPI.trotro), then render
-  // the shift purely from onShiftUpdate snapshots.
   useEffect(() => {
     let cancelled = false;
     const adopt = () => {
@@ -121,16 +95,12 @@ export function LivingVendor({ position, playerRef }: LivingVendorProps) {
     return () => { cancelled = true; };
   }, []);
 
-  // 100 ms UI tick — drives the shift progress bar (the SERVICE owns the
-  // real 10 s timer; this is display-only).
   useEffect(() => {
     if (snapshot.phase !== 'SELLING') return;
     const id = window.setInterval(() => setNowMs(Date.now()), 100);
     return () => window.clearInterval(id);
   }, [snapshot.phase]);
 
-  // The one and only trigger: gameAPI.startVendorJob() — the bridge
-  // injects the live player position into the proximity gate.
   const requestSell = () => {
     const api = getGameAPI();
     if (!api) {
@@ -141,7 +111,6 @@ export function LivingVendor({ position, playerRef }: LivingVendorProps) {
     api.startVendorJob();
   };
 
-  // ── [E] key on the visible map (range-gated) ───────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== 'KeyE' || e.repeat) return;
@@ -157,7 +126,6 @@ export function LivingVendor({ position, playerRef }: LivingVendorProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [position, playerRef]);
 
-  // ── [E] routed from the systems layer (InteractionSystem target) ───────────
   useEffect(() => {
     const onSellRequest = () => requestSell();
     window.addEventListener(VENDOR_SELL_EVENT, onSellRequest);
@@ -165,21 +133,26 @@ export function LivingVendor({ position, playerRef }: LivingVendorProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Proximity check — show the prompt pill while the player is in range.
   const inRangeRef = useRef(false);
   const [inRange, setInRange] = useState(false);
+  const [labelVisible, setLabelVisible] = useState(false);
+  const labelId = useRef(`vendor-${position[0]}-${position[2]}`).current;
   useFrame(() => {
+    tickWorldLabelFrame();
     if (!playerRef?.current) return;
     const dx = playerRef.current.position.x - position[0];
     const dz = playerRef.current.position.z - position[2];
-    const near = Math.sqrt(dx * dx + dz * dz) <= E_KEY_RANGE;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    const near = dist <= E_KEY_RANGE;
     if (near !== inRangeRef.current) {
       inRangeRef.current = near;
       setInRange(near);
     }
+    reportWorldLabel(labelId, dist);
+    const show = shouldShowWorldLabel(labelId);
+    if (show !== labelVisible) setLabelVisible(show);
   });
 
-  // Shift progress (display-only — the engine timer pays).
   const now = Date.now();
   const progress =
     snapshot.phase === 'SELLING' && snapshot.startedAtMs !== null && snapshot.endsAtMs !== null
@@ -190,13 +163,11 @@ export function LivingVendor({ position, playerRef }: LivingVendorProps) {
       ? Math.ceil((snapshot.cooldownEndsAtMs - now) / 1000)
       : 0;
 
-  const showPanel = inRange || snapshot.phase !== 'IDLE';
+  const showPanel = labelVisible && (inRange || snapshot.phase !== 'IDLE');
 
   return (
     <group position={position}>
-      {/* ── The stand visuals (mirror of the systems-layer builder) ── */}
       <group>
-        {/* table top + legs */}
         <mesh position={[0, 0.82, 0]} castShadow receiveShadow>
           <boxGeometry args={[2.2, 0.08, 0.9]} />
           <meshStandardMaterial color="#92400e" roughness={0.7} />
@@ -207,7 +178,6 @@ export function LivingVendor({ position, playerRef }: LivingVendorProps) {
             <meshStandardMaterial color="#78350f" roughness={0.6} />
           </mesh>
         ))}
-        {/* tomato pyramid */}
         {[0, 1, 2, 3, 4, 5].map((i) => (
           <mesh
             key={`tomato-${i}`}
@@ -218,19 +188,16 @@ export function LivingVendor({ position, playerRef }: LivingVendorProps) {
             <meshStandardMaterial color="#dc2626" roughness={0.4} />
           </mesh>
         ))}
-        {/* yams */}
         {[0.15, 0.45].map((yx, i) => (
           <mesh key={`yam-${i}`} position={[yx, 0.94, 0.05]} rotation={[0, 0, i === 0 ? 0.2 : -0.15]} castShadow>
             <cylinderGeometry args={[0.06, 0.08, 0.55, 8]} />
             <meshStandardMaterial color="#7c2d12" roughness={0.8} />
           </mesh>
         ))}
-        {/* supply crate */}
         <mesh position={[0.75, 0.23, -0.45]} castShadow>
           <boxGeometry args={[0.7, 0.45, 0.5]} />
           <meshStandardMaterial color="#a16207" roughness={0.75} />
         </mesh>
-        {/* market umbrella */}
         <mesh position={[-0.8, 1.2, -0.75]} castShadow>
           <cylinderGeometry args={[0.035, 0.035, 2.4, 8]} />
           <meshStandardMaterial color="#78350f" roughness={0.6} />
@@ -239,14 +206,12 @@ export function LivingVendor({ position, playerRef }: LivingVendorProps) {
           <coneGeometry args={[1.35, 0.55, 8]} />
           <meshStandardMaterial color="#c2410c" roughness={0.55} />
         </mesh>
-        {/* yellow price sign */}
         <mesh position={[0.1, 1.02, 0.46]}>
           <planeGeometry args={[0.85, 0.3]} />
           <meshBasicMaterial color="#facc15" side={THREE.DoubleSide} />
         </mesh>
       </group>
 
-      {/* Interaction zone glow while a shift runs */}
       {snapshot.phase !== 'IDLE' && (
         <mesh position={[0, 0.02, 0]}>
           <ringGeometry args={[1.6, 1.85, 32]} />
@@ -259,10 +224,6 @@ export function LivingVendor({ position, playerRef }: LivingVendorProps) {
         </mesh>
       )}
 
-      {/* HTML overlay — vendor prompt / dialogue / shift bar / payout.
-          NOTE: no distanceFactor — under this OrthographicCamera drei's
-          distance scaling explodes to giant text; a fixed-size anchored
-          overlay stays crisp and readable at any zoom. */}
       {showPanel && (
         <Html position={[0, 3.4, 0]} center zIndexRange={[40, 0]}>
           <style>{`@keyframes vendorFloat { 0% { transform: translateY(6px); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(-8px); opacity: 0.15; } }`}</style>
@@ -279,6 +240,7 @@ export function LivingVendor({ position, playerRef }: LivingVendorProps) {
             minWidth: '180px',
             maxWidth: '280px',
             pointerEvents: 'auto',
+            transition: 'opacity 150ms ease',
           }}>
             {snapshot.phase === 'IDLE' && restockRemainingS > 0 && (
               <div style={{ color: '#94a3b8' }}>
