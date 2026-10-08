@@ -10,7 +10,9 @@ if ! rg -q "OrthographicCamera" "$R3F" --glob '*.tsx'; then
   exit 0
 fi
 
+# Match distanceFactor= on the same line as <Html, or numeric distanceFactor={
 hits=$(rg -n --glob '*.tsx' -U '<Html[^>]*distanceFactor|distanceFactor=\{[0-9]' "$R3F" || true)
+# Filter out comments
 real=$(echo "$hits" | grep -v '^\s*$' | grep -v '//.*distanceFactor' | grep -v '\*.*distanceFactor' || true)
 
 if [ -n "$real" ]; then
