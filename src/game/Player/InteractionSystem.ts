@@ -1,18 +1,16 @@
-/**
- * InteractionSystem.ts — proximity targets + objective beacon (sim scene).
- * E / Enter are bound by game-init → handleActPress (shared with Act button).
- */
-
 import * as THREE from 'three';
-import type { InputManager } from './InputManager';
+import { InputManager } from './InputManager';
 
 export interface InteractableTarget {
   id: string;
+  assetId: string;
   title: string;
   promptLabel: string;
+  interactionResponse: string;
   position: THREE.Vector3;
+  lookAtPosition?: THREE.Vector3;
   radius: number;
-  actionVerb?: string;
+  mesh?: THREE.Object3D;
   onInteract?: (target: InteractableTarget) => void;
 }
 
@@ -20,45 +18,70 @@ export class InteractionSystem {
   private targets: InteractableTarget[] = [];
   private activeTarget: InteractableTarget | null = null;
   private objectiveTargetId: string | null = null;
+  private indicatorRing: THREE.Mesh;
   private objectiveBeaconGroup: THREE.Group;
+  private objectiveRingMat: THREE.MeshBasicMaterial;
+  private objectiveDiamondMat: THREE.MeshBasicMaterial;
   private objectiveDiamondMesh: THREE.Mesh;
-  private objectiveFlashUntil = 0;
+  private pulseClock = 0;
+  private lastInteractMs = 0;
+  private readonly cooldownMs = 250;
+
+  private onActiveTargetChange?: (target: InteractableTarget | null) => void;
   private onInteractTriggered?: (target: InteractableTarget) => void;
 
   constructor(
     scene: THREE.Scene,
-    _inputManager: InputManager,
+    inputManager: InputManager,
+    onActiveTargetChange?: (target: InteractableTarget | null) => void,
     onInteractTriggered?: (target: InteractableTarget) => void
   ) {
+    this.onActiveTargetChange = onActiveTargetChange;
     this.onInteractTriggered = onInteractTriggered;
 
+    // Stylized glowing gold ground ring under the currently focused interactable
+    const ringGeo = new THREE.RingGeometry(0.62, 0.84, 32);
+    ringGeo.rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xfacc15,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.88
+    });
+    this.indicatorRing = new THREE.Mesh(ringGeo, ringMat);
+    this.indicatorRing.visible = false;
+    this.indicatorRing.position.y = 0.24;
+    scene.add(this.indicatorRing);
+
+    // 3D Active Job / Hustle Objective Waypoint Beacon
     this.objectiveBeaconGroup = new THREE.Group();
     this.objectiveBeaconGroup.visible = false;
 
-    const ringGeo = new THREE.RingGeometry(0.55, 0.72, 32);
-    const ringMat = new THREE.MeshBasicMaterial({
+    const objRingGeo = new THREE.RingGeometry(0.92, 1.16, 32);
+    objRingGeo.rotateX(-Math.PI / 2);
+    this.objectiveRingMat = new THREE.MeshBasicMaterial({
       color: 0x10b981,
-      transparent: true,
-      opacity: 0.75,
       side: THREE.DoubleSide,
-      depthWrite: false,
+      transparent: true,
+      opacity: 0.85
     });
-    const objRingMesh = new THREE.Mesh(ringGeo, ringMat);
-    objRingMesh.rotation.x = -Math.PI / 2;
-    objRingMesh.position.y = 0.05;
+    const objRingMesh = new THREE.Mesh(objRingGeo, this.objectiveRingMat);
+    objRingMesh.position.y = 0.02;
 
-    const diamondGeo = new THREE.OctahedronGeometry(0.22, 0);
-    const diamondMat = new THREE.MeshBasicMaterial({ color: 0x34d399 });
-    this.objectiveDiamondMesh = new THREE.Mesh(diamondGeo, diamondMat);
+    const diamondGeo = new THREE.OctahedronGeometry(0.24, 0);
+    this.objectiveDiamondMat = new THREE.MeshBasicMaterial({
+      color: 0x34d399
+    });
+    this.objectiveDiamondMesh = new THREE.Mesh(diamondGeo, this.objectiveDiamondMat);
     this.objectiveDiamondMesh.position.y = 2.35;
     this.objectiveDiamondMesh.scale.set(0.85, 1.35, 0.85);
 
     this.objectiveBeaconGroup.add(objRingMesh, this.objectiveDiamondMesh);
     scene.add(this.objectiveBeaconGroup);
 
-    // E / Enter are bound by game-init → handleActPress (shared with the
-    // Act button). Do NOT auto-bind here — triggerCurrentInteraction alone
-    // skips the out-of-range walk toast.
+    // E / Enter bound by game-init → handleActPress (shared with Act button).
+    // Do NOT auto-bind here — triggerCurrentInteraction alone skips out-of-range toast.
+    void inputManager;
   }
 
   public registerTarget(target: InteractableTarget): void {
@@ -73,50 +96,37 @@ export class InteractionSystem {
     return this.activeTarget;
   }
 
-  public getObjectiveTarget(): InteractableTarget | null {
-    if (!this.objectiveTargetId) return null;
-    return this.targets.find((t) => t.id === this.objectiveTargetId) ?? null;
-  }
-
-  public setObjectiveTarget(id: string | null): void {
-    this.objectiveTargetId = id;
-  }
-
-  public flashObjectiveMarker(ms = 1200): void {
-    this.objectiveFlashUntil = performance.now() + ms;
-  }
-
-  public isObjectiveFlashing(): boolean {
-    return performance.now() < this.objectiveFlashUntil;
-  }
-
-  public update(playerPos: THREE.Vector3): void {
-    let nearest: InteractableTarget | null = null;
-    let nearestDist = Infinity;
-    for (const t of this.targets) {
-      const d = playerPos.distanceTo(t.position);
-      if (d <= t.radius && d < nearestDist) {
-        nearest = t;
-        nearestDist = d;
-      }
-    }
-    this.activeTarget = nearest;
-
-    const obj = this.getObjectiveTarget();
-    if (obj) {
-      this.objectiveBeaconGroup.visible = true;
-      this.objectiveBeaconGroup.position.copy(obj.position);
-      const flashing = this.isObjectiveFlashing();
-      const diamond = this.objectiveDiamondMesh;
-      const mat = diamond.material as THREE.MeshBasicMaterial;
-      mat.color.setHex(flashing ? 0xfacc15 : 0x34d399);
-    } else {
+  public setObjectiveTarget(targetId: string | null, isRisky = false): void {
+    this.objectiveTargetId = targetId;
+    if (!targetId) {
       this.objectiveBeaconGroup.visible = false;
+      return;
     }
+    const target = this.targets.find((t) => t.id === targetId);
+    if (!target) {
+      this.objectiveBeaconGroup.visible = false;
+      return;
+    }
+
+    this.objectiveRingMat.color.setHex(isRisky ? 0xef4444 : 0x10b981);
+    this.objectiveDiamondMat.color.setHex(isRisky ? 0xf87171 : 0x34d399);
+    this.objectiveBeaconGroup.position.set(
+      target.position.x,
+      Math.max(0.10, target.position.y),
+      target.position.z
+    );
+    this.objectiveBeaconGroup.visible = true;
   }
 
   public triggerCurrentInteraction(): boolean {
     if (!this.activeTarget) return false;
+
+    const now = performance.now();
+    if (now - this.lastInteractMs < this.cooldownMs) {
+      return false;
+    }
+    this.lastInteractMs = now;
+
     if (this.activeTarget.onInteract) {
       this.activeTarget.onInteract(this.activeTarget);
     }
@@ -124,5 +134,65 @@ export class InteractionSystem {
       this.onInteractTriggered(this.activeTarget);
     }
     return true;
+  }
+
+  public update(dt: number, playerPosition: THREE.Vector3, playerForward: THREE.Vector3): void {
+    this.pulseClock += dt * 4.5;
+
+    let bestCandidate: InteractableTarget | null = null;
+    let bestScore = Infinity;
+
+    for (let i = 0; i < this.targets.length; i++) {
+      const target = this.targets[i];
+      const dx = target.position.x - playerPosition.x;
+      const dz = target.position.z - playerPosition.z;
+      const dist = Math.hypot(dx, dz);
+
+      if (dist <= target.radius) {
+        const focusPoint = target.lookAtPosition || target.position;
+        const fdx = focusPoint.x - playerPosition.x;
+        const fdz = focusPoint.z - playerPosition.z;
+        const fLen = Math.hypot(fdx, fdz);
+        const dot =
+          fLen > 0.001
+            ? playerForward.x * (fdx / fLen) + playerForward.z * (fdz / fLen)
+            : 1;
+
+        if (dist <= 1.15 || dot > -0.25) {
+          const score = dist - dot * 0.65;
+          if (score < bestScore) {
+            bestScore = score;
+            bestCandidate = target;
+          }
+        }
+      }
+    }
+
+    if (bestCandidate !== this.activeTarget) {
+      this.activeTarget = bestCandidate;
+      if (this.onActiveTargetChange) {
+        this.onActiveTargetChange(this.activeTarget);
+      }
+    }
+
+    if (this.activeTarget) {
+      this.indicatorRing.visible = true;
+      this.indicatorRing.position.set(
+        this.activeTarget.position.x,
+        Math.max(0.11, this.activeTarget.position.y),
+        this.activeTarget.position.z
+      );
+      const scale = 1 + Math.sin(this.pulseClock) * 0.08;
+      this.indicatorRing.scale.set(scale, 1, scale);
+    } else {
+      this.indicatorRing.visible = false;
+    }
+
+    if (this.objectiveBeaconGroup.visible && this.objectiveTargetId) {
+      const pulse = 1 + Math.sin(this.pulseClock * 1.15) * 0.1;
+      this.objectiveBeaconGroup.children[0].scale.set(pulse, 1, pulse);
+      this.objectiveDiamondMesh.position.y = 2.32 + Math.sin(this.pulseClock * 0.9) * 0.16;
+      this.objectiveDiamondMesh.rotation.y += dt * 2.2;
+    }
   }
 }

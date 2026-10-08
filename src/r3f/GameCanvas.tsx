@@ -15,7 +15,7 @@
 
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrthographicCamera, OrbitControls } from '@react-three/drei';
-import { useRef, useEffect, useState, Suspense, Suspense, type RefObject } from 'react';
+import { useRef, useEffect, useState, Suspense, type RefObject } from 'react';
 import * as THREE from 'three';
 import { AccraCityGrid, TOTAL_SIZE, cellCenter } from './AccraCityGrid';
 import { MarketStalls } from './MarketStalls';
