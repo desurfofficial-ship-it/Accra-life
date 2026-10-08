@@ -24,6 +24,7 @@ import { useGLTF } from '@react-three/drei';
 import { Suspense, useMemo } from 'react';
 import * as THREE from 'three';
 import { cellCenter } from './AccraCityGrid';
+import { assetUrl } from '../assetUrl';
 
 /** Target footprint (meters) for the model's largest GROUND dimension —
  *  the pack is a floor-plan-style layout (its natural height is a few
@@ -33,7 +34,7 @@ import { cellCenter } from './AccraCityGrid';
 const TARGET_FOOTPRINT = 11.0;
 
 function ShowroomModel() {
-  const { scene } = useGLTF('/assets/glb/residential/scene.gltf');
+  const { scene } = useGLTF(assetUrl('assets/glb/residential/scene.gltf'));
 
   const fitted = useMemo(() => {
     const m = scene.clone(true);
