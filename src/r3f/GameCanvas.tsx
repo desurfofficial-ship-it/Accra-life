@@ -32,6 +32,7 @@ import { LivingVendor } from './LivingVendor';
 import { MarketAssets } from './MarketAssets';
 import { AssetBoundary } from './AssetBoundary';
 import { isMobileDevice } from '../debug/DebugOverlay';
+import { FollowCamera } from './FollowCamera';
 import { TrotroService } from '../game/World/TrotroService';
 import { MAKOLA_VENDOR_STAND_WORLD } from '../game/World/GridMap';
 import { getGameAPI } from './gameAPIBridge';
@@ -99,6 +100,17 @@ function PlayerAvatar({ groupRef }: PlayerAvatarProps) {
       if (keys['d'] || keys['arrowright']) dx += 1;
     }
     if (dx !== 0 || dz !== 0) { const len = Math.sqrt(dx*dx + dz*dz); dx /= len; dz /= len; }
+    // Camera-relative movement: rotate the input vector by the camera yaw
+    // so "up" on the joystick = "away from the camera on screen".
+    const yaw = (window as unknown as { __r3fCameraYaw?: number }).__r3fCameraYaw ?? 0;
+    if (dx !== 0 || dz !== 0) {
+      const cos = Math.cos(yaw);
+      const sin = Math.sin(yaw);
+      const worldDx = dx * cos - dz * sin;
+      const worldDz = dx * sin + dz * cos;
+      dx = worldDx;
+      dz = worldDz;
+    }
     const moveDist = MOVE_SPEED * delta;
     groupRef.current.position.x += dx * moveDist;
     groupRef.current.position.z += dz * moveDist;
@@ -343,13 +355,15 @@ export function GameCanvas() {
         </Suspense>
       </AssetBoundary>
 
+      <FollowCamera targetRef={playerGroupRef} />
+
       <OrbitControls
         enablePan={false}
         enableZoom={true}
-        minZoom={5}
+        minZoom={6}
         maxZoom={25}
-        minPolarAngle={0.1}
-        maxPolarAngle={Math.PI / 2.1}
+        minPolarAngle={0.6}
+        maxPolarAngle={1.15}
       />
       </Canvas>
 
