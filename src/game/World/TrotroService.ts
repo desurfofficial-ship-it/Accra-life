@@ -102,8 +102,8 @@ export interface TrotroLoadedAssets {
  */
 export async function loadTrotroAssets(): Promise<TrotroLoadedAssets> {
   // Check if a dedicated van GLB exists in the public assets
-  const vanModelUrl = null; // '/assets/glb/trotro_van.glb' when available
-  const mateModelUrl = null; // '/assets/glb/trotro_mate.glb' when available
+  const vanModelUrl = null; // assetUrl('assets/glb/trotro_van.glb') when available
+  const mateModelUrl = null; // assetUrl('assets/glb/trotro_mate.glb') when available
   return { vanModelUrl, mateModelUrl, loaded: true };
 }
 

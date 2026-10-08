@@ -3,6 +3,7 @@ import { Suspense, useMemo } from 'react';
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { CELL_SIZE, ROAD_WIDTH, TOTAL_SIZE } from './AccraCityGrid';
+import { assetUrl } from '../assetUrl';
 
 const TREE_FILES = ['Tree_temp_climate_001.FBX','Tree_temp_climate_003.FBX','Tree_temp_climate_005.FBX','Tree_temp_climate_007.FBX','Tree_temp_climate_009.FBX'];
 const BUSH_FILES = ['Bush_temp_climate_001.fbx','Bush_temp_climate_003.fbx','Bush_temp_climate_005.fbx'];
@@ -30,7 +31,7 @@ function FBXModel({url,position,scale,rotation}:{url:string;position:[number,num
 }
 
 export function CityTrees() {
-  return (<Suspense fallback={null}>{PLACEMENTS.map((item,i)=><FBXModel key={`g-${i}`} url={`/assets/fbx/trees/${item.file}`} position={item.position} scale={item.scale} rotation={item.rotation} />)}</Suspense>);
+  return (<Suspense fallback={null}>{PLACEMENTS.map((item,i)=><FBXModel key={`g-${i}`} url={assetUrl(`assets/fbx/trees/${item.file}`)} position={item.position} scale={item.scale} rotation={item.rotation} />)}</Suspense>);
 }
-TREE_FILES.forEach(f=>useLoader.preload(FBXLoader,`/assets/fbx/trees/${f}`));
-BUSH_FILES.forEach(f=>useLoader.preload(FBXLoader,`/assets/fbx/trees/${f}`));
+TREE_FILES.forEach(f=>useLoader.preload(FBXLoader,assetUrl(`assets/fbx/trees/${f}`)));
+BUSH_FILES.forEach(f=>useLoader.preload(FBXLoader,assetUrl(`assets/fbx/trees/${f}`)));

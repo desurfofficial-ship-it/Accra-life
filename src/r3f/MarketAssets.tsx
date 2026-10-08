@@ -25,6 +25,7 @@ import { useGLTF } from '@react-three/drei';
 import { Suspense, useMemo } from 'react';
 import * as THREE from 'three';
 import { cellCenter } from './AccraCityGrid';
+import { assetUrl } from '../assetUrl';
 
 // ── Per-asset scale tuning ─────────────────────────────────────────────────
 // Sketchfab exports have wildly different native scales; these constants
@@ -49,10 +50,10 @@ const PLACEMENTS = [
 type MarketId = keyof typeof SCALES;
 
 const URLS: Record<MarketId, string> = {
-  super_market: '/assets/glb/markets/super-market/super_market.glb',
-  mini_market: '/assets/glb/markets/mini-market/mini_market.glb',
-  cat_market: '/assets/glb/markets/cat-market/cat_market.glb',
-  chinese_market: '/assets/glb/markets/chinese-market/chinese_market.glb',
+  super_market: assetUrl('assets/glb/markets/super-market/super_market.glb'),
+  mini_market: assetUrl('assets/glb/markets/mini-market/mini_market.glb'),
+  cat_market: assetUrl('assets/glb/markets/cat-market/cat_market.glb'),
+  chinese_market: assetUrl('assets/glb/markets/chinese-market/chinese_market.glb'),
 };
 
 // ── Generic GLB loader (matches BuildingAssets.tsx pattern) ────────────────

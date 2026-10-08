@@ -1,6 +1,7 @@
 import { useGLTF } from '@react-three/drei';
 import { Suspense, useMemo } from 'react';
 import { cellCenter } from './AccraCityGrid';
+import { assetUrl } from '../assetUrl';
 
 const FOOD_ITEMS = [
   { file: 'banana', scale: 0.8, offset: [-3, 0, -2] },
@@ -15,7 +16,7 @@ const FOOD_ITEMS = [
 ];
 
 function FoodItem({ file, position, scale }: { file: string; position: [number, number, number]; scale: number }) {
-  const { scene } = useGLTF(`/assets/glb/food/${file}.glb`);
+  const { scene } = useGLTF(assetUrl(`assets/glb/food/${file}.glb`));
   const cloned = useMemo(() => scene.clone(true), [scene]);
   return <primitive object={cloned} position={position} scale={scale} castShadow receiveShadow />;
 }
@@ -54,4 +55,4 @@ export function MarketStalls() {
     </Suspense>
   );
 }
-FOOD_ITEMS.forEach((item) => useGLTF.preload(`/assets/glb/food/${item.file}.glb`));
+FOOD_ITEMS.forEach((item) => useGLTF.preload(assetUrl(`assets/glb/food/${item.file}.glb`)));

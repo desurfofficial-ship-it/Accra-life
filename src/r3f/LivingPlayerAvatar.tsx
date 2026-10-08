@@ -37,8 +37,9 @@ import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import { useEffect, useMemo, useRef, type RefObject, type MutableRefObject } from 'react';
 import * as THREE from 'three';
+import { assetUrl } from '../assetUrl';
 
-const AVATAR_URL = '/assets/glb/characters/sunset-walking-low-poly-girl-rigged/sunset_walking_low_poly_girl_rigged.glb';
+const AVATAR_URL = assetUrl('assets/glb/characters/sunset-walking-low-poly-girl-rigged/sunset_walking_low_poly_girl_rigged.glb');
 
 // Scale tuning — Sketchfab exports vary wildly; this single value was
 // picked so the girl avatar is roughly 1.6m tall (eye-line ≈ 1.4m).

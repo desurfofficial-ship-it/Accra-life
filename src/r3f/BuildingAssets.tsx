@@ -19,6 +19,7 @@ import { useGLTF } from '@react-three/drei';
 import { Suspense, useMemo } from 'react';
 import * as THREE from 'three';
 import { cellCenter } from './AccraCityGrid';
+import { assetUrl } from '../assetUrl';
 
 // ── Generic GLB loader ─────────────────────────────────────────────────────
 
@@ -70,19 +71,19 @@ export function BuildingAssets() {
     <Suspense fallback={null}>
       {/* ── Adabraka [0,0]: house exterior + apartment furniture + bathroom ── */}
       <GLBModel
-        url="/assets/glb/buildings/house_exterior.glb"
+        url={assetUrl('assets/glb/buildings/house_exterior.glb')}
         position={[adabraka00X - 3, 0, adabraka00Z + 3]}
         rotation={0.5}
         scale={0.4}
       />
       <GLBModel
-        url="/assets/glb/interior/room_apartment_furniture.glb"
+        url={assetUrl('assets/glb/interior/room_apartment_furniture.glb')}
         position={[adabraka00X + 1, 0, adabraka00Z - 2]}
         rotation={-0.3}
         scale={0.3}
       />
       <GLBModel
-        url="/assets/glb/interior/room_bathroom.glb"
+        url={assetUrl('assets/glb/interior/room_bathroom.glb')}
         position={[adabraka00X + 4, 0, adabraka00Z + 1]}
         rotation={1.2}
         scale={0.25}
@@ -90,7 +91,7 @@ export function BuildingAssets() {
 
       {/* ── Adabraka [1,0]: 1st-floor interior ── */}
       <GLBModel
-        url="/assets/glb/interior/house_1f_interior.glb"
+        url={assetUrl('assets/glb/interior/house_1f_interior.glb')}
         position={[adabraka10X, 0, adabraka10Z]}
         rotation={0}
         scale={0.3}
@@ -98,7 +99,7 @@ export function BuildingAssets() {
 
       {/* ── Makola [1,1]: plastic water bottle (vendor item) ── */}
       <GLBModel
-        url="/assets/glb/props/plastic_water_bottle.glb"
+        url={assetUrl('assets/glb/props/plastic_water_bottle.glb')}
         position={[makola11X + 2, 0.8, makola11Z - 1]}
         rotation={0.8}
         scale={0.5}
@@ -106,7 +107,7 @@ export function BuildingAssets() {
 
       {/* ── Mixed-use [2,4]: office window ── */}
       <GLBModel
-        url="/assets/glb/buildings/building_office_room_window.glb"
+        url={assetUrl('assets/glb/buildings/building_office_room_window.glb')}
         position={[mixed24X, 0, mixed24Z]}
         rotation={0.5}
         scale={0.35}
@@ -114,7 +115,7 @@ export function BuildingAssets() {
 
       {/* ── Mixed-use [0,3]: office curtain ── */}
       <GLBModel
-        url="/assets/glb/buildings/building_office_room_curtain.glb"
+        url={assetUrl('assets/glb/buildings/building_office_room_curtain.glb')}
         position={[mixed03X, 0, mixed03Z]}
         rotation={-0.3}
         scale={0.35}
@@ -122,7 +123,7 @@ export function BuildingAssets() {
 
       {/* ── Osu [3,3]: cinema/theater seat ── */}
       <GLBModel
-        url="/assets/glb/interior/cinemamovie_theater_seat.glb"
+        url={assetUrl('assets/glb/interior/cinemamovie_theater_seat.glb')}
         position={[osu33X - 1, 0, osu33Z + 2]}
         rotation={1.5}
         scale={0.4}
@@ -132,5 +133,5 @@ export function BuildingAssets() {
 }
 
 // Preload the smallest assets for faster initial load
-useGLTF.preload('/assets/glb/props/plastic_water_bottle.glb');
-useGLTF.preload('/assets/glb/buildings/house_exterior.glb');
+useGLTF.preload(assetUrl('assets/glb/props/plastic_water_bottle.glb'));
+useGLTF.preload(assetUrl('assets/glb/buildings/house_exterior.glb'));

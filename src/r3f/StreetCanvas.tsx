@@ -15,7 +15,7 @@
 
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrthographicCamera, OrbitControls } from '@react-three/drei';
-import { useRef, useEffect, useState, type RefObject } from 'react';
+import { useRef, useEffect, useState, Suspense, type RefObject } from 'react';
 import * as THREE from 'three';
 import { AccraCityGrid, TOTAL_SIZE, cellCenter } from './AccraCityGrid';
 import { MarketStalls } from './MarketStalls';
@@ -30,6 +30,7 @@ import { LivingTrotro } from './LivingTrotro';
 import { LivingPlayerAvatar } from './LivingPlayerAvatar';
 import { LivingVendor } from './LivingVendor';
 import { MarketAssets } from './MarketAssets';
+import { AssetBoundary } from './AssetBoundary';
 import { TrotroService } from '../game/World/TrotroService';
 import { MAKOLA_VENDOR_STAND_WORLD } from '../game/World/GridMap';
 import { getGameAPI } from './gameAPIBridge';
@@ -243,49 +244,100 @@ export function StreetCanvas() {
         shadow-camera-bottom={-60}
       />
 
-      {/* Custom Accra city grid — 5x5 blocks with roads + buildings + landmarks */}
+      {/* Custom Accra city grid — 5x5 blocks with roads + buildings + landmarks.
+          Procedural, no asset files — kept OUTSIDE AssetBoundary so roads +
+          blocks always render even if every model 404s. */}
       <AccraCityGrid />
 
-      {/* Asset packs */}
-      <MarketStalls />
-      <CityTrees />
-      <LandscapeProps />
-      <SuburbHouses />
-      <BeachProps />
-      <InteriorFurniture />
-      <BuildingAssets />
+      {/* Asset packs — each wrapped in <AssetBoundary><Suspense fallback={null}>
+          so a 404 in one group doesn't blank the whole Canvas. */}
+      <AssetBoundary name="MarketStalls">
+        <Suspense fallback={null}>
+          <MarketStalls />
+        </Suspense>
+      </AssetBoundary>
+      <AssetBoundary name="CityTrees">
+        <Suspense fallback={null}>
+          <CityTrees />
+        </Suspense>
+      </AssetBoundary>
+      <AssetBoundary name="LandscapeProps">
+        <Suspense fallback={null}>
+          <LandscapeProps />
+        </Suspense>
+      </AssetBoundary>
+      <AssetBoundary name="SuburbHouses">
+        <Suspense fallback={null}>
+          <SuburbHouses />
+        </Suspense>
+      </AssetBoundary>
+      <AssetBoundary name="BeachProps">
+        <Suspense fallback={null}>
+          <BeachProps />
+        </Suspense>
+      </AssetBoundary>
+      <AssetBoundary name="InteriorFurniture">
+        <Suspense fallback={null}>
+          <InteriorFurniture />
+        </Suspense>
+      </AssetBoundary>
+      <AssetBoundary name="BuildingAssets">
+        <Suspense fallback={null}>
+          <BuildingAssets />
+        </Suspense>
+      </AssetBoundary>
       {/* Phase 8 follow-up: 4 user-uploaded market GLBs (super, mini,
           cat, chinese) at distinct grid cells. Each is a real commercial
           building — Super Market at [2,4], Mini Market at [0,2],
           Cat Market at [4,1] (Labadi decorative), Chinese Market at
           [3,4] (Osu Chinatown). */}
-      <MarketAssets />
+      <AssetBoundary name="MarketAssets">
+        <Suspense fallback={null}>
+          <MarketAssets />
+        </Suspense>
+      </AssetBoundary>
 
       {/* Tro-tro boarding system at Circle Station */}
-      <TroTroBoarding
-        stopPosition={trotroStopPosition}
-        playerRef={playerGroupRef}
-        onArriveAt={(destId) => console.log(`[tro-tro] Arrived at ${destId}`)}
-      />
+      <AssetBoundary name="TroTroBoarding">
+        <Suspense fallback={null}>
+          <TroTroBoarding
+            stopPosition={trotroStopPosition}
+            playerRef={playerGroupRef}
+            onArriveAt={(destId) => console.log(`[tro-tro] Arrived at ${destId}`)}
+          />
+        </Suspense>
+      </AssetBoundary>
 
       {/* Living trotro van — state machine drives arrive/idle/board/depart.
           activeTrotro is the SHARED service (window.GameAPI.trotro) once the
           systems layer boots — one van for the renderer and the AI bridge. */}
-      <LivingTrotro
-        position={trotroStopPosition}
-        trotroService={activeTrotro}
-      />
+      <AssetBoundary name="LivingTrotro">
+        <Suspense fallback={null}>
+          <LivingTrotro
+            position={trotroStopPosition}
+            trotroService={activeTrotro}
+          />
+        </Suspense>
+      </AssetBoundary>
 
       {/* Makola street-vendor stand (skills/vendor-system.md) — adopts the
           SHARED VendorService (window.GameAPI.vendor) once the systems
           layer boots; the engine owns the 10s shift timer and the payout. */}
-      <LivingVendor
-        position={[MAKOLA_VENDOR_STAND_WORLD[0], 0, MAKOLA_VENDOR_STAND_WORLD[1]]}
-        playerRef={playerGroupRef}
-      />
+      <AssetBoundary name="LivingVendor">
+        <Suspense fallback={null}>
+          <LivingVendor
+            position={[MAKOLA_VENDOR_STAND_WORLD[0], 0, MAKOLA_VENDOR_STAND_WORLD[1]]}
+            playerRef={playerGroupRef}
+          />
+        </Suspense>
+      </AssetBoundary>
 
       {/* Player avatar — spawns at Adabraka (home), walks with WASD */}
-      <PlayerAvatar groupRef={playerGroupRef} />
+      <AssetBoundary name="PlayerAvatar">
+        <Suspense fallback={null}>
+          <PlayerAvatar groupRef={playerGroupRef} />
+        </Suspense>
+      </AssetBoundary>
 
       <OrbitControls
         enablePan={false}

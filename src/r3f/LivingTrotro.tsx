@@ -20,6 +20,7 @@ import { useFrame } from '@react-three/fiber';
 import { Html, useGLTF } from '@react-three/drei';
 import { useRef, useState, useEffect, useMemo, Suspense } from 'react';
 import * as THREE from 'three';
+import { assetUrl } from '../assetUrl';
 import {
   TrotroService,
   TrotroState,
@@ -33,9 +34,9 @@ import { eventService } from '../game/World/EventService';
 export type VanModelId = 'small_van' | 'european_delivery_van' | 'retro_vw';
 
 const VAN_PATHS: Record<VanModelId, string> = {
-  small_van: '/assets/glb/vehicles/small_van.glb',
-  european_delivery_van: '/assets/glb/vehicles/european_delivery_van.glb',
-  retro_vw: '/assets/glb/vehicles/retro_anime_vintage_volkswagen_van.glb',
+  small_van: assetUrl('assets/glb/vehicles/small_van.glb'),
+  european_delivery_van: assetUrl('assets/glb/vehicles/european_delivery_van.glb'),
+  retro_vw: assetUrl('assets/glb/vehicles/retro_anime_vintage_volkswagen_van.glb'),
 };
 
 // Scale tuning per model (GLB exports vary wildly in scale)
