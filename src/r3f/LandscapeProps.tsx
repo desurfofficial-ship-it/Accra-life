@@ -6,6 +6,7 @@ import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { cellCenter } from './AccraCityGrid';
 import { assetUrl } from '../assetUrl';
+import { fitToFootprint } from './fitModel';
 
 function OfficeBuilding({position,rotation,scale}:{position:[number,number,number];rotation:number;scale:number}) {
   const materials=useLoader(MTLLoader,assetUrl('assets/obj/landscape/building-office-small.mtl'));

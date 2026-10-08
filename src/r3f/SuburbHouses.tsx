@@ -5,6 +5,7 @@ import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { cellCenter } from './AccraCityGrid';
 import { assetUrl } from '../assetUrl';
+import { fitToFootprint } from './fitModel';
 
 const HOUSE_VARIANTS = [
   { file: 'house-small', scale: 0.35 },
@@ -20,7 +21,7 @@ function HouseModel({file,position,rotation,scale}:{file:string;position:[number
   const materials=useLoader(MTLLoader,assetUrl(`assets/obj/houses/${file}.mtl`));
   const obj=useLoader(OBJLoader,assetUrl(`assets/obj/houses/${file}.obj`));
 const cloned=useMemo(()=>{materials.preload();const m=obj.clone(true);m.traverse((c)=>{if(c instanceof THREE.Mesh){const k=Object.keys(materials.materials)[0];if(k&&materials.materials[k])c.material=materials.materials[k];c.castShadow=true;c.receiveShadow=true;}});return m;},[obj,materials]);
-  return <primitive object={cloned} position={position} rotation={[0,rotation,0]} scale={scale} />;
+  return <primitive object={cloned} position={position} rotation={[0,rotation,0]} scale={1} />;
 }
 
 export function SuburbHouses() {
