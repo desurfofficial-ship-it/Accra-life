@@ -12,13 +12,13 @@
     "test:phase6-event": "npx --yes tsx scripts/test_eventservice.ts",
     "test:phase6-scheduler": "npx --yes tsx scripts/test_gameclock_scheduler.ts",
     "test:phase7-vendor": "npx --yes tsx scripts/test_vendor_service.ts",
-    "test:playability": "npx --yes tsx scripts/test_playability.ts",
     "test:fit": "npx --yes tsx scripts/test_fit_model.ts",
-    "check:html-labels": "bash scripts/check-html-labels.sh",
+    "test:playability": "npx --yes tsx scripts/test_playability.ts",
     "test:movement": "npx --yes tsx scripts/test_movement.ts",
-    "test:all": "npm run check:html-labels && npm run test:phase6-event && npm run test:phase6-scheduler && npm run test:phase7-vendor && npm run test:fit && npm run test:playability && npm run test:movement",
-    "optimize:assets": "bash scripts/optimize-assets.sh",
-    "test:camera": "npx --yes tsx scripts/test_follow_camera.ts"
+    "test:camera": "npx --yes tsx scripts/test_follow_camera.ts",
+    "check:html-labels": "bash scripts/check-html-labels.sh",
+    "test:all": "npm run check:html-labels && npm run test:phase6-event && npm run test:phase6-scheduler && npm run test:phase7-vendor && npm run test:fit && npm run test:playability && npm run test:movement && npm run test:camera",
+    "optimize:assets": "bash scripts/optimize-assets.sh"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",

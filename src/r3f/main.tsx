@@ -8,8 +8,12 @@ import { createRoot } from 'react-dom/client';
 import { GameCanvas } from './GameCanvas';
 import { bootstrapDebugOverlay } from '../debug/DebugOverlay';
 
+// Boot the DebugOverlay (?debug=1) + strip backdrop-filter on mobile.
 bootstrapDebugOverlay();
 
+// Wire the "Reset Camera" button to call the FollowCamera's reset fn.
+// The fn is exposed on window.__r3fResetCamera by FollowCamera.tsx once
+// the R3F tree mounts. Before that (pre-onboarding), it's a no-op.
 document.getElementById('resetCameraBtn')?.addEventListener('click', () => {
   (window as unknown as { __r3fResetCamera?: () => void }).__r3fResetCamera?.();
 });
