@@ -49,12 +49,12 @@ function GLBMarket({
     return fitToFootprint(m, TARGET_FOOTPRINT, TARGET_HEIGHT, url);
   }, [scene, url]);
 
+  // Parent group owns world placement so fitToFootprint's centering
+  // offset on `fitted` is preserved (do NOT set position on primitive).
   return (
-    <primitive
-      object={fitted}
-      position={position}
-      rotation={[0, rotation, 0]}
-    />
+    <group position={position} rotation={[0, rotation, 0]}>
+      <primitive object={fitted} />
+    </group>
   );
 }
 
