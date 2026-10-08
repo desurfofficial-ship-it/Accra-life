@@ -71,6 +71,10 @@ source_files:
     fallback)
   - src/r3f/StreetCanvas.tsx (adopts window.GameAPI.trotro at boot — the
     visible van and the AI bridge share ONE TrotroService instance)
+  - src/bootstrap/game-init.ts (TrotroService construction + GameAPI bridge
+    wiring — the modular factory that replaces inline construction in main.ts)
+  - src/bootstrap/agent-runtime.ts (AgentRuntime class — per-frame RAF tick
+    loop that drives the trotro state machine timers)
   - src/game/World/GridMap.ts (canonical 5x5 grid: cells, districts,
     zone->LocationId, TROTRO_STATION_GRID, TROTRO_DESTINATIONS,
     PROVISION_STORE_ANCHOR, FOOD_VENDOR_ANCHOR, MOMO_AGENT_ANCHOR,
@@ -165,6 +169,15 @@ above hit.)
 The AI never imports `src/` directly. `window.GameAPI` is constructed at
 boot with the live instances; every method delegates 1:1:
 
+> **Post phase-0.5 refactor**: system construction lives in
+> `src/bootstrap/game-init.ts` (modular factory — TrotroService + GameAPI
+> bridge wiring). The per-frame RAF tick loop that drives the trotro state
+> machine timers lives in `src/bootstrap/agent-runtime.ts`. UI prompts are
+> in `src/ui/HUD.tsx` (TroTroPrompt + EventBanner + ClockHud). The 3D
+> scene is in `src/r3f/GameCanvas.tsx` (re-exports StreetCanvas).
+> `src/main.ts` is still the live entry point — see [FILE_LOCATIONS]
+> below for the full module map.
+
 - **When the AI calls `gameAPI.getTrotroStatus()`, the GameAPI bridge
   routes this to `TrotroService.getState` in
   `src/game/World/TrotroService.ts`** — the phase-5 lifecycle state
@@ -231,6 +244,13 @@ bug visible.)
 The game world is the custom 5x5 Accra grid (`src/r3f`, mounted in
 `StreetCanvas.tsx` — 84 m, 12 m cells, 4 m roads). `src/game/World/GridMap.ts`
 is the canonical module both the visuals and the game systems consume.
+
+> **Post phase-0.5 refactor**: the R3F canvas is re-exported as
+> `src/r3f/GameCanvas.tsx` (thin facade over StreetCanvas). UI overlays
+> (EventBanner, ClockHud, TroTroPrompt) are consolidated in
+> `src/ui/HUD.tsx`. The game loop (RAF tick that mirrors the player
+> position into the systems layer) lives in
+> `src/bootstrap/agent-runtime.ts` / `src/game/GameLoop.ts`.
 
 - **The station is at grid cell column 2, row 3** —
   `GridMap.TROTRO_STATION_GRID = { x: 2, z: 3, zone: 'circle_station' }`,
@@ -728,3 +748,25 @@ bypasses the [LOGIC] ordering. Since v4.6 the door-chase doubles as the
 [LOGIC] 'DEPARTING' chase beat — pure flavor that always ends in the wait
 state, because the state gate keeps boarding impossible once the van pulls
 away.
+
+---
+
+## [FILE_LOCATIONS]
+
+- Skill logic: `skills/tro-tro-system.md`
+- GameAPI bridge: `src/game/GameAPI.ts`
+- Agent runtime: `src/bootstrap/agent-runtime.ts` (per-frame system tick loop)
+- UI prompts: `src/ui/HUD.tsx` (TroTroPrompt, EventBanner, ClockHud consolidated)
+- 3D scene: `src/r3f/GameCanvas.tsx` (re-exports StreetCanvas)
+- Game systems init: `src/bootstrap/game-init.ts` (TrotroService construction)
+- Firebase init: `src/bootstrap/firebase-init.ts`
+- Game loop: `src/game/GameLoop.ts` (systems-layer RAF tick)
+- Asset loader: `src/assetUrl.ts` (Vite-aware base path for Pages deploy)
+- Error boundary: `src/r3f/AssetBoundary.tsx` (per-group error isolation)
+- Debug overlay: `src/debug/DebugOverlay.ts` (?debug=1 panel + mobile backdrop-filter strip)
+
+> **Post phase-0.5 refactor**: `src/main.ts` is still the live entry point
+> (2718 lines). The modular skeleton above is the target architecture.
+> `src/bootstrap/game-init.ts` constructs the TrotroService + GameAPI bridge;
+> `src/bootstrap/agent-runtime.ts` wraps the RAF tick loop that drives the
+> state machine. See `src/bootstrap/index.ts` for the migration path.
