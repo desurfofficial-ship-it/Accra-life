@@ -1,59 +1,37 @@
-# Life in Accra
+# Chalé Life
 
-**Play:** https://desurfofficial-ship-it.github.io/Accra-life/
+Phone-first life sim set in Accra.
 
-Life simulation set in Accra with NPC friends, wallets, visiting, money transfer, and **Firebase cloud save**.
+## Restart (v2)
 
-Firebase project: `perse-504514`
+Legacy dual-world build is preserved:
 
----
+- **Tag:** `legacy-v1`
+- **Branch:** `legacy`
+- **Keepers:** `salvage/` (review before re-use)
+- **Assets:** `public/assets/` (compressed GLBs + DRACO)
 
-## Final setup checklist
+### Architecture
 
-### 1. Enable Email/Password Auth
-1. Open [Authentication](https://console.firebase.google.com/project/perse-504514/authentication/providers)
-2. Enable **Email/Password**
+- **One 3D world** — React Three Fiber (`src/r3f/`)
+- **One game store** — `src/store/gameStore.ts` (position, wallet, needs, job, home, time)
+- **Pure rules** — plain modules + tests (no 3D inside)
+- **Content as data** — jobs, foods, furniture, tiers
+- **CI budgets** — labels, asset paths, asset size
 
-### 2. Create Firestore (if not done)
-1. Open [Firestore](https://console.firebase.google.com/project/perse-504514/firestore)
-2. Create database (production mode is fine)
-3. Go to **Rules** tab and paste the contents of `firestore.rules`, then **Publish**
+### Build steps (one PR each)
 
-### 3. Authorized domains
-Authentication → Settings → Authorized domains — add:
-- `localhost`
-- `desurfofficial-ship-it.github.io`
+1. **Walk** — one street block, joystick, follow camera, smooth on iPhone  
+2. **Earn and eat** — ₵20, Aunty Ba, Act, payout, buy waakye  
+3. **Your room** — 14 m² dollhouse, place furniture, save  
+4. **Grow** — jobs, trotro, housing tiers  
+5. **Social** — sign-in, cloud save, friends, chat  
 
----
+### Dev
 
-## How to play with cloud save
+```bash
+npm ci
+npm run dev
+```
 
-1. Open the game
-2. Click **Create Account (Email)**
-3. Enter email + password + display name
-4. Play and press **Save** — progress goes to Firestore
-5. On another device: **Sign In** with the same email → cloud load
-
-Guest mode still works fully offline (localStorage only).
-
----
-
-## Features
-
-- 10 Accra locations + careers
-- 5 friends with houses, routines, moods, personalities
-- Visit, chat, hang out, eat together, deep talk, ask favors, send money
-- Friendship milestones
-- Local + cloud save
-- Account system with Firebase Auth
-
----
-
-## Roadmap
-
-| Step | Status |
-|------|--------|
-| Single-player + rich NPCs | Done |
-| Firebase Auth + Cloud save | Done (enable Auth + Rules) |
-| Real friends list + visiting | Next |
-| Real-time chat & presence | Later |
+Open with phone emulation or a real device. Base path: `/Accra-life/`.

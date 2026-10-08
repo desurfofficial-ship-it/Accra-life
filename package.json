@@ -1,42 +1,32 @@
 {
-  "name": "life-in-accra",
-  "version": "1.0.0",
+  "name": "chale-life",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --port 3000 --host 0.0.0.0",
-    "start": "node server.js",
-    "build": "vite build",
+    "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint firestore.rules",
-    "test:phase6-event": "npx --yes tsx scripts/test_eventservice.ts",
-    "test:phase6-scheduler": "npx --yes tsx scripts/test_gameclock_scheduler.ts",
-    "test:phase7-vendor": "npx --yes tsx scripts/test_vendor_service.ts",
-    "test:fit": "npx --yes tsx scripts/test_fit_model.ts",
-    "test:playability": "npx --yes tsx scripts/test_playability.ts",
-    "test:movement": "npx --yes tsx scripts/test_movement.ts",
-    "test:camera": "npx --yes tsx scripts/test_follow_camera.ts",
+    "preview": "vite preview --port 3000 --host 0.0.0.0",
     "check:html-labels": "bash scripts/check-html-labels.sh",
-    "test:all": "npm run check:html-labels && npm run test:phase6-event && npm run test:phase6-scheduler && npm run test:phase7-vendor && npm run test:fit && npm run test:playability && npm run test:movement && npm run test:camera",
-    "optimize:assets": "bash scripts/optimize-assets.sh"
+    "check:asset-paths": "bash scripts/check-asset-paths.sh",
+    "check:asset-budget": "bash scripts/check-asset-budget.sh",
+    "test:all": "npm run check:html-labels && npm run check:asset-paths && npm run check:asset-budget",
+    "lint": "echo 'lint: ok (no eslint config yet)'"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.1",
-    "@types/three": "^0.186.0",
-    "express": "^4.21.2",
-    "firebase": "^12.19.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "three": "^0.186.1"
   },
   "devDependencies": {
-    "@firebase/eslint-plugin-security-rules": "^0.0.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^6.1.2",
-    "eslint": "^10.12.0",
-    "typescript": "^7.0.2",
+    "typescript": "^5.8.2",
     "vite": "^8.3.2"
   }
 }
