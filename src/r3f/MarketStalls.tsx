@@ -2,6 +2,7 @@ import { useGLTF } from '@react-three/drei';
 import { Suspense, useMemo } from 'react';
 import { cellCenter } from './AccraCityGrid';
 import { assetUrl } from '../assetUrl';
+import { fitToFootprint } from './fitModel';
 
 const FOOD_ITEMS = [
   { file: 'banana', scale: 0.8, offset: [-3, 0, -2] },

@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { CELL_SIZE, ROAD_WIDTH, TOTAL_SIZE } from './AccraCityGrid';
 import { assetUrl } from '../assetUrl';
+import { fitToFootprint } from './fitModel';
 
 const TREE_FILES = ['Tree_temp_climate_001.FBX','Tree_temp_climate_003.FBX','Tree_temp_climate_005.FBX','Tree_temp_climate_007.FBX','Tree_temp_climate_009.FBX'];
 const BUSH_FILES = ['Bush_temp_climate_001.fbx','Bush_temp_climate_003.fbx','Bush_temp_climate_005.fbx'];

@@ -20,6 +20,7 @@ import { Html, useGLTF } from '@react-three/drei';
 import { useRef, useState, useEffect, useMemo, Suspense } from 'react';
 import * as THREE from 'three';
 import { assetUrl } from '../assetUrl';
+import { fitToFootprint } from './fitModel';
 import {
   TrotroService,
   TrotroState,
@@ -37,20 +38,16 @@ const VAN_PATHS: Record<VanModelId, string> = {
   retro_vw: assetUrl('assets/glb/vehicles/retro_anime_vintage_volkswagen_van.glb'),
 };
 
-// Scale tuning per model (GLB exports vary wildly in scale)
-const VAN_SCALES: Record<VanModelId, number> = {
-  small_van: 0.5,
-  retro_vw: 0.4,
-};
+const TARGET_VAN_LENGTH = 5; // meters — fitToFootprint auto-scales
 
 // ── GLB Van component ──────────────────────────────────────────────────────
 
 function GLBVan({ modelId, doorOpen }: { modelId: VanModelId; doorOpen: boolean }) {
   const url = VAN_PATHS[modelId];
-  const scale = VAN_SCALES[modelId];
+  // fitToFootprint auto-scales — no hand-tuned VAN_SCALES needed
   const { scene } = useGLTF(url, assetUrl('draco/'));
 
-  const cloned = useMemo(() => {
+  const fitted = useMemo(() => {
     const m = scene.clone(true);
     m.traverse((child) => {
       if (child instanceof THREE.Mesh) {
@@ -65,20 +62,20 @@ function GLBVan({ modelId, doorOpen }: { modelId: VanModelId; doorOpen: boolean 
         }
       }
     });
-    return m;
-  }, [scene]);
+    return fitToFootprint(m, TARGET_VAN_LENGTH, undefined, url);
+  }, [scene, url]);
 
   // Try to find and animate a "door" child mesh
   const doorRef = useRef<THREE.Object3D | null>(null);
 
   useEffect(() => {
-    cloned.traverse((child) => {
+    fitted.traverse((child) => {
       const name = (child.name || '').toLowerCase();
       if (name.includes('door') || name.includes('slide') || name.includes('passenger')) {
         doorRef.current = child;
       }
     });
-  }, [cloned]);
+  }, [fitted]);
 
   useFrame(() => {
     if (!doorRef.current) return;
@@ -86,7 +83,7 @@ function GLBVan({ modelId, doorOpen }: { modelId: VanModelId; doorOpen: boolean 
     doorRef.current.rotation.y += (target - doorRef.current.rotation.y) * 0.1;
   });
 
-  return <primitive object={cloned} scale={scale} />;
+  return <primitive object={fitted} />;
 }
 
 // ── Procedural fallback van (if GLB fails to load) ─────────────────────────
