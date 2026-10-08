@@ -4,6 +4,7 @@ import { InteractableTarget } from '../Player/InteractionSystem';
 import { PHASE2_ASSET_REGISTRY, sharedArtLibrary } from '../Art/AssetRegistry';
 import { CharacterRig } from '../Art/CharacterBuilder';
 import { getSurfaceHeightAt } from './WorldSurface';
+import { cellCenter } from './GridMap';
 import { buildPlayerCompoundHouse } from './PlayerCompound';
 import { buildRoadsideGuttersAndWalkways } from './NeighborhoodGutters';
 import { buildProvisionStore } from './NeighborhoodProvision';
@@ -123,6 +124,29 @@ export function buildFirstNeighborhoodBlock(scene: THREE.Scene): BuiltNeighborho
   }
 
   spawnPhase2TestNPCs(scene, colliders, interactables, npcRigs);
+
+  // Starter hustle anchors — both within ~12 m of Adabraka spawn (cell [0,0]).
+  {
+    const [sx, sz] = cellCenter(0, 0);
+    interactables.push({
+      id: 'auntie_carry_1',
+      assetId: 'AUNTIE_CARRY_1',
+      title: "Auntie's Crate",
+      promptLabel: 'Pick Up',
+      interactionResponse: 'Auntie: "Chale, carry this for me."',
+      position: new THREE.Vector3(sx + 4, 0.14, sz + 3),
+      radius: 3.0
+    });
+    interactables.push({
+      id: 'auntie_carry_2',
+      assetId: 'AUNTIE_CARRY_2',
+      title: 'Corner Stall',
+      promptLabel: 'Drop Crate',
+      interactionResponse: 'Auntie: "Eii, thank you!"',
+      position: new THREE.Vector3(sx + 9, 0.14, sz - 2),
+      radius: 3.0
+    });
+  }
 
   const bollardMat = sharedArtLibrary.getMaterial('env_bollard', {
     color: 0xf59e0b,
