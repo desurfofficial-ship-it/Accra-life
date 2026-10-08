@@ -25,6 +25,7 @@ export class InteractionSystem {
   private objectiveDiamondMesh: THREE.Mesh;
   private pulseClock = 0;
   private lastInteractMs = 0;
+  private objectiveFlashUntil = 0;
   private readonly cooldownMs = 250;
 
   private onActiveTargetChange?: (target: InteractableTarget | null) => void;
@@ -116,6 +117,20 @@ export class InteractionSystem {
       target.position.z
     );
     this.objectiveBeaconGroup.visible = true;
+  }
+
+
+  public getObjectiveTarget(): InteractableTarget | null {
+    if (!this.objectiveTargetId) return null;
+    return this.targets.find((t) => t.id === this.objectiveTargetId) ?? null;
+  }
+
+  public flashObjectiveMarker(ms = 1200): void {
+    this.objectiveFlashUntil = performance.now() + ms;
+  }
+
+  public isObjectiveFlashing(): boolean {
+    return performance.now() < this.objectiveFlashUntil;
   }
 
   public triggerCurrentInteraction(): boolean {
