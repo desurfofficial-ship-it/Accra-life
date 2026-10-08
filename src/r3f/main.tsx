@@ -7,6 +7,11 @@
  *
  * The HUD stays fixed (it's in a separate DOM layer above the Canvas).
  * The 3D plane can be rotated via OrbitControls (drag to orbit).
+ *
+ * This is the bridge — it proves the R3F Canvas can coexist with the
+ * existing DOM-based HUD + game systems. The full migration would move
+ * Phase1Scene.ts, PlayerController, etc. into R3F components, but that's
+ * a future phase.
  */
 
 import { createRoot } from 'react-dom/client';
