@@ -28,6 +28,7 @@ import { BuildingAssets } from './BuildingAssets';
 import { TroTroBoarding, DEMO_FARE, DEMO_START_BALANCE } from './TroTroBoarding';
 import { LivingTrotro } from './LivingTrotro';
 import { LivingPlayerAvatar } from './LivingPlayerAvatar';
+import { ObjectiveMarker } from './ObjectiveMarker';
 import { LivingVendor } from './LivingVendor';
 import { MarketAssets } from './MarketAssets';
 import { AssetBoundary } from './AssetBoundary';
@@ -41,6 +42,9 @@ import { ClockHud } from '../ui/ClockHud';
 
 /** Prompt range — matches the systems-layer trotro_stop radius (3.5 m). */
 const TROTRO_PROMPT_RANGE = 3.5;
+
+/** Spawn at Adabraka (cell [0,0] = home district) */
+const [SPAWN_X, SPAWN_Z] = cellCenter(0, 0);
 
 // ── Player Avatar ────────────────────────────────────────────────────────────
 
@@ -125,18 +129,40 @@ function PlayerAvatar({ groupRef }: PlayerAvatarProps) {
     }
   });
 
-  // Spawn at Adabraka (cell [0,0] = home district)
-  const [spawnX, spawnZ] = cellCenter(0, 0);
-
+  // Spawn at Adabraka (cell [0,0] = home district) — module-level SPAWN_X/Z
   return (
-    <group ref={groupRef} position={[spawnX, 0, spawnZ]}>
-      {/* Phase-8: real rigged character model (Sunset Walking Low Poly Girl
-          by micaelsampaio, CC-BY-4.0). Walk animation plays on loop; the
-          isMovingRef gates it — paused when the player stands still, resumed
-          when WASD/joystick input is non-zero. isSprintingRef drives the
-          run clip when one exists (currently no run clip → procedural walk
-          is just sped-up; future models with a run clip will use it). */}
-      <LivingPlayerAvatar isMovingRef={isMovingRef} isSprintingRef={isSprintingRef} />
+    <group ref={groupRef} position={[SPAWN_X, 0, SPAWN_Z]}>
+      {/* Playability patch rule 1: the player group mounts IMMEDIATELY —
+          only the model inside it may suspend. Before this split, the
+          rigged GLB's Suspense held the whole group back, so
+          __r3fPlayer.current stayed null for seconds (or forever if the
+          GLB 404'd): the sim mirror never saw an avatar, Act never found
+          a target, and the location pill froze. Now the group exists on
+          first commit (mirror always live) and shows a procedural
+          placeholder while the GLB streams (or permanently if it fails). */}
+      <Suspense fallback={<PlayerPlaceholder />}>
+        <AssetBoundary name="PlayerAvatarModel">
+          <LivingPlayerAvatar isMovingRef={isMovingRef} isSprintingRef={isSprintingRef} />
+        </AssetBoundary>
+      </Suspense>
+    </group>
+  );
+}
+
+/** Procedural stand-in while the rigged avatar GLB streams (or if it
+ * fails outright) — a simple ~1.6m capsule + head so the player always
+ * has a visible body and the sim always has a mirror source. */
+function PlayerPlaceholder() {
+  return (
+    <group>
+      <mesh position={[0, 0.75, 0]} castShadow>
+        <cylinderGeometry args={[0.26, 0.34, 0.95, 12]} />
+        <meshStandardMaterial color={0x38bdf8} roughness={0.7} />
+      </mesh>
+      <mesh position={[0, 1.42, 0]} castShadow>
+        <sphereGeometry args={[0.22, 16, 12]} />
+        <meshStandardMaterial color={0xf1c27d} roughness={0.6} />
+      </mesh>
     </group>
   );
 }
@@ -336,12 +362,17 @@ export function GameCanvas() {
         </Suspense>
       </AssetBoundary>
 
-      {/* Player avatar — spawns at Adabraka (home), walks with WASD */}
+      {/* Player avatar — spawns at Adabraka (home), walks with WASD.
+          The inner Suspense/AssetBoundary live inside the group (see
+          PlayerAvatar) so the group ref mounts instantly. */}
       <AssetBoundary name="PlayerAvatar">
-        <Suspense fallback={null}>
-          <PlayerAvatar groupRef={playerGroupRef} />
-        </Suspense>
+        <PlayerAvatar groupRef={playerGroupRef} />
       </AssetBoundary>
+
+      {/* Playability patch rule 2: pulsing ring + floating diamond at the
+          active job/hustle step's world position — the systems beacon was
+          previously trapped in the hidden simulation scene. */}
+      <ObjectiveMarker />
 
       <OrbitControls
         enablePan={false}

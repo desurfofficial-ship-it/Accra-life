@@ -223,23 +223,21 @@ export class Phase1Scene {
     const dt = Math.min((nowMs - this.lastFrameMs) / 1000, 0.1);
     this.lastFrameMs = nowMs;
 
-    this.player.update(dt, this.thirdPersonCamera.yaw, this.colliders);
-
-    // ── Custom-map player mirror ─────────────────────────────────────────
-    // When the R3F map layer is live, the VISIBLE avatar is authoritative:
-    // copy its position + facing into the systems player every frame so
+    // ── Custom-map player mirror (ONE source of truth) ───────────────────
+    // When the R3F map layer is live, the VISIBLE avatar is the only
+    // mover: its position + facing are copied into the systems player and
+    // the legacy controller integration is SKIPPED entirely (not merely
+    // overwritten) so there is exactly one movement path per frame —
     // gameAPI.position, getActiveTarget(), getLocationAt(), the location
     // pill, presence and the compound cutaway all follow the avatar the
-    // player actually sees (and that TroTroBoarding's proximity reads).
-    // Without this mirror the hidden player and the visible avatar drift
-    // apart — the AI would read positions/targets for a player nobody
-    // can see on the map. The hidden controller's own integration result
-    // is discarded (velocity zeroed); the avatar drives everything.
+    // player actually sees. The legacy path below stays as the fallback
+    // for the no-R3F-canvas case (headless tests, WebGL-off boot).
     const r3fPlayer = (window as unknown as {
       __r3fPlayer?: { current: { position: THREE.Vector3; rotation: { y: number } } | null };
     }).__r3fPlayer;
     const visibleAvatar = r3fPlayer?.current ?? null;
     if (visibleAvatar) {
+      const input = this.inputManager.getMovementInput();
       this.player.position.set(
         visibleAvatar.position.x,
         getSurfaceHeightAt(visibleAvatar.position.x, visibleAvatar.position.z),
@@ -248,6 +246,12 @@ export class Phase1Scene {
       this.player.rotationY = visibleAvatar.rotation.y;
       this.player.group.rotation.y = visibleAvatar.rotation.y;
       this.player.velocity.set(0, 0, 0);
+      // Keep the movement flags in sync for systems that read them
+      // (GameAPI.isSprinting, rig anim gating) without re-integrating.
+      this.player.isMoving = input.magnitude > 0.05;
+      this.player.isSprinting = this.player.isMoving && input.sprint;
+    } else {
+      this.player.update(dt, this.thirdPersonCamera.yaw, this.colliders);
     }
 
     updatePlayerCompoundCutaway(this.player.position);

@@ -19,6 +19,21 @@ const DECAY_PER_SECOND = {
   energy: 0.22
 };
 
+// Starter (Level 1 · Survival) decay profile — playability patch rule 4.
+// A brand-new guest with ₵0 used to soft-lock: 0.35/s hunger meant the
+// cheapest ₵8 food was out of reach before the first payout. Until the
+// player reaches Level 2 the base drain is ~3/min hunger + ~2/min energy,
+// giving roughly 20+ minutes of runway to walk, Act and earn.
+const STARTER_DECAY_PER_SECOND = {
+  hunger: 0.05,  // 3.0 per minute
+  energy: 0.0333 // 2.0 per minute
+};
+
+// Free water at home (playability patch rule 4) — no cost, small restore,
+// so an empty wallet always has a recovery option besides sleeping.
+const WATER_ENERGY_RESTORE = 10;
+const WATER_HUNGER_RESTORE = 6;
+
 const WORK_ENERGY_COST = 18;
 const SLEEP_ENERGY_RESTORE = 55;
 const MEAL_HUNGER_RESTORE = 45;
@@ -28,6 +43,8 @@ export class NeedsSystem {
   private hunger = 72;
   private energy = 80;
   private fatigueReductionPct = 0;
+  /** Level-1 starter profile (slower passive drain) — see STARTER_DECAY. */
+  private starterDecay = true;
   private listeners = new Set<NeedsListener>();
 
   constructor() {
@@ -36,6 +53,20 @@ export class NeedsSystem {
 
   public setFatigueReductionPct(pct: number): void {
     this.fatigueReductionPct = Math.max(0, Math.min(75, pct));
+  }
+
+  /**
+   * Starter drain profile (playability patch rule 4): while the player is
+   * below Economic Level 2, passive decay runs on STARTER_DECAY_PER_SECOND
+   * (~3/min hunger, ~2/min energy) instead of the survival rates. Wired
+   * from syncEconomyHUD off economyManager.getProgressionInfo().rankNumber.
+   */
+  public setStarterDecay(active: boolean): void {
+    this.starterDecay = active;
+  }
+
+  public isStarterDecay(): boolean {
+    return this.starterDecay;
   }
 
   public getState(): NeedsState {
@@ -78,9 +109,10 @@ export class NeedsSystem {
   ): void {
     if (dtSeconds <= 0 || dtSeconds > 2) return;
     const m = modifiers ?? {};
+    const base = this.starterDecay ? STARTER_DECAY_PER_SECOND : DECAY_PER_SECOND;
     const energyFactor = (1 - this.fatigueReductionPct / 100) * (m.energy ?? 1);
-    this.hunger = Math.max(0, this.hunger - DECAY_PER_SECOND.hunger * dtSeconds * (m.hunger ?? 1));
-    this.energy = Math.max(0, this.energy - DECAY_PER_SECOND.energy * energyFactor * dtSeconds);
+    this.hunger = Math.max(0, this.hunger - base.hunger * dtSeconds * (m.hunger ?? 1));
+    this.energy = Math.max(0, this.energy - base.energy * energyFactor * dtSeconds);
     this.notify();
   }
 
@@ -114,6 +146,27 @@ export class NeedsSystem {
     return {
       success: true,
       message: `${label} · Hunger ${Math.round(before)} → ${Math.round(this.hunger)}.`
+    };
+  }
+
+  /**
+   * Free water at the compound (playability patch rule 4) — always free,
+   * small restore so a ₵0 player always has a recovery option. Refuses
+   * only when already full.
+   */
+  public drinkWater(): { success: boolean; message: string } {
+    if (this.hunger >= 96 && this.energy >= 96) {
+      return { success: false, message: 'Already refreshed.' };
+    }
+    const eBefore = this.energy;
+    const hBefore = this.hunger;
+    this.energy = Math.min(100, this.energy + WATER_ENERGY_RESTORE);
+    this.hunger = Math.min(100, this.hunger + WATER_HUNGER_RESTORE);
+    this.persist();
+    this.notify();
+    return {
+      success: true,
+      message: `Free water · Energy ${Math.round(eBefore)} → ${Math.round(this.energy)} · Hunger ${Math.round(hBefore)} → ${Math.round(this.hunger)}.`
     };
   }
 

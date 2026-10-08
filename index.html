@@ -1679,7 +1679,11 @@ body.hud-minimal-mode .identity-card {
 
       <div class="hud-loc-nearby-row">
         <div id="currentLocationPill" title="Current Location"><span class="ico">🛣️</span><span class="nm">Osu Oxford Street</span></div>
-        <div id="housingTierPill" title="Housing Tier" style="cursor:pointer"><span class="ico">🛏️</span><span class="nm">Single Room</span><span class="sub" style="font-size:.55rem;color:var(--gta-green);margin-left:2px">-0%</span></div>
+        <!-- Playability patch rule 7: hidden — this pill was stale (never
+             re-rendered after tier changes, always read "Single Room -0%")
+             and crowded the location pill on small screens. The live housing
+             info lives in #livingSituationSub above. -->
+        <div id="housingTierPill" title="Housing Tier" style="cursor:pointer;display:none"><span class="ico">🛏️</span><span class="nm">Single Room</span><span class="sub" style="font-size:.55rem;color:var(--gta-green);margin-left:2px">-0%</span></div>
         <div id="nearbyStrip" class="guest" role="button" aria-label="Nearby Players in Accra" title="Nearby Players">
           <span class="dot"></span>
           <span class="count">0</span>
@@ -1775,6 +1779,9 @@ body.hud-minimal-mode .identity-card {
     </div>
     <div class="home-actions-bar">
       <button id="homeRestBtn" class="econ-action-btn" type="button" style="justify-content:center;display:flex">🛏️ Sleep (+55 Energy)</button>
+      <!-- Playability patch rule 4: free water — a ₵0 player always has a
+           recovery option at home (wired in game-init homeWaterBtn). -->
+      <button id="homeWaterBtn" class="econ-action-btn" type="button" style="justify-content:center;display:flex;background:rgba(56,189,248,0.14);color:#7dd3fc;border-color:rgba(56,189,248,0.4)">🚰 Free Water (+10 Eng)</button>
       <button id="homeCookBtn" class="econ-action-btn" type="button" style="justify-content:center;display:flex;background:rgba(74,222,128,0.16);color:var(--gta-green);border-color:rgba(74,222,128,0.4)">🍳 Cook at Home (₵5)</button>
       <button id="homeSocialBtn" class="econ-action-btn" type="button" style="justify-content:center;display:flex;background:rgba(56,189,248,0.16);color:#38bdf8;border-color:rgba(56,189,248,0.4)">📻 Tune Citi FM (+8 Eng)</button>
       <button id="homeStoreBtn" class="econ-action-btn" type="button" style="justify-content:center;display:flex;background:rgba(250,204,21,0.16);color:var(--gta-yellow);border-color:rgba(250,204,21,0.4)">🛋️ Home Store</button>
@@ -1883,6 +1890,14 @@ body.hud-minimal-mode .identity-card {
     <button id="sprintToggleBtn" class="ctrl-btn" type="button">Jog</button>
     <button id="interactTriggerBtn" class="ctrl-btn" type="button">Act</button>
   </div>
+</div>
+
+<!-- Playability patch rule 6: one-time first-60-seconds controls hint.
+     Shown by src/bootstrap/hints.ts (startGame), dismissed by the first
+     walk input / Act tap / touch, or after ~14s; localStorage-gated so
+     it never nags returning players. -->
+<div id="controlsHint" style="display:none;position:absolute;left:50%;bottom:118px;transform:translateX(-50%);z-index:40;align-items:center;gap:8px;max-width:92vw;background:rgba(9,13,22,0.88);border:1px solid rgba(250,204,21,0.35);border-radius:10px;padding:8px 14px;color:#e2e8f0;font-size:0.72rem;font-weight:600;pointer-events:auto;white-space:nowrap">
+  <span>🕹️ Drag left stick to walk · <b style="color:var(--gta-yellow)">Act</b> when near a marker · WASD on desktop</span>
 </div>
 
 <script type="module" src="./src/main.ts"></script>

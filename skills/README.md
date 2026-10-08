@@ -262,6 +262,8 @@ Skill files follow the hybrid format ([CONTRACT]/[ROUTING]/[LOGIC]/
 [EXAMPLES]/[ASSETS]). After the Task 18 `main.ts` refactor the runtime is
 modular — `src/main.ts` is a thin orchestrator (<50 lines) and every
 concern has one home:
+- Act wiring: `src/bootstrap/act.ts` (pure matrix: `src/game/Player/ActDecision.ts`)
+- Objective marker (R3F): `src/r3f/ObjectiveMarker.tsx`
 
 - Skill logic: `skills/<skill>.md`
 - GameAPI bridge: `src/game/GameAPI.ts`

@@ -43,6 +43,8 @@ export function getActiveObjectiveInfo(): {
   title: string;
   instruction: string;
   stepTitle: string;
+  actionVerb: string;
+  targetLocationName: string;
 } | null {
   const activeJob = jobSystem.getActiveJob();
   if (activeJob) {
@@ -52,7 +54,9 @@ export function getActiveObjectiveInfo(): {
       tag: `Step ${activeJob.stepIndex + 1}/${activeJob.totalSteps}`,
       title: activeJob.job.title,
       instruction: activeJob.currentStep.instruction,
-      stepTitle: activeJob.currentStep.stepTitle
+      stepTitle: activeJob.currentStep.stepTitle,
+      actionVerb: activeJob.currentStep.actionVerb,
+      targetLocationName: activeJob.currentStep.targetLocationName
     };
   }
   const activeHustle = jobSystem.getActiveHustle();
@@ -63,7 +67,9 @@ export function getActiveObjectiveInfo(): {
       tag: `Step ${activeHustle.stepIndex + 1}/${activeHustle.totalSteps}`,
       title: activeHustle.hustle.title,
       instruction: activeHustle.currentStep.instruction,
-      stepTitle: activeHustle.currentStep.stepTitle
+      stepTitle: activeHustle.currentStep.stepTitle,
+      actionVerb: activeHustle.currentStep.actionVerb,
+      targetLocationName: activeHustle.currentStep.targetLocationName
     };
   }
   const activeIllegal = crimeSystem.getActiveIllegalHustle();
@@ -74,7 +80,9 @@ export function getActiveObjectiveInfo(): {
       tag: `Step ${activeIllegal.stepIndex + 1}/${activeIllegal.totalSteps}`,
       title: activeIllegal.hustle.title,
       instruction: activeIllegal.currentStep.instruction,
-      stepTitle: activeIllegal.currentStep.stepTitle
+      stepTitle: activeIllegal.currentStep.stepTitle,
+      actionVerb: activeIllegal.currentStep.actionVerb,
+      targetLocationName: activeIllegal.currentStep.targetLocationName
     };
   }
   return null;
@@ -135,6 +143,10 @@ export function syncEconomyHUD(): void {
   const cash = economyManager.wallet.getCashBalance();
   if (hudCashAmountEl) hudCashAmountEl.textContent = formatGHS(cash);
   const tier = economyManager.getProgressionInfo();
+  // Playability patch rule 4: below Level 2 the passive drain runs on the
+  // slower starter profile (~3/min HUN, ~2/min ENG) — a ₵0 guest gets
+  // real runway to walk, Act and earn before the first meal matters.
+  needsSystem.setStarterDecay(tier.rankNumber < 2);
   const housingTier = homeSystem.getHousingTier();
   needsSystem.setFatigueReductionPct(housingTier.fatigueReductionPct);
   if (progressionTierBadgeEl) progressionTierBadgeEl.textContent = tier.title;

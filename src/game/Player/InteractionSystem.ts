@@ -26,6 +26,10 @@ export class InteractionSystem {
   private pulseClock = 0;
   private lastInteractMs = 0;
   private readonly cooldownMs = 250;
+  // Act-out-of-range flash: while active, the objective beacon pulses
+  // harder (and the R3F ObjectiveMarker, via isObjectiveFlashing(), swaps
+  // to the attention color). Set by flashObjectiveMarker(); self-expires.
+  private flashUntilMs = 0;
 
   private onActiveTargetChange?: (target: InteractableTarget | null) => void;
   private onInteractTriggered?: (target: InteractableTarget) => void;
@@ -95,6 +99,24 @@ export class InteractionSystem {
 
   public getActiveTarget(): InteractableTarget | null {
     return this.activeTarget;
+  }
+
+  /** The registered target the active objective currently points at.
+   * Null when no objective is active or its target is not in the world. */
+  public getObjectiveTarget(): InteractableTarget | null {
+    if (!this.objectiveTargetId) return null;
+    return this.targets.find((t) => t.id === this.objectiveTargetId) ?? null;
+  }
+
+  /** Brief attention flash on the objective marker — fired when the
+   * player presses Act while out of range (playability patch rule 3). */
+  public flashObjectiveMarker(): void {
+    this.flashUntilMs = performance.now() + 1600;
+  }
+
+  /** True while the out-of-range flash highlight is live. */
+  public isObjectiveFlashing(): boolean {
+    return performance.now() < this.flashUntilMs;
   }
 
   public setObjectiveTarget(targetId: string | null, isRisky = false): void {
@@ -190,10 +212,11 @@ export class InteractionSystem {
     }
 
     if (this.objectiveBeaconGroup.visible && this.objectiveTargetId) {
-      const pulse = 1 + Math.sin(this.pulseClock * 1.15) * 0.1;
+      const flashing = this.isObjectiveFlashing();
+      const pulse = 1 + Math.sin(this.pulseClock * (flashing ? 2.4 : 1.15)) * (flashing ? 0.3 : 0.1);
       this.objectiveBeaconGroup.children[0].scale.set(pulse, 1, pulse);
-      this.objectiveDiamondMesh.position.y = 2.32 + Math.sin(this.pulseClock * 0.9) * 0.16;
-      this.objectiveDiamondMesh.rotation.y += dt * 2.2;
+      this.objectiveDiamondMesh.position.y = 2.32 + Math.sin(this.pulseClock * (flashing ? 1.8 : 0.9)) * (flashing ? 0.3 : 0.16);
+      this.objectiveDiamondMesh.rotation.y += dt * (flashing ? 5.5 : 2.2);
     }
   }
 }
