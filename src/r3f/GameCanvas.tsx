@@ -1,16 +1,15 @@
 /**
- * StreetCanvas / GameCanvas — Phase-1 Custom Map (R3F).
- * Keeps ObjectiveMarker (playable loop) + FollowCamera (main #20).
+ * GameCanvas — Phase-1 custom map.
+ * Movement lives in PlayerAvatar (capsule first, 4 m/s joystick).
  */
-
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useThree } from '@react-three/fiber';
 import { OrthographicCamera, OrbitControls } from '@react-three/drei';
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState, type RefObject } from 'react';
 import * as THREE from 'three';
 import { AccraCityGrid } from './AccraCityGrid';
 import { TroTroBoarding, DEMO_FARE, DEMO_START_BALANCE } from './TroTroBoarding';
 import { LivingTrotro } from './LivingTrotro';
-import { LivingPlayerAvatar } from './LivingPlayerAvatar';
+import { PlayerAvatar } from './PlayerAvatar';
 import { ObjectiveMarker } from './ObjectiveMarker';
 import { FollowCamera } from './FollowCamera';
 import { LivingVendor } from './LivingVendor';
@@ -19,39 +18,47 @@ import { AssetBoundary } from './AssetBoundary';
 import { isMobileDevice } from '../debug/DebugOverlay';
 import { TrotroService } from '../game/World/TrotroService';
 import { MAKOLA_VENDOR_STAND_WORLD } from '../game/World/GridMap';
-import { getGameAPI } from './gameAPIBridge';
 import { TroTroPrompt } from '../ui/TroTroPrompt';
 import { EventBanner } from '../ui/EventBanner';
 import { ClockHud } from '../ui/ClockHud';
 
-// NOTE: Full GameCanvas body is large; this slim mount keeps the two critical
-// systems (ObjectiveMarker + FollowCamera) and the existing grid/player/trotro
-// wiring. Prefer the full local merge when available.
+function DebugRendererProbe() {
+  const { gl } = useThree();
+  useEffect(() => {
+    (window as unknown as { __debugGetR3FRenderer?: () => typeof gl }).__debugGetR3FRenderer = () => gl;
+    return () => {
+      delete (window as unknown as { __debugGetR3FRenderer?: () => typeof gl }).__debugGetR3FRenderer;
+    };
+  }, [gl]);
+  return null;
+}
 
 export function GameCanvas() {
   const playerGroupRef = useRef<THREE.Group>(null);
-  const [promptState, setPromptState] = useState({ fare: DEMO_FARE, balance: DEMO_START_BALANCE, visible: false });
+  const [promptState] = useState({ fare: DEMO_FARE, balance: DEMO_START_BALANCE, visible: false });
   const trotroServiceRef = useRef(new TrotroService());
 
   useEffect(() => {
-    (window as unknown as { __r3fPlayer?: THREE.Group | null }).__r3fPlayer = playerGroupRef.current;
-    const id = window.setInterval(() => {
-      (window as unknown as { __r3fPlayer?: THREE.Group | null }).__r3fPlayer = playerGroupRef.current;
-    }, 500);
-    return () => window.clearInterval(id);
+    (window as unknown as { __r3fPlayer?: RefObject<THREE.Group | null> }).__r3fPlayer = playerGroupRef;
+    return () => {
+      delete (window as unknown as { __r3fPlayer?: RefObject<THREE.Group | null> }).__r3fPlayer;
+    };
   }, []);
+
+  const mobile = isMobileDevice();
 
   return (
     <>
       <Canvas
-        shadows={!isMobileDevice()}
-        dpr={[1, 1.5]}
+        shadows={!mobile}
+        dpr={mobile ? [1, 1.25] : [1, 1.5]}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
-        gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
+        gl={{ antialias: !mobile, alpha: false, powerPreference: 'high-performance' }}
       >
+        <DebugRendererProbe />
         <color attach="background" args={['#090d16']} />
         <ambientLight intensity={0.55} />
-        <directionalLight position={[30, 50, 20]} intensity={1.1} castShadow={!isMobileDevice()} />
+        <directionalLight position={[30, 50, 20]} intensity={1.1} castShadow={!mobile} />
         <OrthographicCamera makeDefault position={[0, 50, 50]} zoom={10} near={0.1} far={200} />
 
         <Suspense fallback={null}>
@@ -85,14 +92,9 @@ export function GameCanvas() {
           </Suspense>
         </AssetBoundary>
 
-        <AssetBoundary name="PlayerAvatar">
-          <LivingPlayerAvatar groupRef={playerGroupRef} />
-        </AssetBoundary>
+        <PlayerAvatar groupRef={playerGroupRef} />
 
-        {/* Playable loop: objective marker (meshes only, no Html distanceFactor) */}
         <ObjectiveMarker />
-
-        {/* Camera follow from main #20 */}
         <FollowCamera targetRef={playerGroupRef} />
 
         <OrbitControls
