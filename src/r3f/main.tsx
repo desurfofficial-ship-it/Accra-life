@@ -1,7 +1,7 @@
 /**
  * main.tsx — Phase-1 R3F Bridge entry point
  *
- * Mounts the StreetCanvas into a div with id="r3f-root". The div is
+ * Mounts the GameCanvas into a div with id="r3f-root". The div is
  * positioned inside the existing viewport container (#viewportContainer)
  * so the R3F Canvas renders BEHIND the existing DOM HUD elements.
  *
@@ -15,7 +15,7 @@
  */
 
 import { createRoot } from 'react-dom/client';
-import { StreetCanvas } from './StreetCanvas';
+import { GameCanvas } from './GameCanvas';
 import { bootstrapDebugOverlay } from '../debug/DebugOverlay';
 
 // Boot the DebugOverlay (?debug=1) + strip backdrop-filter on mobile.
@@ -26,5 +26,5 @@ bootstrapDebugOverlay();
 const container = document.getElementById('r3f-root');
 if (container) {
   const root = createRoot(container);
-  root.render(<StreetCanvas />);
+  root.render(<GameCanvas />);
 }

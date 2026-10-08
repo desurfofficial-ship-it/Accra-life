@@ -6,7 +6,8 @@ domain: Makola street-vendor job (GameAPI contract for the timed
   custom grid map, incl. the NORMAL/RUSH_HOUR payout tiers)
 description: >
   Governs how AI agents work the Makola street-vendor stand through the
-  live GameAPI bridge (window.GameAPI, wired in src/main.ts startGame()).
+  live GameAPI bridge (window.GameAPI, wired in src/bootstrap/agent-runtime.ts —
+  initAgentRuntime(), called from startGame() in src/bootstrap/game-init.ts).
   The player presses [E] at the stand and works a 10-second selling
   shift; the payout tier is locked from the shared world event:
   NORMAL pays ₵10 with the relaxed greeting ('Welcome! What you need
@@ -45,16 +46,12 @@ source_files:
   - src/r3f/LivingVendor.tsx (the visible stand — [E] listener,
     dialogue bubble, 10 s shift bar, sale chime, '+₵' payout float;
     fully procedural — NO GLB stand model yet)
-  - src/r3f/StreetCanvas.tsx (mounts LivingVendor at
+  - src/r3f/GameCanvas.tsx (mounts LivingVendor at
     MAKOLA_VENDOR_STAND_WORLD; adopts window.GameAPI.vendor)
-  - src/bootstrap/game-init.ts (VendorService construction with live
-    EconomyManager — the modular factory that replaces inline construction
-    in main.ts)
-  - src/bootstrap/agent-runtime.ts (AgentRuntime class — per-frame RAF tick
-    loop that advances the 10-second shift timer)
-  - src/main.ts (vendorService instance → createGameAPI;
-    handleWorldTargetInteracted('makola_vendor_stand') →
-    VENDOR_SELL_EVENT)
+  - src/bootstrap/services.ts (vendorService singleton, hydrated with the
+    live EconomyManager) → src/bootstrap/agent-runtime.ts (createGameAPI)
+  - src/bootstrap/interactions.ts (handleWorldTargetInteracted(
+    'makola_vendor_stand') → VENDOR_SELL_EVENT)
   - src/game/Economy/Wallet.ts (addFunds — validates amount, category
     against ALLOWED_INCOME_CATEGORIES, description length)
 adapter: none yet — the GameAPI methods below ARE the contract; the
@@ -65,7 +62,8 @@ independence: callable alone; needs only the four methods below
 # Skill: Makola Street-Vendor System
 
 > **Surface note.** The agent talks to the live bridge instance
-> (`window.GameAPI`, constructed in `src/main.ts` `startGame()`). The
+> (`window.GameAPI`, constructed in `src/bootstrap/agent-runtime.ts`
+> `initAgentRuntime()`). The
 > vendor is a TIMED STATION SHIFT — a different shape of work from the
 > walk-step jobs in `src/game/Jobs/JobManager.ts` (those pay through the
 > economy modal flow and are documented in `economy_skill.md`; they do
@@ -127,13 +125,16 @@ more — `getCashBalance`, `getTransactions`, `getActiveTarget`,
 The AI never imports `src/` directly. `window.GameAPI` is constructed
 at boot with the live instances; every method delegates 1:1:
 
-> **Post phase-0.5 refactor**: system construction lives in
-> `src/bootstrap/game-init.ts` (modular factory). The per-frame tick
-> loop that advances the 10-second shift timer lives in
-> `src/bootstrap/agent-runtime.ts`. UI prompts are in `src/ui/HUD.tsx`.
-> The 3D scene (including LivingVendor) is in `src/r3f/GameCanvas.tsx`.
-> `src/main.ts` is still the live entry point — see [FILE_LOCATIONS]
-> below for the full module map.
+**Modular structure (v5, main.ts refactor).** The boot monolith is split —
+`src/main.ts` is now a thin orchestrator and every concern has a home:
+- Agent runtime is now in `src/bootstrap/agent-runtime.ts` (GameAPI
+  construction + `window` debug handles + EventScheduler takeover).
+- UI rendering is in `src/ui/HUD.tsx` (toasts, wallet deltas, needs and
+  economy panels, the interaction prompt).
+- `gameAPI.economy.*` → `src/game/Economy/Wallet.ts` (unchanged).
+- `gameAPI.player.*` → `src/game/Player/PlayerController.ts` (unchanged).
+- The [E]-key interaction routes now live in
+  `src/bootstrap/interactions.ts` (`handleWorldTargetInteracted`).
 
 | AI-facing call | Routed to | File |
 |---|---|---|
@@ -143,8 +144,9 @@ at boot with the live instances; every method delegates 1:1:
 | `gameAPI.getCurrentEvent()` | `eventService.getCurrentEvent` (shared NORMAL ↔ RUSH_HOUR cycle) | `src/game/World/EventService.ts` |
 
 **One stand, one machine.** The visible stand (`src/r3f/LivingVendor.tsx`)
-and the AI bridge share ONE `VendorService` instance — `main.ts`
-constructs it with the live `EconomyManager` and hands the SAME instance
+and the AI bridge share ONE `VendorService` instance —
+`src/bootstrap/services.ts` constructs it with the live `EconomyManager`
+and `src/bootstrap/agent-runtime.ts` hands the SAME instance
 to `createGameAPI({ vendor: vendorService })`; `LivingVendor` adopts
 `window.GameAPI.vendor` at boot (the same adoption pattern as the
 trotro van). What the agent verifies through `getCurrentJob()` is
@@ -372,24 +374,15 @@ async function workVendorStandRushHour(): Promise<
 }
 ```
 
----
-
 ## [FILE_LOCATIONS]
 
 - Skill logic: `skills/vendor-system.md`
-- GameAPI bridge: `src/game/GameAPI.ts` (startVendorJob / getCurrentJob / addFunds)
-- Agent runtime: `src/bootstrap/agent-runtime.ts` (per-frame system tick loop)
-- UI prompts: `src/ui/HUD.tsx` (EventBanner + ClockHud + TroTroPrompt consolidated)
-- 3D scene: `src/r3f/GameCanvas.tsx` (re-exports StreetCanvas — mounts LivingVendor)
-- Game systems init: `src/bootstrap/game-init.ts` (VendorService construction)
-- Firebase init: `src/bootstrap/firebase-init.ts`
-- Game loop: `src/game/GameLoop.ts` (systems-layer RAF tick)
-- Asset loader: `src/assetUrl.ts` (Vite-aware base path for Pages deploy)
-- Error boundary: `src/r3f/AssetBoundary.tsx` (per-group error isolation)
-
-> **Post phase-0.5 refactor**: `src/main.ts` is still the live entry point
-> (2718 lines). The modular skeleton above is the target architecture.
-> `src/bootstrap/game-init.ts` constructs the VendorService with the live
-> EconomyManager; `src/bootstrap/agent-runtime.ts` wraps the RAF tick loop
-> that drives the 10-second shift timer. See `src/bootstrap/index.ts` for
-> the migration path.
+- GameAPI bridge: `src/game/GameAPI.ts`
+- Agent runtime: `src/bootstrap/agent-runtime.ts`
+- UI prompts: `src/ui/HUD.tsx`
+- 3D scene: `src/r3f/GameCanvas.tsx`
+- Vendor shift machine: `src/game/Jobs/VendorService.ts`
+- [E] interaction routes: `src/bootstrap/interactions.ts`
+- Shared runtime state: `src/bootstrap/state.ts`
+- System singletons + hydration: `src/bootstrap/services.ts`
+- Boot orchestrator (<50 lines): `src/main.ts`

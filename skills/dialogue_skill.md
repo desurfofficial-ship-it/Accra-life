@@ -198,7 +198,24 @@ interface MarkerParams {
 ]
 ```
 
----
+## 9. [ROUTING] Post-refactor wiring (v5)
+
+The boot monolith was split: `src/main.ts` is now a thin orchestrator
+(<50 lines) and every concern has a home. For this skill the routing is
+unchanged at the game-system layer — `gameAPI.economy.*` still routes to
+`src/game/Economy/Wallet.ts` and `gameAPI.player.*` to
+`src/game/Player/PlayerController.ts` — but the wiring moved:
+
+- Agent runtime is now in `src/bootstrap/agent-runtime.ts` (GameAPI
+  construction + `window` debug handles + EventScheduler takeover,
+  called from `startGame()` in `src/bootstrap/game-init.ts`).
+- UI rendering is in `src/ui/HUD.tsx` (toasts, wallet deltas, needs and
+  economy panels, the interaction prompt).
+- The [E]-key interaction routes live in
+  `src/bootstrap/interactions.ts` (`handleWorldTargetInteracted`).
+- System singletons (EconomyManager, NeedsSystem, HomeSystem, ...) are
+  created + hydrated in `src/bootstrap/services.ts`.
+- Shared mutable runtime state lives on `S` in `src/bootstrap/state.ts`.
 
 ## [FILE_LOCATIONS]
 
@@ -207,6 +224,6 @@ interface MarkerParams {
 - Agent runtime: `src/bootstrap/agent-runtime.ts`
 - UI prompts: `src/ui/HUD.tsx`
 - 3D scene: `src/r3f/GameCanvas.tsx`
-- Game systems init: `src/bootstrap/game-init.ts`
-- Firebase init: `src/bootstrap/firebase-init.ts`
-- Game loop: `src/game/GameLoop.ts`
+- Shared runtime state: `src/bootstrap/state.ts`
+- System singletons + hydration: `src/bootstrap/services.ts`
+- Boot orchestrator (<50 lines): `src/main.ts`

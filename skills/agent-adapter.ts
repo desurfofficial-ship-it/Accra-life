@@ -264,7 +264,7 @@ export interface WorkOffer {
 
 /**
  * Live game systems the host must hand over. Everything is already
- * constructed during normal boot in `src/main.ts` — no new wiring needed
+ * constructed during normal boot in `src/bootstrap/agent-runtime.ts` — no new wiring needed
  * inside those files; the host router merely holds references.
  */
 export interface GameBindings {

@@ -6,7 +6,9 @@ domain: trotro boarding & transit (GameAPI contract on the
   NORMAL/RUSH_HOUR world-event surface)
 description: >
   Governs how AI agents board the Accra trotro through the live GameAPI
-  bridge (window.GameAPI, wired in src/main.ts startGame()). The [CONTRACT]
+  bridge (window.GameAPI, wired in src/bootstrap/agent-runtime.ts —
+  initAgentRuntime(), called from startGame() in src/bootstrap/game-init.ts).
+  The [CONTRACT]
   is the owner-issued contract surface — every call is a real method on
   src/game/GameAPI.ts, runtime smoke-tested. v4.6 adds the physical van
   state: getTrotroStatus() exposes the phase-5 lifecycle state machine
@@ -69,12 +71,8 @@ source_files:
     plays MATE_LINES shout/bubble per transition; owns VAN_PATHS — the
     real van GLBs — and the procedural MateCharacter + ProceduralVan
     fallback)
-  - src/r3f/StreetCanvas.tsx (adopts window.GameAPI.trotro at boot — the
+  - src/r3f/GameCanvas.tsx (adopts window.GameAPI.trotro at boot — the
     visible van and the AI bridge share ONE TrotroService instance)
-  - src/bootstrap/game-init.ts (TrotroService construction + GameAPI bridge
-    wiring — the modular factory that replaces inline construction in main.ts)
-  - src/bootstrap/agent-runtime.ts (AgentRuntime class — per-frame RAF tick
-    loop that drives the trotro state machine timers)
   - src/game/World/GridMap.ts (canonical 5x5 grid: cells, districts,
     zone->LocationId, TROTRO_STATION_GRID, TROTRO_DESTINATIONS,
     PROVISION_STORE_ANCHOR, FOOD_VENDOR_ANCHOR, MOMO_AGENT_ANCHOR,
@@ -90,7 +88,7 @@ source_files:
     HOME_COMPOUND_ANCHOR)
   - src/r3f/HomeCompound.tsx + src/r3f/ResidentialShowroom.tsx (visible
     compound landmark + residential scene.gltf diorama on cell [3,1])
-  - src/main.ts#handleWorldTargetInteracted ([E] key → TROTRO_BOARD_EVENT)
+  - src/bootstrap/interactions.ts#handleWorldTargetInteracted ([E] key → TROTRO_BOARD_EVENT)
 adapter: skills/agent-adapter.ts#GameBindings + skills/tro-tro-adapter.ts
 independence: callable alone; needs only the six methods below
 ---
@@ -98,7 +96,8 @@ independence: callable alone; needs only the six methods below
 # Skill: Tro-Tro Boarding & Transit System
 
 > **Surface note.** The agent talks to the live bridge instance
-> (`window.GameAPI`, constructed in `src/main.ts` `startGame()`). The
+> (`window.GameAPI`, constructed in `src/bootstrap/agent-runtime.ts`
+> `initAgentRuntime()`). The
 > brief's guessed file names (`trotro.ts`, `wallet.ts`, `controller.ts`)
 > are actually **`NeighborhoodTrotro.ts`**, **`Wallet.ts`** and
 > **`PlayerController.ts`**. `deductCedis`, `deductBalance`,
@@ -169,14 +168,16 @@ above hit.)
 The AI never imports `src/` directly. `window.GameAPI` is constructed at
 boot with the live instances; every method delegates 1:1:
 
-> **Post phase-0.5 refactor**: system construction lives in
-> `src/bootstrap/game-init.ts` (modular factory — TrotroService + GameAPI
-> bridge wiring). The per-frame RAF tick loop that drives the trotro state
-> machine timers lives in `src/bootstrap/agent-runtime.ts`. UI prompts are
-> in `src/ui/HUD.tsx` (TroTroPrompt + EventBanner + ClockHud). The 3D
-> scene is in `src/r3f/GameCanvas.tsx` (re-exports StreetCanvas).
-> `src/main.ts` is still the live entry point — see [FILE_LOCATIONS]
-> below for the full module map.
+**Modular structure (v5, main.ts refactor).** The boot monolith is split —
+`src/main.ts` is now a thin orchestrator and every concern has a home:
+- Agent runtime is now in `src/bootstrap/agent-runtime.ts` (GameAPI
+  construction + `window` debug handles + EventScheduler takeover).
+- UI rendering is in `src/ui/HUD.tsx` (toasts, wallet deltas, needs and
+  economy panels, the interaction prompt — `updateInteractionPromptUI`).
+- `gameAPI.economy.*` → `src/game/Economy/Wallet.ts` (unchanged).
+- `gameAPI.player.*` → `src/game/Player/PlayerController.ts` (unchanged).
+- The [E]-key interaction routes now live in
+  `src/bootstrap/interactions.ts` (`handleWorldTargetInteracted`).
 
 - **When the AI calls `gameAPI.getTrotroStatus()`, the GameAPI bridge
   routes this to `TrotroService.getState` in
@@ -231,7 +232,7 @@ IDLE_AT_STOP → BOARDING → DEPARTING → EN_ROUTE`, auto-timers 2 s arrival /
 IDLE_AT_STOP dwell is finite — an unboarded van pulls away by itself after
 ~8 s, then the next van docks ~11 s later (8 s DEPARTING + 1 s EN_ROUTE +
 2 s ARRIVING). Since v4.6 the
-visible van and the bridge share ONE instance — `src/r3f/StreetCanvas.tsx`
+visible van and the bridge share ONE instance — `src/r3f/GameCanvas.tsx`
 adopts `window.GameAPI.trotro` as soon as the systems layer boots (a
 pre-boot fallback van runs before that) — so what the AI reads through
 `getTrotroStatus()` is exactly the physical van the player sees. (Before
@@ -242,15 +243,8 @@ bug visible.)
 ## [ROUTING] The Live Custom Map (v4.2)
 
 The game world is the custom 5x5 Accra grid (`src/r3f`, mounted in
-`StreetCanvas.tsx` — 84 m, 12 m cells, 4 m roads). `src/game/World/GridMap.ts`
+`GameCanvas.tsx` — 84 m, 12 m cells, 4 m roads). `src/game/World/GridMap.ts`
 is the canonical module both the visuals and the game systems consume.
-
-> **Post phase-0.5 refactor**: the R3F canvas is re-exported as
-> `src/r3f/GameCanvas.tsx` (thin facade over StreetCanvas). UI overlays
-> (EventBanner, ClockHud, TroTroPrompt) are consolidated in
-> `src/ui/HUD.tsx`. The game loop (RAF tick that mirrors the player
-> position into the systems layer) lives in
-> `src/bootstrap/agent-runtime.ts` / `src/game/GameLoop.ts`.
 
 - **The station is at grid cell column 2, row 3** —
   `GridMap.TROTRO_STATION_GRID = { x: 2, z: 3, zone: 'circle_station' }`,
@@ -284,7 +278,7 @@ is the canonical module both the visuals and the game systems consume.
   main road, sidewalks, gutter crossovers, and the provision/waakye/
   trotro pads at pre-map coordinates — phantom 0.08–0.24 m floats on
   today's map) are gone.
-- **The visible player is the R3F avatar** (`StreetCanvas.PlayerAvatar`):
+- **The visible player is the R3F avatar** (`GameCanvas.PlayerAvatar`):
   movement input comes from the real `InputManager` (keyboard WASD **and**
   agent `gameAPI.setJoystickInput`), speeds are canon (4.5 walk / 7.3
   sprint), and every frame the avatar's position + rotation are mirrored
@@ -309,7 +303,7 @@ is the canonical module both the visuals and the game systems consume.
 - **The [E] key at the station opens the Mate panel** (v4.2): pressing E
   inside the `trotro_stop` radius (3.5 m) fires
   `InteractionSystem.triggerCurrentInteraction` →
-  `src/main.ts` `handleWorldTargetInteracted('trotro_stop')` → dispatches
+  `src/bootstrap/interactions.ts` `handleWorldTargetInteracted('trotro_stop')` → dispatches
   `CustomEvent('lagos-life:trotro-board')` (`TROTRO_BOARD_EVENT` in
   `src/r3f/gameAPIBridge.ts`) → `TroTroBoarding.tsx` starts the Mate
   sequence (idempotent — ignored if the proximity auto-trigger already
@@ -336,7 +330,7 @@ is the canonical module both the visuals and the game systems consume.
   Everything in `PlayerCompound.ts` (group origin, 6 perimeter colliders,
   dynamic room-shell wall colliders, cutaway hysteresis zones, the
   `home_door` interactable 'Home · Rest & Upgrade') plus the housing
-  `ROOM_ORIGIN` in `main.ts` and the `HomeFurnitureVisuals` slots derive
+  `ROOM_ORIGIN` in `src/bootstrap/state.ts` and the `HomeFurnitureVisuals` slots derive
   from the anchor — walking into the compound at [-32, 0] triggers the
   home sheet exactly like the old-world compound did. The visible
   landmark (`src/r3f/HomeCompound.tsx`) mirrors the systems-layer
@@ -344,7 +338,7 @@ is the canonical module both the visuals and the game systems consume.
   hipped roof, polytank tower) so the home is findable on the map.
 - **All compound teleports + the placement room origin derive from the
   anchor** (v4.5, last pre-map coordinate leftovers fixed):
-  `main.ts` `COMPOUND_GATE_SPAWN` (world [-32, -5.2], 0.9 m clear of the
+  `src/bootstrap/state.ts` `COMPOUND_GATE_SPAWN` (world [-32, -5.2], 0.9 m clear of the
   front-wall gate colliders, rotationY 0 = facing the courtyard — the old
   code's Math.PI faced away) is shared by the arrest respawn and the
   home-visit enter/leave teleports, which previously dumped arrestees and
@@ -387,13 +381,13 @@ is the canonical module both the visuals and the game systems consume.
   `public/assets/glb/food/Textures/colormap.png` (was only at the pack
   root — every food model 404'd its only texture since PR #4).
 - **The user's GLB asset packs are mounted on the map** (v4.3):
-  `StreetCanvas` renders `<InteriorFurniture />` (three furniture GLB
+  `GameCanvas` renders `<InteriorFurniture />` (three furniture GLB
   sets on the Adabraka house cells `[0,0]`/`[1,0]`) and
   `<BeachProps />` (beach ball/table/kit/reef on the Labadi cells
   `[4,0]`/`[4,1]`) — lazy-loaded via `useGLTF` + Suspense, so they add
   no boot cost and appear once their chunks stream in.
 - **The systems-layer scene no longer renders behind the map** (v4.2):
-  `main.ts` sets `phase1.renderEnabled = false` when the R3F root is
+  `src/bootstrap/agent-runtime.ts` sets `phase1.renderEnabled = false` when the R3F root is
   live — simulation (movement, interactions, NPC rigs) continues, only
   the hidden canvas draw is skipped (GPU headroom); `window.__phase1Scene`
   exposes the scene for debug.
@@ -749,24 +743,15 @@ bypasses the [LOGIC] ordering. Since v4.6 the door-chase doubles as the
 state, because the state gate keeps boarding impossible once the van pulls
 away.
 
----
-
 ## [FILE_LOCATIONS]
 
 - Skill logic: `skills/tro-tro-system.md`
 - GameAPI bridge: `src/game/GameAPI.ts`
-- Agent runtime: `src/bootstrap/agent-runtime.ts` (per-frame system tick loop)
-- UI prompts: `src/ui/HUD.tsx` (TroTroPrompt, EventBanner, ClockHud consolidated)
-- 3D scene: `src/r3f/GameCanvas.tsx` (re-exports StreetCanvas)
-- Game systems init: `src/bootstrap/game-init.ts` (TrotroService construction)
-- Firebase init: `src/bootstrap/firebase-init.ts`
-- Game loop: `src/game/GameLoop.ts` (systems-layer RAF tick)
-- Asset loader: `src/assetUrl.ts` (Vite-aware base path for Pages deploy)
-- Error boundary: `src/r3f/AssetBoundary.tsx` (per-group error isolation)
-- Debug overlay: `src/debug/DebugOverlay.ts` (?debug=1 panel + mobile backdrop-filter strip)
-
-> **Post phase-0.5 refactor**: `src/main.ts` is still the live entry point
-> (2718 lines). The modular skeleton above is the target architecture.
-> `src/bootstrap/game-init.ts` constructs the TrotroService + GameAPI bridge;
-> `src/bootstrap/agent-runtime.ts` wraps the RAF tick loop that drives the
-> state machine. See `src/bootstrap/index.ts` for the migration path.
+- Agent runtime: `src/bootstrap/agent-runtime.ts`
+- UI prompts: `src/ui/HUD.tsx`
+- 3D scene: `src/r3f/GameCanvas.tsx`
+- Van state machine: `src/game/World/TrotroService.ts`
+- [E] interaction routes: `src/bootstrap/interactions.ts`
+- Shared runtime state: `src/bootstrap/state.ts`
+- System singletons + hydration: `src/bootstrap/services.ts`
+- Boot orchestrator (<50 lines): `src/main.ts`

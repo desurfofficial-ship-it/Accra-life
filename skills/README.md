@@ -20,7 +20,7 @@ until its file actually exists.
 
 **Live custom map (v4.5):** the game world is the custom 5x5 Accra grid —
 `src/game/World/GridMap.ts` (canonical cells/districts/zone→LocationId map) +
-`src/r3f/StreetCanvas.tsx` (visible world). The R3F avatar is driven by the real
+`src/r3f/GameCanvas.tsx` (visible world). The R3F avatar is driven by the real
 `InputManager` and mirrors position/rotation into `PlayerController`; the
 on-map boarding panel routes the same six GameAPI methods. Since v4.6 the
 van runs the phase-5 lifecycle state machine (`TrotroService`: EN_ROUTE →
@@ -256,15 +256,20 @@ Host integration is one call: `createSkills(bindings)` receives the constructed
 game systems and returns the four skill objects that (de)serialize the JSON
 envelope. See the header of `agent-adapter.ts` for the binding contract.
 
----
-
 ## [FILE_LOCATIONS]
 
-- Skill logic: `skills/README.md`
+Skill files follow the hybrid format ([CONTRACT]/[ROUTING]/[LOGIC]/
+[EXAMPLES]/[ASSETS]). After the Task 18 `main.ts` refactor the runtime is
+modular — `src/main.ts` is a thin orchestrator (<50 lines) and every
+concern has one home:
+
+- Skill logic: `skills/<skill>.md`
 - GameAPI bridge: `src/game/GameAPI.ts`
 - Agent runtime: `src/bootstrap/agent-runtime.ts`
 - UI prompts: `src/ui/HUD.tsx`
 - 3D scene: `src/r3f/GameCanvas.tsx`
-- Game systems init: `src/bootstrap/game-init.ts`
-- Firebase init: `src/bootstrap/firebase-init.ts`
-- Game loop: `src/game/GameLoop.ts`
+- [E] interaction routes: `src/bootstrap/interactions.ts`
+- Shared runtime state: `src/bootstrap/state.ts`
+- System singletons + hydration: `src/bootstrap/services.ts`
+- Boot orchestrator: `src/main.ts`
+- Game bootstrap (startGame): `src/bootstrap/game-init.ts`
