@@ -33,5 +33,5 @@ function FBXModel({url,position,scale,rotation}:{url:string;position:[number,num
 export function CityTrees() {
   return (<Suspense fallback={null}>{PLACEMENTS.map((item,i)=><FBXModel key={`g-${i}`} url={assetUrl(`assets/fbx/trees/${item.file}`)} position={item.position} scale={item.scale} rotation={item.rotation} />)}</Suspense>);
 }
-TREE_FILES.forEach(f=>useLoader.preload(FBXLoader,assetUrl(`assets/fbx/trees/${f}`)));
-BUSH_FILES.forEach(f=>useLoader.preload(FBXLoader,assetUrl(`assets/fbx/trees/${f}`)));
+// REMOVED FOR BOOT PAYLOAD: TREE_FILES.forEach(f=>useLoader.preload(FBXLoader,assetUrl(`assets/fbx/trees/${f}`)));
+// REMOVED FOR BOOT PAYLOAD: BUSH_FILES.forEach(f=>useLoader.preload(FBXLoader,assetUrl(`assets/fbx/trees/${f}`)));

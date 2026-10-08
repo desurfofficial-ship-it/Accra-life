@@ -116,4 +116,4 @@ export function MarketAssets() {
 
 // Preload all market GLBs at module load (R3F caches by URL).
 // This kicks off fetches early so the Suspense fallback is brief.
-Object.values(URLS).forEach((url) => useGLTF.preload(url));
+// REMOVED FOR BOOT PAYLOAD: Object.values(URLS).forEach((url) => useGLTF.preload(url));

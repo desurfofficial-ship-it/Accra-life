@@ -33,4 +33,4 @@ export function BeachProps() {
     <BeachReef position={[c1X + 2, 0, c1Z + 2]} />
   </Suspense>);
 }
-useGLTF.preload(assetUrl('assets/glb/beach/beach_ball.glb'));
+// REMOVED FOR BOOT PAYLOAD: useGLTF.preload(assetUrl('assets/glb/beach/beach_ball.glb'));

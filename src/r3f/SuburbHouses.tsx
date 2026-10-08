@@ -19,7 +19,7 @@ function srand(seed: number): number { const v=Math.sin(seed*127.1+311.7)*43758.
 function HouseModel({file,position,rotation,scale}:{file:string;position:[number,number,number];rotation:number;scale:number}) {
   const materials=useLoader(MTLLoader,assetUrl(`assets/obj/houses/${file}.mtl`));
   const obj=useLoader(OBJLoader,assetUrl(`assets/obj/houses/${file}.obj`));
-  const cloned=useMemo(()=>{materials.preload();const m=obj.clone(true);m.traverse((c)=>{if(c instanceof THREE.Mesh){const k=Object.keys(materials.materials)[0];if(k&&materials.materials[k])c.material=materials.materials[k];c.castShadow=true;c.receiveShadow=true;}});return m;},[obj,materials]);
+const cloned=useMemo(()=>{materials.preload();const m=obj.clone(true);m.traverse((c)=>{if(c instanceof THREE.Mesh){const k=Object.keys(materials.materials)[0];if(k&&materials.materials[k])c.material=materials.materials[k];c.castShadow=true;c.receiveShadow=true;}});return m;},[obj,materials]);
   return <primitive object={cloned} position={position} rotation={[0,rotation,0]} scale={scale} />;
 }
 
@@ -33,4 +33,4 @@ export function SuburbHouses() {
     <HouseModel file="house-luxurious" position={[c1X+2,0,c1Z+2]} rotation={srand(5)*Math.PI*2} scale={0.28} />
   </Suspense>);
 }
-HOUSE_VARIANTS.forEach(v=>{useLoader.preload(MTLLoader,assetUrl(`assets/obj/houses/${v.file}.mtl`));useLoader.preload(OBJLoader,assetUrl(`assets/obj/houses/${v.file}.obj`));});
+// REMOVED FOR BOOT PAYLOAD: HOUSE_VARIANTS.forEach(v=>{useLoader.preload(MTLLoader,assetUrl(`assets/obj/houses/${v.file}.mtl`));useLoader.preload(OBJLoader,assetUrl(`assets/obj/houses/${v.file}.obj`));});

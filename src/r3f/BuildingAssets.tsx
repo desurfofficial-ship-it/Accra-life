@@ -133,5 +133,5 @@ export function BuildingAssets() {
 }
 
 // Preload the smallest assets for faster initial load
-useGLTF.preload(assetUrl('assets/glb/props/plastic_water_bottle.glb'));
-useGLTF.preload(assetUrl('assets/glb/buildings/house_exterior.glb'));
+// REMOVED FOR BOOT PAYLOAD: useGLTF.preload(assetUrl('assets/glb/props/plastic_water_bottle.glb'));
+// REMOVED FOR BOOT PAYLOAD: useGLTF.preload(assetUrl('assets/glb/buildings/house_exterior.glb'));

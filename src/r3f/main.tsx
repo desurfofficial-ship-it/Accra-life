@@ -16,6 +16,12 @@
 
 import { createRoot } from 'react-dom/client';
 import { StreetCanvas } from './StreetCanvas';
+import { bootstrapDebugOverlay } from '../debug/DebugOverlay';
+
+// Boot the DebugOverlay (?debug=1) + strip backdrop-filter on mobile.
+// Safe to call at module load — it checks IS_MOBILE + DEBUG_ENABLED
+// internally and no-ops when neither applies.
+bootstrapDebugOverlay();
 
 const container = document.getElementById('r3f-root');
 if (container) {

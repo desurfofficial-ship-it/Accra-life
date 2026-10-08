@@ -55,4 +55,4 @@ export function MarketStalls() {
     </Suspense>
   );
 }
-FOOD_ITEMS.forEach((item) => useGLTF.preload(assetUrl(`assets/glb/food/${item.file}.glb`)));
+// REMOVED FOR BOOT PAYLOAD: FOOD_ITEMS.forEach((item) => useGLTF.preload(assetUrl(`assets/glb/food/${item.file}.glb`)));

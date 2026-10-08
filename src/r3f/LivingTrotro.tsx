@@ -322,5 +322,5 @@ export function LivingTrotro({ position, trotroService, vanModel = 'small_van' }
 }
 
 // Preload the primary van model
-useGLTF.preload(VAN_PATHS.small_van);
-useGLTF.preload(VAN_PATHS.retro_vw);
+// REMOVED FOR BOOT PAYLOAD: useGLTF.preload(VAN_PATHS.small_van);
+// REMOVED FOR BOOT PAYLOAD: useGLTF.preload(VAN_PATHS.retro_vw);

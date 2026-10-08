@@ -29,6 +29,9 @@ jobs:
       - name: No absolute asset paths
         run: bash scripts/check-asset-paths.sh
 
+      - name: Asset budget (max 3MB per file, 25MB total)
+        run: bash scripts/check-asset-budget.sh
+
       - name: Tests
         run: npm run test:all
 

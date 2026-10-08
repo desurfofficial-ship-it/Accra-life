@@ -18,4 +18,4 @@ export function InteriorFurniture() {
     <FurnitureModel url={assetUrl('assets/glb/furniture/chair_table_wardrobe_suitcase_furniture.glb')} position={[c0X + 3, 0, c0Z - 1]} rotation={1.2} scale={0.2} />
   </Suspense>);
 }
-useGLTF.preload(assetUrl('assets/glb/furniture/some_furniture.glb'));
+// REMOVED FOR BOOT PAYLOAD: useGLTF.preload(assetUrl('assets/glb/furniture/some_furniture.glb'));
