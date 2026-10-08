@@ -47,6 +47,11 @@ source_files:
     fully procedural — NO GLB stand model yet)
   - src/r3f/StreetCanvas.tsx (mounts LivingVendor at
     MAKOLA_VENDOR_STAND_WORLD; adopts window.GameAPI.vendor)
+  - src/bootstrap/game-init.ts (VendorService construction with live
+    EconomyManager — the modular factory that replaces inline construction
+    in main.ts)
+  - src/bootstrap/agent-runtime.ts (AgentRuntime class — per-frame RAF tick
+    loop that advances the 10-second shift timer)
   - src/main.ts (vendorService instance → createGameAPI;
     handleWorldTargetInteracted('makola_vendor_stand') →
     VENDOR_SELL_EVENT)
@@ -121,6 +126,14 @@ more — `getCashBalance`, `getTransactions`, `getActiveTarget`,
 
 The AI never imports `src/` directly. `window.GameAPI` is constructed
 at boot with the live instances; every method delegates 1:1:
+
+> **Post phase-0.5 refactor**: system construction lives in
+> `src/bootstrap/game-init.ts` (modular factory). The per-frame tick
+> loop that advances the 10-second shift timer lives in
+> `src/bootstrap/agent-runtime.ts`. UI prompts are in `src/ui/HUD.tsx`.
+> The 3D scene (including LivingVendor) is in `src/r3f/GameCanvas.tsx`.
+> `src/main.ts` is still the live entry point — see [FILE_LOCATIONS]
+> below for the full module map.
 
 | AI-facing call | Routed to | File |
 |---|---|---|
@@ -358,3 +371,25 @@ async function workVendorStandRushHour(): Promise<
   return 'SOLD_15';                                 // +₵15, ledger clean
 }
 ```
+
+---
+
+## [FILE_LOCATIONS]
+
+- Skill logic: `skills/vendor-system.md`
+- GameAPI bridge: `src/game/GameAPI.ts` (startVendorJob / getCurrentJob / addFunds)
+- Agent runtime: `src/bootstrap/agent-runtime.ts` (per-frame system tick loop)
+- UI prompts: `src/ui/HUD.tsx` (EventBanner + ClockHud + TroTroPrompt consolidated)
+- 3D scene: `src/r3f/GameCanvas.tsx` (re-exports StreetCanvas — mounts LivingVendor)
+- Game systems init: `src/bootstrap/game-init.ts` (VendorService construction)
+- Firebase init: `src/bootstrap/firebase-init.ts`
+- Game loop: `src/game/GameLoop.ts` (systems-layer RAF tick)
+- Asset loader: `src/assetUrl.ts` (Vite-aware base path for Pages deploy)
+- Error boundary: `src/r3f/AssetBoundary.tsx` (per-group error isolation)
+
+> **Post phase-0.5 refactor**: `src/main.ts` is still the live entry point
+> (2718 lines). The modular skeleton above is the target architecture.
+> `src/bootstrap/game-init.ts` constructs the VendorService with the live
+> EconomyManager; `src/bootstrap/agent-runtime.ts` wraps the RAF tick loop
+> that drives the 10-second shift timer. See `src/bootstrap/index.ts` for
+> the migration path.

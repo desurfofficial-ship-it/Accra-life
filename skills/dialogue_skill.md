@@ -197,3 +197,16 @@ interface MarkerParams {
     "message": "Sign in to chat with Accra.", "retryable": false } }
 ]
 ```
+
+---
+
+## [FILE_LOCATIONS]
+
+- Skill logic: `skills/dialogue_skill.md`
+- GameAPI bridge: `src/game/GameAPI.ts`
+- Agent runtime: `src/bootstrap/agent-runtime.ts`
+- UI prompts: `src/ui/HUD.tsx`
+- 3D scene: `src/r3f/GameCanvas.tsx`
+- Game systems init: `src/bootstrap/game-init.ts`
+- Firebase init: `src/bootstrap/firebase-init.ts`
+- Game loop: `src/game/GameLoop.ts`

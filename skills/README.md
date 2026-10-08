@@ -255,3 +255,16 @@ to the live systems:
 Host integration is one call: `createSkills(bindings)` receives the constructed
 game systems and returns the four skill objects that (de)serialize the JSON
 envelope. See the header of `agent-adapter.ts` for the binding contract.
+
+---
+
+## [FILE_LOCATIONS]
+
+- Skill logic: `skills/README.md`
+- GameAPI bridge: `src/game/GameAPI.ts`
+- Agent runtime: `src/bootstrap/agent-runtime.ts`
+- UI prompts: `src/ui/HUD.tsx`
+- 3D scene: `src/r3f/GameCanvas.tsx`
+- Game systems init: `src/bootstrap/game-init.ts`
+- Firebase init: `src/bootstrap/firebase-init.ts`
+- Game loop: `src/game/GameLoop.ts`

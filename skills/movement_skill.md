@@ -199,3 +199,16 @@ interface TravelResult {
     "destinationLocationId": "labadi_beach" } }
 ]
 ```
+
+---
+
+## [FILE_LOCATIONS]
+
+- Skill logic: `skills/movement_skill.md`
+- GameAPI bridge: `src/game/GameAPI.ts`
+- Agent runtime: `src/bootstrap/agent-runtime.ts`
+- UI prompts: `src/ui/HUD.tsx`
+- 3D scene: `src/r3f/GameCanvas.tsx`
+- Game systems init: `src/bootstrap/game-init.ts`
+- Firebase init: `src/bootstrap/firebase-init.ts`
+- Game loop: `src/game/GameLoop.ts`

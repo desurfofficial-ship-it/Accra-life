@@ -230,3 +230,16 @@ upgrades unlock permanently).
     "message": "2-Seater Lounge Sofa added · Comfort 62%", "comfortScore": 62 } }
 ]
 ```
+
+---
+
+## [FILE_LOCATIONS]
+
+- Skill logic: `skills/economy_skill.md`
+- GameAPI bridge: `src/game/GameAPI.ts`
+- Agent runtime: `src/bootstrap/agent-runtime.ts`
+- UI prompts: `src/ui/HUD.tsx`
+- 3D scene: `src/r3f/GameCanvas.tsx`
+- Game systems init: `src/bootstrap/game-init.ts`
+- Firebase init: `src/bootstrap/firebase-init.ts`
+- Game loop: `src/game/GameLoop.ts`
