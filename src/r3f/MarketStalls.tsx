@@ -16,7 +16,7 @@ const FOOD_ITEMS = [
 ];
 
 function FoodItem({ file, position, scale }: { file: string; position: [number, number, number]; scale: number }) {
-  const { scene } = useGLTF(assetUrl(`assets/glb/food/${file}.glb`));
+  const { scene } = useGLTF(assetUrl(`assets/glb/food/${file}.glb`), assetUrl('draco/'));
   const cloned = useMemo(() => scene.clone(true), [scene]);
   return <primitive object={cloned} position={position} scale={scale} castShadow receiveShadow />;
 }

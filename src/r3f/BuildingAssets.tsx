@@ -34,7 +34,7 @@ function GLBModel({
   rotation?: number;
   scale?: number;
 }) {
-  const { scene } = useGLTF(url);
+  const { scene } = useGLTF(url, assetUrl('draco/'));
   const cloned = useMemo(() => {
     const m = scene.clone(true);
     m.traverse((child) => {

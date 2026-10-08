@@ -3,7 +3,6 @@
  *
  * Uses the uploaded van GLB models instead of procedural geometry.
  * The `small_van.glb` (2.7MB) is the primary model — lightweight enough
- * for browser. The other two (european_delivery_van 35MB, retro_vw 2.6MB)
  * are available as alternatives via the `vanModel` prop.
  *
  * State machine drives:
@@ -31,18 +30,16 @@ import { eventService } from '../game/World/EventService';
 
 // ── Van model selector ─────────────────────────────────────────────────────
 
-export type VanModelId = 'small_van' | 'european_delivery_van' | 'retro_vw';
 
+export type VanModelId = 'small_van' | 'retro_vw';
 const VAN_PATHS: Record<VanModelId, string> = {
   small_van: assetUrl('assets/glb/vehicles/small_van.glb'),
-  european_delivery_van: assetUrl('assets/glb/vehicles/european_delivery_van.glb'),
   retro_vw: assetUrl('assets/glb/vehicles/retro_anime_vintage_volkswagen_van.glb'),
 };
 
 // Scale tuning per model (GLB exports vary wildly in scale)
 const VAN_SCALES: Record<VanModelId, number> = {
   small_van: 0.5,
-  european_delivery_van: 0.3,
   retro_vw: 0.4,
 };
 
@@ -51,7 +48,7 @@ const VAN_SCALES: Record<VanModelId, number> = {
 function GLBVan({ modelId, doorOpen }: { modelId: VanModelId; doorOpen: boolean }) {
   const url = VAN_PATHS[modelId];
   const scale = VAN_SCALES[modelId];
-  const { scene } = useGLTF(url);
+  const { scene } = useGLTF(url, assetUrl('draco/'));
 
   const cloned = useMemo(() => {
     const m = scene.clone(true);

@@ -5,7 +5,7 @@ import { cellCenter } from './AccraCityGrid';
 import { assetUrl } from '../assetUrl';
 
 function FurnitureModel({ url, position, rotation, scale }: { url: string; position: [number, number, number]; rotation: number; scale: number }) {
-  const { scene } = useGLTF(url);
+  const { scene } = useGLTF(url, assetUrl('draco/'));
   const cloned = useMemo(() => { const m = scene.clone(true); m.traverse((c) => { if (c instanceof THREE.Mesh) { c.castShadow = true; c.receiveShadow = true; } }); return m; }, [scene]);
   return <primitive object={cloned} position={position} rotation={[0, rotation, 0]} scale={scale} />;
 }

@@ -5,22 +5,22 @@ import { cellCenter } from './AccraCityGrid';
 import { assetUrl } from '../assetUrl';
 
 function BeachBall({ position }: { position: [number, number, number] }) {
-  const { scene } = useGLTF(assetUrl('assets/glb/beach/beach_ball.glb'));
+  const { scene } = useGLTF(assetUrl('assets/glb/beach/beach_ball.glb'), assetUrl('draco/'));
   const cloned = useMemo(() => scene.clone(true), [scene]);
   return <primitive object={cloned} position={position} scale={0.5} castShadow />;
 }
 function BeachTable({ position, rotation }: { position: [number, number, number]; rotation: number }) {
-  const { scene } = useGLTF(assetUrl('assets/glb/beach/beach_table.glb'));
+  const { scene } = useGLTF(assetUrl('assets/glb/beach/beach_table.glb'), assetUrl('draco/'));
   const cloned = useMemo(() => { const m = scene.clone(true); m.traverse((c) => { if (c instanceof THREE.Mesh) { c.castShadow = true; c.receiveShadow = true; } }); return m; }, [scene]);
   return <primitive object={cloned} position={position} rotation={[0, rotation, 0]} scale={0.6} />;
 }
 function BeachKit({ position }: { position: [number, number, number] }) {
-  const { scene } = useGLTF(assetUrl('assets/glb/beach/beach_kit.glb'));
+  const { scene } = useGLTF(assetUrl('assets/glb/beach/beach_kit.glb'), assetUrl('draco/'));
   const cloned = useMemo(() => { const m = scene.clone(true); m.traverse((c) => { if (c instanceof THREE.Mesh) { c.castShadow = true; c.receiveShadow = true; } }); return m; }, [scene]);
   return <primitive object={cloned} position={position} scale={0.5} />;
 }
 function BeachReef({ position }: { position: [number, number, number] }) {
-  const { scene } = useGLTF(assetUrl('assets/glb/beach/beach_reef.glb'));
+  const { scene } = useGLTF(assetUrl('assets/glb/beach/beach_reef.glb'), assetUrl('draco/'));
   const cloned = useMemo(() => { const m = scene.clone(true); m.traverse((c) => { if (c instanceof THREE.Mesh) { c.castShadow = true; c.receiveShadow = true; } }); return m; }, [scene]);
   return <primitive object={cloned} position={position} scale={0.4} />;
 }

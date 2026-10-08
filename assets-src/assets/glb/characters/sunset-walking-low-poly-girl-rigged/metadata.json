@@ -1,0 +1,21 @@
+{
+  "id": "EXT_PHASE8_CHARACTER_PLAYER",
+  "sketchfab_uid": "341f934134d041c581b590cedff26d88",
+  "category": "characters",
+  "name": "Sunset Walking Low Poly Girl [Rigged]",
+  "author": "micaelsampaio",
+  "author_url": "https://sketchfab.com/micaelsampaio",
+  "license": "CC Attribution",
+  "license_url": "http://creativecommons.org/licenses/by/4.0/",
+  "viewer_url": "https://sketchfab.com/3d-models/sunset-walking-low-poly-girl-rigged-341f934134d041c581b590cedff26d88",
+  "intended_use": "Sunset Walking Low Poly Girl [Rigged] \u2014 rigged character with a built-in walk animation. Replaces the capsule+sphere avatar in StreetCanvas.tsx. CC-BY attribution required.",
+  "source_format": "glb",
+  "main_file": "sunset_walking_low_poly_girl_rigged.glb",
+  "fetched_at": "2026-10-07T22:15:19Z",
+  "like_count_at_fetch": 312,
+  "files": {
+    "dir": "public/assets/glb/characters/sunset-walking-low-poly-girl-rigged",
+    "main": "public/assets/glb/characters/sunset-walking-low-poly-girl-rigged/sunset_walking_low_poly_girl_rigged.glb",
+    "runtime_url": "/assets/glb/characters/sunset-walking-low-poly-girl-rigged/sunset_walking_low_poly_girl_rigged.glb"
+  }
+}
