@@ -1,38 +1,21 @@
 /**
  * Act-button decision layer (playability patch rule 3).
  *
- * The old handler was one line that broke the whole core loop:
- *
- *   if (!phase1.interactionSystem.triggerCurrentInteraction()) openEconomyModal('jobs');
- *
- * Act used to fall through to the JOBS hub whenever no interactable was
- * focused, so players who accepted a job/hustle but stood outside the
- * (invisible) target radius got a menu instead of gameplay — no objective
- * ever advanced and nobody earned. This module owns the NEW contract:
- *
- *   1. A focused target is in range  → run the interaction (return true).
- *   2. An objective is active but the player is out of range → tell them
- *      WHERE to walk and HOW FAR ("Walk to Aunty Ba (32m)") and flash the
- *      objective marker. NEVER open a menu.
- *   3. No objective at all → a one-line nudge toward the JOBS button.
- *      The hub itself stays on the JOBS button, exactly as before.
- *
- * resolveActDecision() is pure so scripts/test_playability.ts can pin the
- * matrix (in-range Acts; 50 m walks; no hub kind exists at all).
+ * Act NEVER opens a menu. Shared by the Act button and the E key via handleActPress.
  */
 
 import { S } from './state';
-import { getActiveObjectiveInfo } from '../ui/HUD';
+import { getActiveObjectiveInfo, showInteractionFeedback } from '../ui/HUD';
 import { interactTriggerBtn } from '../ui/dom-refs';
+import {
+  resolveActDecision,
+  type ActDecision,
+  type ActDecisionInput,
+} from '../game/Player/ActDecision';
 
-// The pure decision matrix lives in src/game/Player/ActDecision.ts (no
-// DOM/three imports) so the headless test suite can pin it. Re-exported
-// here for game-init's single import surface.
-export { resolveActDecision } from '../game/Player/ActDecision';
-export type { ActDecision, ActDecisionInput } from '../game/Player/ActDecision';
+export { resolveActDecision };
+export type { ActDecision, ActDecisionInput };
 
-/** Short Act-button caption for a focused interactable id (prompt map
- * mirrors updateInteractionPromptUI's short labels). */
 function shortTargetLabel(targetId: string, fallback: string): string {
   const short: Record<string, string> = {
     food_vendor: 'Waakye Joint',
@@ -45,18 +28,11 @@ function shortTargetLabel(targetId: string, fallback: string): string {
     chale_wote_panel: 'Mural Wall',
     npc_older_001: 'Uncle Mensah',
     npc_male_001: 'Kojo',
-    npc_female_001: 'Ama'
+    npc_female_001: 'Ama',
   };
   return short[targetId] || fallback;
 }
 
-/**
- * Refresh the Act button caption on the 500 ms UI cadence:
- *   - focused target + objective step → "Act: Carry Pans"
- *   - focused target, no objective   → "Act: Waakye Joint"
- *   - objective active, out of range → "Walk: Aunty Ba (32m)"
- *   - idle                           → "Act"
- */
 export function updateActButtonLabel(): void {
   const p1 = S.phase1SceneRef;
   if (!p1 || !interactTriggerBtn) return;
@@ -85,4 +61,40 @@ export function updateActButtonLabel(): void {
   }
 
   interactTriggerBtn.textContent = 'Act';
+}
+
+/** Shared Act press — button and E key. Never opens the hub. */
+export function handleActPress(): void {
+  const p1 = S.phase1SceneRef;
+  if (!p1) return;
+  const obj = getActiveObjectiveInfo();
+  const objTarget = p1.interactionSystem.getObjectiveTarget();
+  const decision = resolveActDecision({
+    hasActiveTarget: p1.interactionSystem.getActiveTarget() !== null,
+    objective: obj
+      ? {
+          targetInteractableId: obj.targetInteractableId,
+          targetTitle: obj.targetLocationName || obj.stepTitle,
+          stepTag: obj.tag,
+        }
+      : null,
+    objectiveTargetPosition: objTarget
+      ? { x: objTarget.position.x, z: objTarget.position.z }
+      : null,
+    playerPosition: p1.player.position,
+  });
+  if (decision.kind === 'interact') {
+    p1.interactionSystem.triggerCurrentInteraction();
+    return;
+  }
+  if (decision.kind === 'walk') {
+    const where =
+      decision.distanceM >= 0
+        ? `${decision.targetTitle} (${decision.distanceM}m)`
+        : decision.targetTitle;
+    showInteractionFeedback(`Walk to ${where}`, true);
+    p1.interactionSystem.flashObjectiveMarker();
+    return;
+  }
+  showInteractionFeedback('No active hustle — tap JOBS to pick one', true);
 }
