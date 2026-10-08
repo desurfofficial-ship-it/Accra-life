@@ -1,41 +1,29 @@
-/**
- * BuildingAssets.tsx — 8 new uploaded GLB models placed across AccraCityGrid
- *
- * Assets mapped to districts:
- *   house_exterior.glb (373KB)        → Adabraka [0,0] (residential exterior)
- *   house_1f_interior.glb (6.7MB)     → Adabraka [1,0] (1st-floor interior)
- *   room_apartment_furniture.glb (9MB) → Adabraka [0,0] (apartment furniture)
- *   room_bathroom.glb (484KB)         → Adabraka [0,0] (bathroom fixtures)
- *   building_office_room_window.glb (7.3MB) → Mixed-use [2,4] (office window)
- *   building_office_room_curtain.glb (7.3MB) → Mixed-use [0,3] (office curtain)
- *   cinemamovie_theater_seat.glb (419KB) → Osu [3,3] (cinema/theater seat)
- *   plastic_water_bottle.glb (303KB)  → Makola [1,1] (vendor water bottle)
- *
- * Uses useGLTF from @react-three/drei with Suspense. All meshes get
- * castShadow + receiveShadow. Scale tuned per model.
- */
-
+/** BuildingAssets.tsx — GLB buildings auto-scaled via fitToFootprint. */
 import { useGLTF } from '@react-three/drei';
 import { Suspense, useMemo } from 'react';
 import * as THREE from 'three';
-import { cellCenter } from './AccraCityGrid';
+import { cellCenter, CELL_SIZE } from './AccraCityGrid';
 import { assetUrl } from '../assetUrl';
+import { fitToFootprint } from './fitModel';
 
-// ── Generic GLB loader ─────────────────────────────────────────────────────
+const TARGET_FOOTPRINT = 0.8 * CELL_SIZE;
+const TARGET_HEIGHT = 1.2 * CELL_SIZE;
 
 function GLBModel({
   url,
   position,
   rotation = 0,
-  scale = 1,
+  footprint = TARGET_FOOTPRINT,
+  height = TARGET_HEIGHT,
 }: {
   url: string;
   position: [number, number, number];
   rotation?: number;
-  scale?: number;
+  footprint?: number;
+  height?: number;
 }) {
   const { scene } = useGLTF(url, assetUrl('draco/'));
-  const cloned = useMemo(() => {
+  const fitted = useMemo(() => {
     const m = scene.clone(true);
     m.traverse((child) => {
       if (child instanceof THREE.Mesh) {
@@ -43,95 +31,34 @@ function GLBModel({
         child.receiveShadow = true;
       }
     });
-    return m;
-  }, [scene]);
+    return fitToFootprint(m, footprint, height, url);
+  }, [scene, url, footprint, height]);
 
   return (
-    <primitive
-      object={cloned}
-      position={position}
-      rotation={[0, rotation, 0]}
-      scale={scale}
-    />
+    <group position={position} rotation={[0, rotation, 0]}>
+      <primitive object={fitted} />
+    </group>
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
-
 export function BuildingAssets() {
-  // District cell centers
-  const [adabraka00X, adabraka00Z] = cellCenter(0, 0); // Adabraka home
-  const [adabraka10X, adabraka10Z] = cellCenter(1, 0); // Adabraka row 2
-  const [makola11X, makola11Z] = cellCenter(1, 1);     // Makola Market
-  const [mixed24X, mixed24Z] = cellCenter(2, 4);        // Mixed-use east
-  const [mixed03X, mixed03Z] = cellCenter(0, 3);        // Mixed-use west
-  const [osu33X, osu33Z] = cellCenter(3, 3);            // Osu nightlife
+  const [a00X, a00Z] = cellCenter(0, 0);
+  const [a10X, a10Z] = cellCenter(1, 0);
+  const [m11X, m11Z] = cellCenter(1, 1);
+  const [mx24X, mx24Z] = cellCenter(2, 3);
+  const [mx03X, mx03Z] = cellCenter(1, 2);
+  const [o33X, o33Z] = cellCenter(3, 3);
 
   return (
     <Suspense fallback={null}>
-      {/* ── Adabraka [0,0]: house exterior + apartment furniture + bathroom ── */}
-      <GLBModel
-        url={assetUrl('assets/glb/buildings/house_exterior.glb')}
-        position={[adabraka00X - 3, 0, adabraka00Z + 3]}
-        rotation={0.5}
-        scale={0.4}
-      />
-      <GLBModel
-        url={assetUrl('assets/glb/interior/room_apartment_furniture.glb')}
-        position={[adabraka00X + 1, 0, adabraka00Z - 2]}
-        rotation={-0.3}
-        scale={0.3}
-      />
-      <GLBModel
-        url={assetUrl('assets/glb/interior/room_bathroom.glb')}
-        position={[adabraka00X + 4, 0, adabraka00Z + 1]}
-        rotation={1.2}
-        scale={0.25}
-      />
-
-      {/* ── Adabraka [1,0]: 1st-floor interior ── */}
-      <GLBModel
-        url={assetUrl('assets/glb/interior/house_1f_interior.glb')}
-        position={[adabraka10X, 0, adabraka10Z]}
-        rotation={0}
-        scale={0.3}
-      />
-
-      {/* ── Makola [1,1]: plastic water bottle (vendor item) ── */}
-      <GLBModel
-        url={assetUrl('assets/glb/props/plastic_water_bottle.glb')}
-        position={[makola11X + 2, 0.8, makola11Z - 1]}
-        rotation={0.8}
-        scale={0.5}
-      />
-
-      {/* ── Mixed-use [2,4]: office window ── */}
-      <GLBModel
-        url={assetUrl('assets/glb/buildings/building_office_room_window.glb')}
-        position={[mixed24X, 0, mixed24Z]}
-        rotation={0.5}
-        scale={0.35}
-      />
-
-      {/* ── Mixed-use [0,3]: office curtain ── */}
-      <GLBModel
-        url={assetUrl('assets/glb/buildings/building_office_room_curtain.glb')}
-        position={[mixed03X, 0, mixed03Z]}
-        rotation={-0.3}
-        scale={0.35}
-      />
-
-      {/* ── Osu [3,3]: cinema/theater seat ── */}
-      <GLBModel
-        url={assetUrl('assets/glb/interior/cinemamovie_theater_seat.glb')}
-        position={[osu33X - 1, 0, osu33Z + 2]}
-        rotation={1.5}
-        scale={0.4}
-      />
+      <GLBModel url={assetUrl('assets/glb/buildings/house_exterior.glb')} position={[a00X - 3, 0, a00Z + 3]} rotation={0.5} />
+      <GLBModel url={assetUrl('assets/glb/interior/room_apartment_furniture.glb')} position={[a00X + 1, 0, a00Z - 2]} rotation={-0.3} />
+      <GLBModel url={assetUrl('assets/glb/interior/room_bathroom.glb')} position={[a00X + 4, 0, a00Z + 1]} rotation={1.2} />
+      <GLBModel url={assetUrl('assets/glb/interior/house_1f_interior.glb')} position={[a10X, 0, a10Z]} rotation={0} />
+      <GLBModel url={assetUrl('assets/glb/props/plastic_water_bottle.glb')} position={[m11X + 2, 0.8, m11Z - 1]} rotation={0.8} footprint={0.3} height={0.5} />
+      <GLBModel url={assetUrl('assets/glb/buildings/building_office_room_window.glb')} position={[mx24X, 0, mx24Z]} rotation={0.5} />
+      <GLBModel url={assetUrl('assets/glb/buildings/building_office_room_curtain.glb')} position={[mx03X, 0, mx03Z]} rotation={-0.3} />
+      <GLBModel url={assetUrl('assets/glb/interior/cinemamovie_theater_seat.glb')} position={[o33X - 1, 0, o33Z + 2]} rotation={1.5} footprint={1.5} height={1.5} />
     </Suspense>
   );
 }
-
-// Preload the smallest assets for faster initial load
-// REMOVED FOR BOOT PAYLOAD: useGLTF.preload(assetUrl('assets/glb/props/plastic_water_bottle.glb'));
-// REMOVED FOR BOOT PAYLOAD: useGLTF.preload(assetUrl('assets/glb/buildings/house_exterior.glb'));

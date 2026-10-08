@@ -13,6 +13,9 @@
  *
  * Audio: when state → ARRIVING, plays a Mate shout ("Circle! Circle!")
  * via Web Speech API (fallback: console.log if no speech synthesis).
+ *
+ * Labels: NEVER use <Html distanceFactor> under OrthographicCamera —
+ * drei scales by camera.zoom (~100× too big). Fixed screen size only.
  */
 
 import { useFrame } from '@react-three/fiber';
@@ -20,6 +23,12 @@ import { Html, useGLTF } from '@react-three/drei';
 import { useRef, useState, useEffect, useMemo, Suspense } from 'react';
 import * as THREE from 'three';
 import { assetUrl } from '../assetUrl';
+import { fitToFootprint } from './fitModel';
+import {
+  reportWorldLabel,
+  shouldShowWorldLabel,
+  tickWorldLabelFrame,
+} from './worldLabel';
 import {
   TrotroService,
   TrotroState,
@@ -28,57 +37,45 @@ import {
 } from '../game/World/TrotroService';
 import { eventService } from '../game/World/EventService';
 
-// ── Van model selector ─────────────────────────────────────────────────────
-
-
 export type VanModelId = 'small_van' | 'retro_vw';
 const VAN_PATHS: Record<VanModelId, string> = {
   small_van: assetUrl('assets/glb/vehicles/small_van.glb'),
   retro_vw: assetUrl('assets/glb/vehicles/retro_anime_vintage_volkswagen_van.glb'),
 };
 
-// Scale tuning per model (GLB exports vary wildly in scale)
-const VAN_SCALES: Record<VanModelId, number> = {
-  small_van: 0.5,
-  retro_vw: 0.4,
-};
-
-// ── GLB Van component ──────────────────────────────────────────────────────
+const TARGET_VAN_LENGTH = 5;
 
 function GLBVan({ modelId, doorOpen }: { modelId: VanModelId; doorOpen: boolean }) {
   const url = VAN_PATHS[modelId];
-  const scale = VAN_SCALES[modelId];
   const { scene } = useGLTF(url, assetUrl('draco/'));
 
-  const cloned = useMemo(() => {
+  const fitted = useMemo(() => {
     const m = scene.clone(true);
     m.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         child.castShadow = true;
         child.receiveShadow = true;
-        // Tint the van yellow for trotro branding (override material color)
         if (child.material instanceof THREE.MeshStandardMaterial) {
           const mat = child.material.clone();
-          mat.color = new THREE.Color(0xf59e0b); // MTN yellow
+          mat.color = new THREE.Color(0xf59e0b);
           mat.roughness = 0.5;
           child.material = mat;
         }
       }
     });
-    return m;
-  }, [scene]);
+    return fitToFootprint(m, TARGET_VAN_LENGTH, undefined, url);
+  }, [scene, url]);
 
-  // Try to find and animate a "door" child mesh
   const doorRef = useRef<THREE.Object3D | null>(null);
 
   useEffect(() => {
-    cloned.traverse((child) => {
+    fitted.traverse((child) => {
       const name = (child.name || '').toLowerCase();
       if (name.includes('door') || name.includes('slide') || name.includes('passenger')) {
         doorRef.current = child;
       }
     });
-  }, [cloned]);
+  }, [fitted]);
 
   useFrame(() => {
     if (!doorRef.current) return;
@@ -86,10 +83,8 @@ function GLBVan({ modelId, doorOpen }: { modelId: VanModelId; doorOpen: boolean 
     doorRef.current.rotation.y += (target - doorRef.current.rotation.y) * 0.1;
   });
 
-  return <primitive object={cloned} scale={scale} />;
+  return <primitive object={fitted} />;
 }
-
-// ── Procedural fallback van (if GLB fails to load) ─────────────────────────
 
 const VAN_COLOR = 0xf59e0b;
 const VAN_STRIPE = 0xfacc15;
@@ -147,8 +142,6 @@ function ProceduralVan({ doorOpen }: { doorOpen: boolean }) {
   );
 }
 
-// ── Van wrapper (tries GLB, falls back to procedural) ──────────────────────
-
 function TrotroVan({ doorOpen, vanModel }: { doorOpen: boolean; vanModel: VanModelId }) {
   return (
     <Suspense fallback={<ProceduralVan doorOpen={doorOpen} />}>
@@ -156,8 +149,6 @@ function TrotroVan({ doorOpen, vanModel }: { doorOpen: boolean; vanModel: VanMod
     </Suspense>
   );
 }
-
-// ── Mate character ──────────────────────────────────────────────────────────
 
 function MateCharacter({ boarding }: { boarding: boolean }) {
   const mateRef = useRef<THREE.Group>(null);
@@ -194,8 +185,6 @@ function MateCharacter({ boarding }: { boarding: boolean }) {
   );
 }
 
-// ── Audio ────────────────────────────────────────────────────────────────────
-
 function playMateShout(text: string) {
   try {
     if ('speechSynthesis' in window) {
@@ -209,8 +198,6 @@ function playMateShout(text: string) {
   console.log(`[trotro] Mate shouts: "${text}"`);
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
-
 interface LivingTrotroProps {
   position: [number, number, number];
   trotroService: TrotroService;
@@ -221,6 +208,8 @@ export function LivingTrotro({ position, trotroService, vanModel = 'small_van' }
   const [state, setState] = useState<TrotroState>(trotroService.getState());
   const vanGroupRef = useRef<THREE.Group>(null);
   const [dialogue, setDialogue] = useState<string>('');
+  const [labelVisible, setLabelVisible] = useState(false);
+  const labelId = useMemo(() => `trotro-${position[0]}-${position[2]}`, [position]);
 
   const arriveFrom = useMemo<[number, number, number]>(() => [position[0] - 15, 0, position[2]], [position]);
   const departTo = useMemo<[number, number, number]>(() => [position[0] + 20, 0, position[2]], [position]);
@@ -230,9 +219,6 @@ export function LivingTrotro({ position, trotroService, vanModel = 'small_van' }
       setState(change.state);
       switch (change.state) {
         case 'ARRIVING': {
-          // v4.9: RUSH_HOUR barks the surge lines; NORMAL keeps the relaxed
-          // route-call pool. The event is read from the shared singleton so
-          // both van layers agree even though each owns a TrotroService.
           const rush = eventService.isRushHour();
           const pool = rush ? MATE_LINES.RUSH_HOUR : MATE_LINES.ARRIVING;
           const line = pool[Math.floor(Math.random() * pool.length)];
@@ -241,10 +227,6 @@ export function LivingTrotro({ position, trotroService, vanModel = 'small_van' }
           break;
         }
         case 'IDLE_AT_STOP': {
-          // v4.8 culture pass: the dwell is when a real Mate is LOUDEST —
-          // bark a change-call / fill-up grumble instead of a dry seats readout
-          // (fare + balance stay on the GTA prompt and the Mate panel).
-          // v4.9: during RUSH_HOUR the bark carries the surge price.
           const rush = eventService.isRushHour();
           const dwell = rush
             ? MATE_LINES.RUSH_HOUR[Math.floor(Math.random() * MATE_LINES.RUSH_HOUR.length)]
@@ -270,6 +252,7 @@ export function LivingTrotro({ position, trotroService, vanModel = 'small_van' }
   }, [trotroService]);
 
   useFrame((_state, delta) => {
+    tickWorldLabelFrame();
     if (!vanGroupRef.current) return;
     const lerpSpeed = delta * 2;
     let targetX = position[0];
@@ -281,6 +264,18 @@ export function LivingTrotro({ position, trotroService, vanModel = 'small_van' }
       case 'DEPARTING': targetX = departTo[0]; break;
     }
     vanGroupRef.current.position.x += (targetX - vanGroupRef.current.position.x) * lerpSpeed;
+
+    if (state !== 'EN_ROUTE') {
+      const player = (window as unknown as { __r3fPlayer?: { position: THREE.Vector3 } }).__r3fPlayer;
+      const dist = player
+        ? Math.hypot(player.position.x - vanGroupRef.current.position.x, player.position.z - vanGroupRef.current.position.z)
+        : 999;
+      reportWorldLabel(labelId, dist);
+      const show = shouldShowWorldLabel(labelId);
+      if (show !== labelVisible) setLabelVisible(show);
+    } else if (labelVisible) {
+      setLabelVisible(false);
+    }
   });
 
   const doorOpen = state === 'IDLE_AT_STOP' || state === 'BOARDING';
@@ -292,20 +287,25 @@ export function LivingTrotro({ position, trotroService, vanModel = 'small_van' }
       {(state === 'IDLE_AT_STOP' || state === 'BOARDING') && (
         <MateCharacter boarding={isBoarding} />
       )}
-      {state !== 'EN_ROUTE' && (
-        <Html position={[0, 3.5, 0]} center distanceFactor={10}>
+      {state !== 'EN_ROUTE' && labelVisible && (
+        <Html position={[0, 3.5, 0]} center zIndexRange={[40, 0]}>
           <div style={{
             background: 'rgba(8,8,8,0.92)',
             border: `1.5px solid ${isBoarding ? '#22c55e' : '#facc15'}`,
             borderRadius: '4px',
-            padding: '6px 12px',
+            padding: '6px 10px',
             color: '#f8fafc',
-            fontFamily: 'Arial Narrow, Arial, sans-serif',
+            fontFamily: 'system-ui, sans-serif',
             fontSize: '0.7rem',
             fontWeight: 700,
             textAlign: 'center',
             pointerEvents: 'none',
-            minWidth: '120px',
+            whiteSpace: 'nowrap',
+            maxWidth: '140px',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            transition: 'opacity 150ms ease',
+            opacity: 1,
           }}>
             <div style={{ color: '#facc15', fontSize: '0.6rem', marginBottom: '2px' }}>
               {state.replace(/_/g, ' ')}
@@ -317,7 +317,3 @@ export function LivingTrotro({ position, trotroService, vanModel = 'small_van' }
     </group>
   );
 }
-
-// Preload the primary van model
-// REMOVED FOR BOOT PAYLOAD: useGLTF.preload(VAN_PATHS.small_van);
-// REMOVED FOR BOOT PAYLOAD: useGLTF.preload(VAN_PATHS.retro_vw);

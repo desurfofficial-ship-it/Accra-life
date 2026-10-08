@@ -38,13 +38,15 @@ import { useGLTF } from '@react-three/drei';
 import { useEffect, useMemo, useRef, type RefObject, type MutableRefObject } from 'react';
 import * as THREE from 'three';
 import { assetUrl } from '../assetUrl';
+import { fitToFootprint } from './fitModel';
 
 const AVATAR_URL = assetUrl('assets/glb/characters/sunset-walking-low-poly-girl-rigged/sunset_walking_low_poly_girl_rigged.glb');
 
 // Scale tuning — Sketchfab exports vary wildly; this single value was
 // picked so the girl avatar is roughly 1.6m tall (eye-line ≈ 1.4m).
 // Tweak via window.__playerAvatarScale for runtime debugging.
-const AVATAR_SCALE = 0.5;
+const AVATAR_FOOTPRINT = 1.0; // ~1m wide
+const AVATAR_HEIGHT = 1.8; // ~1.8m tall
 
 // Procedural walk constants — used only when the model has 0 animation
 // clips. Tuned for a "natural" walking cadence at MOVE_SPEED = 6 m/s.
@@ -118,7 +120,7 @@ export function LivingPlayerAvatar({ isMovingRef, isSprintingRef, parentGroupRef
   // Clone the scene + apply shadow + scale + recenter on ground.
   const cloned = useMemo(() => {
     const m = gltf.scene.clone(true);
-    m.scale.setScalar(AVATAR_SCALE);
+
     m.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         child.castShadow = true;
@@ -126,13 +128,10 @@ export function LivingPlayerAvatar({ isMovingRef, isSprintingRef, parentGroupRef
       }
     });
 
-    // Recenter on the ground at the origin of the parent group.
-    // Measure bbox post-scale to lift the base to y=0.
-    const box = new THREE.Box3().setFromObject(m);
-    const center = new THREE.Vector3();
-    box.getCenter(center);
-    m.position.set(-center.x, -box.min.y, -center.z);
-    return m;
+    const group = fitToFootprint(m, AVATAR_FOOTPRINT, AVATAR_HEIGHT, AVATAR_URL);
+    // Store the inner clone for the procedural-walk transform access.
+    (group as unknown as { __innerClone: THREE.Object3D }).__innerClone = m;
+    return group;
   }, [gltf]);
 
   // Set up the AnimationMixer + create actions for every clip.
@@ -254,7 +253,8 @@ export function LivingPlayerAvatar({ isMovingRef, isSprintingRef, parentGroupRef
       // sine-wave vertical bob + Z-axis sway to the cloned mesh to give
       // the visual illusion of walking when isMoving is true. When
       // stationary, lerp back to neutral pose (y=0, z-rot=0).
-      if (!modelGroupRef.current) return;
+      const innerClone = (cloned as unknown as { __innerClone?: THREE.Object3D }).__innerClone;
+      if (!innerClone) return;
       if (isMoving) {
         // Advance the phase by delta * frequency * 2π.
         procPhaseRef.current += delta * PROC_WALK_FREQ_HZ * Math.PI * 2;
@@ -271,15 +271,15 @@ export function LivingPlayerAvatar({ isMovingRef, isSprintingRef, parentGroupRef
         const baseY = -new THREE.Box3().setFromObject(cloned).min.y;
         // Note: cloned's position was set to (-center.x, -box.min.y, -center.z)
         // in the useMemo above — we offset from there.
-        cloned.position.y = (cloned.position.y >= 0 ? cloned.position.y : 0) + bob * 0.5;
-        cloned.rotation.z = sway;
+        innerClone.position.y = (innerClone.position.y >= 0 ? innerClone.position.y : 0) + bob * 0.5;
+        innerClone.rotation.z = sway;
       } else {
         // Lerp back to neutral — smooth deceleration of the bob + sway.
-        cloned.position.y *= 0.85;
-        cloned.rotation.z *= 0.85;
+        innerClone.position.y *= 0.85;
+        innerClone.rotation.z *= 0.85;
         // Snap to zero when close enough to avoid float drift.
-        if (Math.abs(cloned.position.y) < 0.001) cloned.position.y = 0;
-        if (Math.abs(cloned.rotation.z) < 0.001) cloned.rotation.z = 0;
+        if (Math.abs(innerClone.position.y) < 0.001) innerClone.position.y = 0;
+        if (Math.abs(innerClone.rotation.z) < 0.001) innerClone.rotation.z = 0;
       }
     }
   });
