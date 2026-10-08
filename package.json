@@ -12,7 +12,8 @@
     "test:phase6-event": "npx --yes tsx scripts/test_eventservice.ts",
     "test:phase6-scheduler": "npx --yes tsx scripts/test_gameclock_scheduler.ts",
     "test:phase7-vendor": "npx --yes tsx scripts/test_vendor_service.ts",
-    "test:all": "npm run test:phase6-event && npm run test:phase6-scheduler && npm run test:phase7-vendor",
+    "test:fit": "npx --yes tsx scripts/test_fit_model.ts",
+    "test:all": "npm run test:phase6-event && npm run test:phase6-scheduler && npm run test:phase7-vendor && npm run test:fit",
     "optimize:assets": "bash scripts/optimize-assets.sh",
     "test:camera": "npx --yes tsx scripts/test_follow_camera.ts"
   },
