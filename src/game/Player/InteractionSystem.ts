@@ -79,10 +79,8 @@ export class InteractionSystem {
     this.objectiveBeaconGroup.add(objRingMesh, this.objectiveDiamondMesh);
     scene.add(this.objectiveBeaconGroup);
 
-    // Subscribe to single-press E / Enter via InputManager (key auto-repeat is filtered out)
-    inputManager.onInteractPressed(() => {
-      this.triggerCurrentInteraction();
-    });
+    // E / Enter is bound in game-init → handleActPress (never opens the Jobs hub).
+    void inputManager;
   }
 
   public registerTarget(target: InteractableTarget): void {
