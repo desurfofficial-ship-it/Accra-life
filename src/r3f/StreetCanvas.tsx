@@ -35,6 +35,7 @@ import { MAKOLA_VENDOR_STAND_WORLD } from '../game/World/GridMap';
 import { getGameAPI } from './gameAPIBridge';
 import { TroTroPrompt } from '../ui/TroTroPrompt';
 import { EventBanner } from '../ui/EventBanner';
+import { ClockHud } from '../ui/ClockHud';
 
 /** Prompt range — matches the systems-layer trotro_stop radius (3.5 m). */
 const TROTRO_PROMPT_RANGE = 3.5;
@@ -58,6 +59,10 @@ function PlayerAvatar({ groupRef }: PlayerAvatarProps) {
   // Phase-8 animation-gating: tracks whether the player is currently moving
   // (dx/dz ≠ 0) so LivingPlayerAvatar can pause the walk animation when idle.
   const isMovingRef = useRef(false);
+  // Phase-8 polish: tracks whether the player is sprinting (Jog button OR
+  // keyboard Shift) so LivingPlayerAvatar can pick the run clip when one
+  // exists, or speed up the procedural walk bob/sway.
+  const isSprintingRef = useRef(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => { keysRef.current[e.key.toLowerCase()] = true; };
@@ -108,6 +113,14 @@ function PlayerAvatar({ groupRef }: PlayerAvatarProps) {
     // Phase-8 animation gating: write isMoving so LivingPlayerAvatar's
     // useFrame can pause/resume the walk animation.
     isMovingRef.current = (dx !== 0 || dz !== 0);
+    // Phase-8 polish: write isSprinting — driven by the agent joystick
+    // virtualSprint flag OR the keyboard Shift keys. When gameAPI isn't
+    // booted (pre-onboarding), fall back to checking keysRef for Shift.
+    if (api) {
+      isSprintingRef.current = api.input.getMovementInput().sprint;
+    } else {
+      isSprintingRef.current = !!(keysRef.current['shift'] || keysRef.current['shiftleft'] || keysRef.current['shiftright']);
+    }
   });
 
   // Spawn at Adabraka (cell [0,0] = home district)
@@ -118,8 +131,10 @@ function PlayerAvatar({ groupRef }: PlayerAvatarProps) {
       {/* Phase-8: real rigged character model (Sunset Walking Low Poly Girl
           by micaelsampaio, CC-BY-4.0). Walk animation plays on loop; the
           isMovingRef gates it — paused when the player stands still, resumed
-          when WASD/joystick input is non-zero. */}
-      <LivingPlayerAvatar isMovingRef={isMovingRef} />
+          when WASD/joystick input is non-zero. isSprintingRef drives the
+          run clip when one exists (currently no run clip → procedural walk
+          is just sped-up; future models with a run clip will use it). */}
+      <LivingPlayerAvatar isMovingRef={isMovingRef} isSprintingRef={isSprintingRef} />
     </group>
   );
 }
@@ -296,6 +311,13 @@ export function StreetCanvas() {
           Subscribes to eventService.onEventChange internally; shows the
           live in-game clock alongside the alert text. */}
       <EventBanner />
+
+      {/* Phase 6+ polish: persistent in-game clock HUD — fixed top-right.
+          Shows the in-game time (HH:MM) + day phase icon + current event
+          badge + next-rush countdown. Helps the player plan around Rush
+          Hour windows. Subscribes to gameClock via 1s poll +
+          eventService.onEventChange + eventScheduler.getNextTriggerHour(). */}
+      <ClockHud />
     </>
   );
 }

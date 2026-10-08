@@ -91,6 +91,25 @@ class EventScheduler {
     return this.triggerRules;
   }
 
+  /**
+   * Returns the next trigger rule that will fire, given the current in-game
+   * hour. Wraps at midnight (returns the first trigger of the next day if
+   * we're past all of today's triggers). Returns null if no rules configured.
+   *
+   * Used by ClockHud to show "Next rush at HH:00 (in N min)" — gives the
+   * player a planning aid so they know when Rush Hour is coming.
+   */
+  public getNextTriggerHour(currentHour: number): RushHourTriggerRule | null {
+    if (this.triggerRules.length === 0) return null;
+    // Find the next trigger at or AFTER currentHour.
+    for (const rule of this.triggerRules) {
+      if (rule.hour >= currentHour) return rule;
+    }
+    // Wrap — all today's triggers are past. Return the first trigger
+    // (next day). Caller can compute the wrap-around countdown.
+    return this.triggerRules[0];
+  }
+
   /** Override the default trigger rules (e.g. for tests or admin config). */
   public setTriggerRules(rules: readonly RushHourTriggerRule[]): void {
     this.triggerRules = rules;
