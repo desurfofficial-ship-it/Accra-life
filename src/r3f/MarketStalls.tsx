@@ -1,25 +1,50 @@
+/**
+ * MarketStalls.tsx — food GLB props on stall tables, auto-scaled.
+ */
 import { useGLTF } from '@react-three/drei';
 import { Suspense, useMemo } from 'react';
+import * as THREE from 'three';
 import { cellCenter } from './AccraCityGrid';
 import { assetUrl } from '../assetUrl';
 import { fitToFootprint } from './fitModel';
 
 const FOOD_ITEMS = [
-  { file: 'banana', scale: 0.8, offset: [-3, 0, -2] },
-  { file: 'apple', scale: 0.8, offset: [-1.5, 0, -2] },
-  { file: 'bread', scale: 0.7, offset: [0, 0, -2] },
-  { file: 'beet', scale: 0.7, offset: [1.5, 0, -2] },
-  { file: 'avocado', scale: 0.7, offset: [3, 0, -2] },
-  { file: 'barrel', scale: 0.6, offset: [-3, 0, 2] },
-  { file: 'bowl', scale: 0.6, offset: [-1, 0, 2] },
-  { file: 'bottle-ketchup', scale: 0.7, offset: [1, 0, 2] },
-  { file: 'bag', scale: 0.7, offset: [3, 0, 2] },
+  { file: 'banana', offset: [-3, 0, -2] as [number, number, number] },
+  { file: 'apple', offset: [-1.5, 0, -2] as [number, number, number] },
+  { file: 'bread', offset: [0, 0, -2] as [number, number, number] },
+  { file: 'beet', offset: [1.5, 0, -2] as [number, number, number] },
+  { file: 'avocado', offset: [3, 0, -2] as [number, number, number] },
+  { file: 'barrel', offset: [-3, 0, 2] as [number, number, number] },
+  { file: 'bowl', offset: [-1, 0, 2] as [number, number, number] },
+  { file: 'bottle-ketchup', offset: [1, 0, 2] as [number, number, number] },
+  { file: 'bag', offset: [3, 0, 2] as [number, number, number] },
 ];
 
-function FoodItem({ file, position, scale }: { file: string; position: [number, number, number]; scale: number }) {
-  const { scene } = useGLTF(assetUrl(`assets/glb/food/${file}.glb`), assetUrl('draco/'));
-  const cloned = useMemo(() => scene.clone(true), [scene]);
-  return <primitive object={cloned} position={position} scale={scale} castShadow receiveShadow />;
+function FoodItem({
+  file,
+  position,
+}: {
+  file: string;
+  position: [number, number, number];
+}) {
+  const url = assetUrl(`assets/glb/food/${file}.glb`);
+  const { scene } = useGLTF(url, assetUrl('draco/'));
+  const fitted = useMemo(() => {
+    const m = scene.clone(true);
+    m.traverse((c) => {
+      if (c instanceof THREE.Mesh) {
+        c.castShadow = true;
+        c.receiveShadow = true;
+      }
+    });
+    return fitToFootprint(m, 0.4, 0.5, url);
+  }, [scene, url]);
+
+  return (
+    <group position={position}>
+      <primitive object={fitted} />
+    </group>
+  );
 }
 
 function StallTable({ position }: { position: [number, number, number] }) {
@@ -48,7 +73,10 @@ export function MarketStalls() {
           {FOOD_ITEMS.map((item, i) => (
             <group key={`food-${stallIdx}-${i}`}>
               <StallTable position={[item.offset[0], 0, item.offset[2]]} />
-              <FoodItem file={item.file} position={[item.offset[0], 0.78, item.offset[2]]} scale={item.scale} />
+              <FoodItem
+                file={item.file}
+                position={[item.offset[0], 0.78, item.offset[2]]}
+              />
             </group>
           ))}
         </group>
@@ -56,4 +84,3 @@ export function MarketStalls() {
     </Suspense>
   );
 }
-// REMOVED FOR BOOT PAYLOAD: FOOD_ITEMS.forEach((item) => useGLTF.preload(assetUrl(`assets/glb/food/${item.file}.glb`)));
